@@ -43,7 +43,7 @@
 - `index.js` — bin entry (`clear-diff`). Currently a stub.
 - Invocation: `clear-diff` (worktree vs `origin/main`), `clear-diff <base>..<head>`, `clear-diff --pr N` (later).
 
-See [`docs/concept.md`](docs/concept.md) for the full product model. Treat it as the source of intent. Architecture: [`docs/adr/`](docs/adr/) — hexagonal core (0003), agent/master-list security invariant (0004), atom identity (0002).
+See [`docs/concept.md`](docs/concept.md) for the full product model. Treat it as the source of intent. Architecture: [`docs/adr/`](docs/adr/) — hexagonal core (0003), agent/master-list security invariant (0004), atom identity (0002), marks persistence (0005).
 
 ## Core model — two layers, never mixed
 

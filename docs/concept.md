@@ -81,6 +81,8 @@ This makes the whole thing work:
 
 When atoms merge or split between revisions, they simply resurface — correct behaviour, since something there genuinely changed. (Conceptually this is what `git range-diff` does — fuzzy-matching hunks across two versions of a patch — done as a lightweight content hash.)
 
+Marks are stored as a per-review append-only event log, folded to current state on each open — see [ADR-0005](adr/0005-review-store-event-log.md).
+
 ---
 
 ## Ordering
