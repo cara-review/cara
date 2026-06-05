@@ -31,6 +31,11 @@
 ## Code style
 - Focus on the current, intended state of the code. Change history lives in git — don't reflect it in comments, names, or architecture.
 
+## TypeScript
+- `strict` plus `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noUnusedLocals`, `noUnusedParameters`, `useUnknownInCatchVariables`.
+- No `any`, implicit or explicit (lint-enforced). `unknown` + narrow at boundaries.
+- Inference-first. Annotate only at seams (exported signatures, port interfaces); implementations infer. Generics where they earn reuse.
+
 # Project
 
 **clear-diff** — a local-first, diff-first conversational code reviewer. The agent reads a whole diff, reorganises it into a navigable structure, and surfaces the right part at the right time. You direct; it writes the comments (voice-first). Node CLI.
@@ -38,7 +43,7 @@
 - `index.js` — bin entry (`clear-diff`). Currently a stub.
 - Invocation: `clear-diff` (worktree vs `origin/main`), `clear-diff <base>..<head>`, `clear-diff --pr N` (later).
 
-See [`docs/concept.md`](docs/concept.md) for the full product model. Treat it as the source of intent.
+See [`docs/concept.md`](docs/concept.md) for the full product model. Treat it as the source of intent. Architecture: [`docs/adr/`](docs/adr/) — hexagonal core (0003), agent/master-list security invariant (0004), atom identity (0002).
 
 ## Core model — two layers, never mixed
 

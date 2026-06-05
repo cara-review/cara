@@ -22,6 +22,16 @@ _Avoid_: hunk (in user-facing copy), chunk.
 **mark**:
 A user's disposition on an atom — `done` or `skipped` — keyed by content hash of the atom's payload.
 
+**master list**:
+The complete, canonical set of atoms for a Review, computed by the domain straight from the diff. Authoritative; the agent grouping can never add to, remove from, or hide it.
+
+**grouping**:
+The agent's arrangement of the master list into Chapters and Sections. A disposable overlay, regenerated when the atom set changes; never authoritative over what exists.
+
+**review context**:
+The specific diff under review (`feat-x..origin/main`, the uncommitted worktree, or `pr/63`). Reviews are isolated per context; marks never bleed between them.
+_Avoid_: session.
+
 ### Form factor options (decision in #1)
 
 **standalone desktop**:
@@ -39,7 +49,9 @@ The `clear-diff` CLI boots a localhost server and opens an `--app`-mode browser 
 
 ## Relationships
 
+- A **Review** is scoped to exactly one **review context**
 - A **Review** has one or more **Chapters**
 - A **Chapter** has one or more **Sections**
 - A **Section** groups one or more **atoms** (which may come from several files)
 - A **mark** belongs to exactly one **atom**
+- The **master list** is the canonical atom set of a **Review**; a **grouping** arranges it but cannot add, remove, or hide atoms
