@@ -1,0 +1,8 @@
+node_modules/
+
+# Runtime per-clone state — the approval marker etc. The dir is tracked (via README), contents are not.
+/.agent-state/*
+!/.agent-state/README.md
+
+# Personal Claude Code overrides
+/.claude/settings.local.json
