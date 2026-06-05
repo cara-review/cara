@@ -2,6 +2,9 @@
   "name": "clear-diff",
   "version": "0.1.0",
   "description": "Clearance for your code. A Diff 2.0 reviewer.",
+  "scripts": {
+    "test": "echo \"no tests yet\" && exit 0"
+  },
   "bin": {
     "clear-diff": "./index.js"
   },
