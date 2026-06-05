@@ -11,11 +11,11 @@ last_updated: 2026-06-05
 
 ## The Problem
 
-PR review was designed for a world where a human typed every line, so a human read every line. That world is ending. Code is increasingly agent-generated, automated reviewers already cover conventions and coverage, linting and CI catch the mechanical issues — and the volume of change is rising fast.
+PR review assumed a human typed every line, so a human read every line. That world is ending: code is increasingly agent-generated, automated reviewers already cover conventions and coverage, linting and CI catch the mechanical issues, and the volume of change is rising fast.
 
 The result: the diff-browsing UI from 2008 now works against you. You open a 400-line diff and feel dread. Where do you even start?
 
-**The diff is the wrong primary interface.** Not because diffs are useless — they're the evidence — but because being handed *all* of it, in file order, with no sense of what matters, is the wrong starting point.
+**The diff is the wrong primary interface.** Diffs aren't useless; they're the evidence. But being handed *all* of it, in file order, with no sense of what matters, is the wrong starting point.
 
 clear-diff fixes the *starting point*, not by guessing what you care about, but by **structuring the change and showing you the right part at the right time.**
 
@@ -54,13 +54,13 @@ This is what lets review feel like reading a report instead of scrolling a file 
 
 ## Two Layers: Mechanical and Semantic
 
-The single most important design decision. The structure has two layers, and they're kept strictly separate:
+The single most important design decision. Two layers, kept strictly separate:
 
 **Mechanical layer (git — stable, deterministic).** The atoms. We take the diff with fine granularity (`git diff -U0 --histogram -M`) so git itself splits the change into small, contiguous line-runs. No arbitrary line-drawing by the agent — the atoms are whatever git emits.
 
 **Semantic layer (agent — fluid, disposable).** Chapters and Sections are groupings *over* atoms. The agent regroups and reorders these freely on every run.
 
-The two layers never contaminate each other, and that buys us everything below.
+The two layers never contaminate each other. That buys everything below.
 
 ---
 
@@ -93,7 +93,7 @@ Importance reorders the coarse grain; git keeps the fine grain stable.
 | **Sections** | by relevance — **not** git order | group related change, relegate tests/docs even within the same file |
 | **atoms** | **git order, always** | within a coherent unit, lines never jump around |
 
-So the agent tells you *what's important* and *what's related*; git tells you *where things are* inside any one section. A file can therefore appear in several places — domain section early, test section late — and that revisiting is intentional. The diff view renders a file in pieces (*atom, gap, atom*), never assuming one continuous file.
+So the agent tells you *what's important* and *what's related*; git tells you *where things are* inside any one section. A file can therefore appear in several places (domain section early, test section late), and that revisiting is intentional. The diff view renders a file in pieces (*atom, gap, atom*), never assuming one continuous file.
 
 The atoms-in-git-order floor is the safety net: even a poor grouping never feels fully random.
 
@@ -161,12 +161,14 @@ Deliberately not in the first cut — noted so they don't creep in:
 - A persistent log/audit trail of what was reviewed (a likely V2)
 - Multi-platform (GitLab, Bitbucket)
 - Learning your preferences over time from review history
-- Standalone-desktop vs in-host (MCP app) form factor — **the one open decision**, deferred until the model is proven
+- A native desktop (Electron) shell — deferred behind the local-web build; see [ADR-0001](adr/0001-form-factor-local-web-first.md)
 
 ---
 
-## The One Open Decision
+## Form Factor
 
-**Form factor.** A standalone desktop app gives full control of the click-line / voice / split-pane / open-in-editor experience, keyboard-driven and focused — but it's heavier to build. Riding inside an existing host (Claude Code / Claude Desktop as an MCP app with inline HTML) is far cheaper and reuses chat + credentials — but constrains the UI to what the host can render.
+**Decided ([ADR-0001](adr/0001-form-factor-local-web-first.md)): a local web app, Electron deferred.** The `clear-diff` CLI boots a localhost server and opens the UI in an `--app`-mode window. All real work (git, atom hashing, open-in-editor) lives in the local Node server; the form factor is only the rendering shell, so a later Electron wrapper (a native window onto the same `localhost` UI) stays thin and additive.
 
-Everything else in this document is decided. This is the next thing to pin down.
+In-host MCP (inline HTML in Claude Code / Desktop) is rejected: the dominant host is a terminal with no canvas, and a focused, keyboard-driven split-pane can't live in a borrowed panel. Voice is not built — speech→text is delegated to OS-level dictation.
+
+The one residual question is the **Electron trigger**: whether `--app`-mode keyboard ownership suffices, resolved by dogfooding rather than up front.

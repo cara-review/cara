@@ -62,6 +62,7 @@ Use these terms exactly in code, docs, commits, and conversation:
 
 - [`docs/`](docs/) — project docs. [`docs/concept.md`](docs/concept.md) is the product spec.
 - Code change affects docs → update in the same change.
+- After writing or editing any doc, run `/streamline-doc` on it before committing.
 - **Repo state:** `.claude/` = policy, skills, settings (checked in). `.agent-state/` = runtime per-clone state, e.g. the approval marker (gitignored). Never invert.
 
 # Workflow: trunk-based
