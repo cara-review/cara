@@ -111,7 +111,7 @@ This is **not** a normal file diff. Key rules:
 - Render as **change-block, gap, change-block**: a small run of changed lines, then a visible "… skipped N lines …" gap affordance, then the next run. **Never assume one continuous file.** A file can also appear again later in a different Section — that revisiting is intentional, not a bug.
 - Each change-block is labelled with its file (and is clickable/keyable to **open the real file at that line** in the user's editor).
 - Each change-block also carries its own **review tick** — a single click/key marks just that block reviewed (it dims back), and the Section auto-completes once every block is ticked. This is the "zap-zap-zap" path: power users tick block-by-block; others mark the whole Section in one key (see Flow 1). Both feed the same underlying state. Label it **"Reviewed" / "Mark reviewed"**, **never "atom"** or "hunk".
-- Standard add/remove styling, syntax-aware. The diff is syntax-highlighted; added/removed use semantic colour *plus* a non-colour cue (so it survives colour-blindness and grayscale).
+- Standard add/remove styling, syntax-aware. The diff is syntax-highlighted; added/removed use semantic colour *plus* a non-colour cue (so it survives colour-blindness and grayscale). The `+`/`-` sign is that cue — **don't strike through removed lines** (it hurts code legibility).
 - A line is the unit you **comment** on: hovering/focusing a line exposes a comment affordance.
 - Design **split (side-by-side)** and **unified (inline)** diff modes; unified is the default, both keyboard-toggleable.
 
@@ -130,7 +130,8 @@ This is **not** a normal file diff. Key rules:
 Design the full state of each, in light and dark.
 
 ### 1. Marking a Section
-The primary loop. From a focused Section the user can **mark done** or **skip** with a single key. Design:
+The primary loop. From a focused Section the user can **mark done** (`D`) or **skip** (`S`) with a single key. Design:
+- **Two visible controls back the key:** a **Done** toggle in the section-header action row (beside Skip and the `J`/`K` nav hints), and a prominent **Done & Next** button below the diff as the end-of-section CTA. Both carry the **tick (✓) glyph, never an arrow** — the mark action reads identically wherever it appears. `D` drives both: mark done and advance.
 - The transition (row + diff updating to the new state).
 - Auto-advance: after marking, focus moves to the next unreviewed Section. Make that movement legible.
 - Skipped Sections are de-emphasised but **never hidden or deleted** — always re-revealable. (Skip ≠ delete.)
@@ -175,7 +176,7 @@ Design every one of these. They are where the app feels finished or cheap:
 ## Keyboard & focus model
 
 - **A visible focus ring at all times**, unmistakable across nav / diff / chat. The user should always know what a keypress will act on.
-- **Single-key bindings for the hot path:** next / previous Section, mark done, skip, comment, open file, toggle chat, toggle diff mode. Vim-style `j`/`k` alongside arrows.
+- **Single-key bindings for the hot path:** next / previous Section (`j`/`k` + arrows), **mark done & advance (`D`)**, **skip (`S`)**, comment, open file, toggle chat, toggle diff mode.
 - **Contextual keys:** the same key does the obvious thing for whatever's focused.
 - **Chords for global actions:** `⌘K` palette, pane toggles, Go.
 - Bindings are **remappable**, and the palette always shows the current binding. Design a simple keyboard-shortcuts reference/cheat-sheet surface (a palette mode or an overlay).

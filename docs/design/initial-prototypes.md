@@ -17,6 +17,7 @@ These are a **starting point**, not a spec. Where they diverge from the agreed m
 
 - Dark mode: [`prototypes/dark-mode.png`](prototypes/dark-mode.png)
 - Light mode: [`prototypes/light-mode.png`](prototypes/light-mode.png)
+- Live source: [Gemini design session](https://gemini.google.com/app/5a65fe3f9b8dcbfb) — iterations continue here beyond these stills (e.g. the **Done & Next** button and `D` binding below).
 
 ![Dark mode](prototypes/dark-mode.png)
 ![Light mode](prototypes/light-mode.png)
@@ -101,7 +102,7 @@ Fixed 3-pane shell. Dimensions transcribed:
 - **Progress** — bar `w-32 h-1.5 rounded-full`, accent fill, + "`<n>` left" in `text-xs textMuted`.
 - **Nav pane** `w-64`, `bgPanel`, right border. "STRUCTURE" label row with a collapse chevron. Tree: Chapter header rows (`text-sm font-medium`, rotating chevron) → Section rows (`pl-6`, mark glyph + title + hover-revealed count).
 - **Active Section row** — `bgHover` + left accent bar via `shadow-[inset_2px_0_0_0_#5E6AD2]`.
-- **Diff pane** `flex-1`. Sticky section header (`h-14`, `px-6`, `backdrop-blur`) shows the active Section's mark glyph + title, and inline key hints (`M` mark done, `S` skip, `J`/`K` navigate). Content area `pb-32`.
+- **Diff pane** `flex-1`. Sticky section header (`h-14`, `px-6`, `backdrop-blur`) shows the active Section's mark glyph + title, and a right-aligned action row: a **Done** toggle (`D`), **Skip** (`S`), and `J`/`K` nav hints. Content area `pb-32`, with a **Done & Next** CTA button (`D`) below the diff.
 - **Chat pane** `w-80`, `bgPanel`, left border. Header `h-14` ("Chapter Q&A" + current chapter name). Scrolling messages, then a bottom `textarea` (`rows=1`, send button) with `focus:ring-1 focus:ring-accent`.
 - **Command palette** — centered modal `w-[500px]`, `pt-[15vh]`, `rounded-xl`, `shadow-2xl`, dimmed blurred backdrop. Search input row (search icon + `ESC` keycap) over a grouped, scrollable results list (`max-h-[300px]`), each row = action label + its shortcut keycap.
 
@@ -120,7 +121,8 @@ Fixed 3-pane shell. Dimensions transcribed:
 - **Gap** — full-width "Expand `<n>` hidden lines" bar between hunks, `text-xs` centred, non-selectable.
 - **Diff line** — `w-12` line-number gutter (right-aligned, dimmed) · `w-6` sign column (`+`/`-`/space) · code. Added: add bg + `diffAddText`. Removed: rem bg + `diffRemText` + `line-through`. *(See divergences: drop strikethrough.)*
 - **Chat bubbles** — "You" (raised bg, `rounded-tr-none`) vs "Agent" (with ray icon, `rounded-tl-none`); inline code chips for identifiers.
-- **Go button** — two states: disabled-looking "Review incomplete" (muted) → accent "Go (Dispatch)" once `unreviewed === 0`.
+- **Done controls** — a **Done** toggle in the section-header action row and a prominent accent **Done & Next** button below the diff; both bound to `D` (mark done + advance). Standardise on the **tick (✓) glyph** across both (the prototype's bottom button still shows an arrow — see divergences).
+- **Go button** — final dispatch, distinct from Done. Two states: disabled-looking "Review incomplete" (muted) → accent "Go (Dispatch)" once `unreviewed === 0`.
 
 ---
 
@@ -132,7 +134,7 @@ Fixed 3-pane shell. Dimensions transcribed:
 | `Esc` | Close palette |
 | `j` | Next Section |
 | `k` | Previous Section |
-| `m` | Mark Section done |
+| `d` | Mark Section done & advance ("Done & Next") |
 | `s` | Skip Section |
 | click hunk header | Toggle that block reviewed |
 
@@ -183,6 +185,8 @@ Captured so they aren't reintroduced from the prototype:
 - **"Atom" must never surface.** The prototype's "Atom Reviewed" / "Mark Reviewed" → use "Reviewed" / "Mark reviewed". Users only see Chapters and Sections.
 - **AI summary stays, reframed.** Allowed and wanted, but as an explicitly untrusted "AI summary" aid (pinch of salt), per Section **and** per Chapter — never authoritative, never a substitute for the diff. ADR-0004 refined to permit it.
 - **Strikethrough on removed lines — drop it.** The `+`/`-` signs already give the non-colour cue; strikethrough hurts code legibility.
+- **Mark-done key is `D`** (the first prototype used `m`). Pairs cleanly with `S` for skip.
+- **Tick, not arrow, on both Done controls.** The header **Done** uses a tick; the **Done & Next** button still shows an arrow in the prototype — standardise both on the tick (✓) so the action reads identically.
 - **Panes must be resizable + collapsible** with persisted sizes. The prototype's widths are fixed and its collapse chevrons are decorative.
 - **Headline counter** should read changes-left from the master list, not Sections-left (the prototype mixes "3 left" Sections with per-row change counts).
 - **Tech:** Tailwind-CDN + `@apply`-in-`<style>` is prototype-only; production is Vite (ADR-0003) with self-hosted fonts.
