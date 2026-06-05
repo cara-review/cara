@@ -15,8 +15,7 @@ clear-diff — local-first, diff-first conversational code reviewer. Node CLI. T
 
 ## Out of scope
 
-- Pushing without a fresh `.agent-state/last-approval.json`, or with `--no-verify`.
-- Committing before human approval.
+- Pushing with `--no-verify`.
 - Editing `main` inside a worktree; worktrees in hidden dirs.
 
 ## Note
