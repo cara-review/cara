@@ -5,9 +5,9 @@ status: accepted
 # Agent layer: untrusted, with a canonical master atom list
 
 The LLM that groups atoms into Chapters and Sections is the only port whose output can't
-be trusted. A reviewer must never approve a diff where a change was silently hidden, so the
-agent may *arrange* the review but never *define* what's in it. This is a security
-invariant, not a quality one.
+be trusted. A reviewer must never approve a diff where a change was silently hidden or
+altered, so the agent may *arrange* and *describe* the review but never *define* or *change*
+what's in it. This is a security invariant, not a quality one.
 
 ## Master list is canonical
 
@@ -23,8 +23,15 @@ invariant, not a quality one.
 ## Agent output is an untrusted overlay
 
 - `AgentPort.proposeGrouping(atoms, instructions) → ProposedGrouping`: chapter/section
-  **titles + ordering + atom-id membership only**. No payloads, no content; the agent
-  returns structure, not data.
+  **titles, ordering, atom-id membership, and optional descriptive summaries**. The agent
+  describes and arranges; it never returns, restates, or edits the diff itself.
+- **Summaries are an explicitly untrusted overlay.** The agent may describe a Chapter or
+  Section in prose, shown *over* the evidence ("AI summary — take with a pinch of salt"),
+  never substituting for it and never authoritative. Orienting the reviewer is part of the
+  point; the diff stays the source of truth.
+- **The diff is never agent-touched.** The agent is handed atom ids and returns ids +
+  titles + summaries, so it has no channel to alter a single line. Rendered evidence always
+  comes from git via `DiffSource` / `WorkspaceReader`, verbatim.
 - The domain enforces a **bijection**: union of all sections equals the master list,
   exactly.
   - atoms the agent never placed → swept into a trailing **"Other changes"** section, git
@@ -50,6 +57,8 @@ collapses visibility, and only from the default flow. Nothing removes an atom.
 
 - `AgentPort` output is treated as the most untrusted boundary in the system: `unknown` +
   validate, the same discipline as any external input.
+- **Summaries are untrusted text:** escape on render, never interpret as HTML/markup, never
+  let them drive an action — display only.
 - A `FakeAgent` returning fixed groupings makes the whole pipeline testable offline.
 - Grouping is disposable: cached by master-set hash, regenerated when the set changes
   (ADR-0003), marks unaffected.

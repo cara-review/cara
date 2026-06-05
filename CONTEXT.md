@@ -16,11 +16,15 @@ A curated group of related change within a Chapter, ordered by relevance (theme,
 _Avoid_: group, cluster.
 
 **atom**:
-One git hunk; the indivisible mechanical unit. Internal plumbing — never surfaced to users.
-_Avoid_: hunk (in user-facing copy), chunk.
+One git hunk; the indivisible mechanical unit. Internal plumbing — never surfaced to users. Its user-facing rendering is a **change-block** (or just "block").
+_Avoid_: hunk (in user-facing copy), chunk; atom (in user-facing copy).
 
 **mark**:
-A user's disposition on an atom — `done` or `skipped` — keyed by content hash of the atom's payload.
+A user's disposition on an atom — `done` or `skipped` — keyed by content hash of the atom's payload. Set per-block (tick one change-block) or per-Section (mark all its atoms at once); a Section completes when its last atom is marked.
+
+**AI summary**:
+A short agent-written description of a Chapter or Section, shown as an untrusted orienting aid ("pinch of salt"). Never authoritative, never alters or substitutes for the diff.
+_Avoid_: framing it as a verdict or review conclusion.
 
 **master list**:
 The complete, canonical set of atoms for a Review, computed by the domain straight from the diff. Authoritative; the agent grouping can never add to, remove from, or hide it.

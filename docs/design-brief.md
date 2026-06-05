@@ -4,7 +4,7 @@ category: personal
 tags: [design, brief, ui, ux, clear-diff, desktop, keyboard-native]
 status: active
 date_created: 2026-06-05
-last_updated: 2026-06-05
+last_updated: 2026-06-06
 ---
 
 # clear-diff — Design Brief
@@ -12,6 +12,8 @@ last_updated: 2026-06-05
 A brief for a product/UI designer. It fixes layout, states, interactions, the keyboard model, and which tokens to define, and leaves exact colour, type, and spacing values for you to propose. Read [`concept.md`](concept.md) for the full product model; this doc is the visual and interaction surface over it.
 
 **What you are designing:** a desktop app for reviewing a code diff that has been *restructured* into a navigable tree, not dumped as a wall of lines. Crisp, fast, keyboard-native. The feel of Linear / Raycast / Zed: a serious pro tool that's a pleasure to fly through.
+
+Initial dark + light prototypes already exist, with proposed token values, layout dimensions, and a component inventory — see [`design/initial-prototypes.md`](design/initial-prototypes.md). Treat them as a starting point, not a constraint.
 
 ---
 
@@ -108,9 +110,12 @@ This is **not** a normal file diff. Key rules:
 - It renders the changes of the **focused Section** — which may pull lines from **several files**, and from **non-contiguous places within a single file**.
 - Render as **change-block, gap, change-block**: a small run of changed lines, then a visible "… skipped N lines …" gap affordance, then the next run. **Never assume one continuous file.** A file can also appear again later in a different Section — that revisiting is intentional, not a bug.
 - Each change-block is labelled with its file (and is clickable/keyable to **open the real file at that line** in the user's editor).
+- Each change-block also carries its own **review tick** — a single click/key marks just that block reviewed (it dims back), and the Section auto-completes once every block is ticked. This is the "zap-zap-zap" path: power users tick block-by-block; others mark the whole Section in one key (see Flow 1). Both feed the same underlying state. Label it **"Reviewed" / "Mark reviewed"**, **never "atom"** or "hunk".
 - Standard add/remove styling, syntax-aware. The diff is syntax-highlighted; added/removed use semantic colour *plus* a non-colour cue (so it survives colour-blindness and grayscale).
 - A line is the unit you **comment** on: hovering/focusing a line exposes a comment affordance.
 - Design **split (side-by-side)** and **unified (inline)** diff modes; unified is the default, both keyboard-toggleable.
+
+**AI summary.** A Section **and** a Chapter may each be headed by a short, agent-written summary that orients the reviewer before they read the evidence. Design it as a distinct, clearly-labelled **"AI summary"** band — visually secondary to the diff, never styled as authoritative. It's a take-with-a-pinch-of-salt aid, not a verdict; the diff below is the source of truth. It must never look like it *replaces* reading the change. (Architecturally the agent can describe but never alter the diff — see [ADR-0004](adr/0004-agent-untrusted-master-list.md).)
 
 ### Chat pane (right) — questions, not comments
 - A conversational panel for questions that aren't line comments: *"is this backwards compatible?", "show me the failure path."*
@@ -129,6 +134,7 @@ The primary loop. From a focused Section the user can **mark done** or **skip** 
 - The transition (row + diff updating to the new state).
 - Auto-advance: after marking, focus moves to the next unreviewed Section. Make that movement legible.
 - Skipped Sections are de-emphasised but **never hidden or deleted** — always re-revealable. (Skip ≠ delete.)
+- **Block-by-block path:** the user can instead tick individual change-blocks (see Diff surface); the Section flips to done automatically when the last block is ticked. Design how a partly-ticked Section reads — the nav row and Section header should show progress, not just binary done/undone — and keep whole-Section mark and block-ticking visibly consistent (ticking all blocks = marking the Section done).
 
 ### 2. Commenting on a line
 - User focuses a line and starts a comment. Primary input is **voice via OS-level dictation** (the app does *not* build voice capture — the user dictates into a normal focused text field). So: design a clean, focusable comment composer that's pleasant to dictate into and to edit by keyboard.
@@ -204,7 +210,7 @@ Define these as a token system (light + dark values), so the build can consume t
 - High-fidelity mockups of the **3-pane main view**, **light and dark**, at a representative window size — populated with a realistic medium-sized review.
 - The **command palette** (empty + typing states).
 - The **comment composer** (dictating, draft-review, committed-with-thread).
-- Key **states**: loading/grouping, empty diff, all-done, resurfaced-after-change, "Other changes".
+- Key **states**: loading/grouping, empty diff, all-done, resurfaced-after-change, "Other changes", a **partly-ticked Section**, and the **AI summary** band.
 - The **Go** flow (summary → dispatching → done).
 - **Split vs unified** diff modes.
 - The **token system** (colour/type/spacing/radii/motion), light + dark.

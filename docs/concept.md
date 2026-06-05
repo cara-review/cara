@@ -66,7 +66,7 @@ The two layers never contaminate each other. That buys everything below.
 
 ## Identity & Marking
 
-You mark sections off as you review — the way GitHub's "viewed" works, but smarter:
+You mark off as you review — a whole section at once, or block by block — the way GitHub's "viewed" works, but smarter:
 
 - **done** — reviewed, happy
 - **skipped / ignored** — don't care (huge test file, lockfile churn, generated code)
@@ -103,9 +103,11 @@ The atoms-in-git-order floor is the safety net: even a poor grouping never feels
 
 ## The Interaction
 
+Each chapter and section can be headed by a short **AI summary** — an agent-written orientation of what the change does, taken with a pinch of salt. It's an aid, never authoritative and never a substitute for reading the diff; the evidence below it is the truth.
+
 You descend the structure. For each chapter, top section first, you read the surfaced diff and either:
 
-- **mark it** (done / skip), or
+- **mark it** — done or skip. Mark a whole section in one keystroke, or *zap through it block by block*: each change-block ticks off on its own and the section completes when the last one's ticked. Either granularity lands the mark on the underlying atoms.
 - **comment** — click a line and talk. Voice-to-text is the primary input, strongly encouraged: you just say what you mean and the agent writes the comment in your voice. *"Tell them to use the existing retry util rather than rolling their own."*
 - **open the file** — jump to the real file at that line in your editor (VS Code / Zed / configurable) when the diff isn't enough.
 
