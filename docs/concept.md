@@ -115,6 +115,17 @@ The point throughout: **less guessing, more selective disclosure.** The agent's 
 
 ---
 
+## Keyboard-Native
+
+The whole review is drivable from the keyboard, with the rapid, IDE-fast feel of a modern editor. The mouse is always optional, never required. This is a hard requirement: traversal speed is the product.
+
+- **Command palette.** One chord (e.g. `Cmd/Ctrl-K`) fuzzy-searches every action: mark done/skip, comment, open-in-editor, jump to chapter/section, switch diff source, go. Everything reachable, nothing memorised, nothing buried in a menu.
+- **Smart shortcuts.** Single-key bindings for the hot path: next/previous section, mark done, skip, comment, open file, toggle chat. Vim-style `j/k` alongside arrows. Contextual — the same key does the obvious thing for whatever's focused.
+- **Focus model.** Movement through the tree (chapter → section → atom) and between panes (diff, chat, comment) is fully keyboarded, with a visible focus indicator always. Voice dictation drops into a comment without breaking flow.
+- **Customisable & shown.** Bindings remappable; the palette shows each action's current shortcut, so the keyboard map teaches itself.
+
+---
+
 ## clear-diff.md
 
 Two layers of plain-markdown instructions, working like CLAUDE.md, that steer how the reviewer *presents* the change:
@@ -149,6 +160,7 @@ It walks you through the changes you can comment on, change, and approve.
 - **Selective disclosure over prediction.** The agent structures and orders; *you* decide what to hide by marking. It doesn't guess your mind.
 - **You direct, the agent writes.** Comments — drafted in your voice, usually from speech — for your approval.
 - **Completion over coverage.** The goal isn't to have read every line. It's to have accounted for every section and know what you checked.
+- **Keyboard-native.** Every action is reachable by key and command palette; the mouse is optional. Traversal speed — IDE-fast — is the product.
 
 ---
 
