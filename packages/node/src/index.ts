@@ -1,5 +1,5 @@
 // @clear-diff/node — driven adapters + HTTP/WS server + composition root.
-// Stub: depends on core to prove the dependency direction (node → core).
+// Depends on core to prove the dependency direction (node → core).
 import { buildMasterList, type RawHunk } from "@clear-diff/core";
 
 export { JsonlReviewStore } from "./review-store.ts";
@@ -10,3 +10,10 @@ export const PACKAGE_ID = "@clear-diff/node";
 export function coreAtomCount(hunks: readonly RawHunk[]): number {
   return buildMasterList(hunks).length;
 }
+
+// Driven adapters (TN-26-006).
+export { FakeAgent } from "./fake-agent.ts";
+export { SystemClock, fixedClock } from "./clock.ts";
+export { SpawnEditor, editorArgs } from "./editor.ts";
+export { EnvConfig } from "./config.ts";
+export { FileInstructions } from "./instructions.ts";

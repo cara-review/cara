@@ -10,3 +10,4 @@ Read the `status` field before treating any TN as authoritative: `active` → au
 | [26-002](TN-26-002-monorepo-scaffold.md) | Monorepo scaffold and strict TypeScript toolchain | plan | active | #4 |
 | [26-003](TN-26-003-core-domain-and-ports.md) | Core domain — atoms, identity, master list, grouping, marking, and all ports | plan | active | #5 |
 | [26-005](TN-26-005-reviewstore-jsonl-event-log.md) | Adapter — ReviewStore append-only JSONL event log | plan | active | #7 |
+| [26-006](TN-26-006-fake-agent-and-trivial-adapters.md) | FakeAgent and trivial driven adapters | plan | active | #8 |
