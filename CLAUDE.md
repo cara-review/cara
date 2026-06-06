@@ -93,17 +93,17 @@ The architecture is load-bearing and already ratified: hexagonal boundaries ([AD
 - **Strict architectural review on every change.** Boundaries, layer direction, port discipline, the two-layers-never-mixed rule, naming. When in doubt, escalate — run the `architect` reviewer.
 - **Deviations require a human-approved ADR.** No agent may deviate from an accepted ADR, cross a layer boundary, add a port/package/cross-boundary channel, relax TS strictness, or introduce a new architectural pattern without **first** writing an ADR (born from a TN, `kind: proposal`) and getting **explicit human approval**. Silence ≠ approval.
 - Until that approval lands, the agent **stops** — it does not code around the boundary or ship a workaround. Surface the question, wait.
-- The human (project owner) is the only approver of architectural deviations, same as the ship approver below.
+- The human (project owner) is the sole approver of architectural deviations, new ADRs/CDRs, and process questions. **These are the *only* human gates** — normal code delivery is autonomous (see Ship policy).
 
 ## Ship policy
 
-Read by `do-ship`. Authoritative.
+Read by `do-push`. Authoritative.
 
-- **Approver:** human only. Coordinators / team leads route the human's go-ahead, never substitute. Silence ≠ approval.
-- **Commit timing:** commit *after* approval. Flow: `do-review` → human reviews uncommitted diff → approval → commit → push.
-- **Approval signals:** `approve`, `push`, `ship`, `lgtm`, `go`, `👍`, optionally with `#N`. Ambiguous → ask. Changes requested → apply, re-run `do-review`, return to Stage 1.
-- **Scope:** every change, even trivial. No skip path.
-- **Approval marker:** after approval + commit, write `.agent-state/last-approval.json` `{"head_sha":"<HEAD>","approved_at":"<ISO 8601>","approver":"human"}`. PreToolUse hook `scripts/claude-check-approval.sh` blocks `git push` if missing or SHA-stale.
+- **Autonomous delivery.** Agents commit and push directly to `main` after a scaled local review — **no human approval gate for normal changes**. Trunk-based, concurrent, no branch sequencing.
+- **Human gate only for:** a new ADR/CDR, an architectural deviation, or a process question (see `## Architecture policy`). Hard stop — route to the human and wait; silence ≠ approval. Everything else ships without asking.
+- **Local review is mandatory even when autonomous** — scaled to risk: trivial → self-review; standard → one reviewer; security/architecture → full arch + security review. Apply findings before push.
+- Pre-push hook is the quality gate. **Never `--no-verify`.**
+- After push, update the issue (delivered summary + review note) and set status Done.
 
 ## Worktrees
 
@@ -117,4 +117,4 @@ Prefer one larger issue over several small. Sub-features belong in the parent's 
 
 Node CLI. After cloning: `./scripts/install-git-hooks.sh` to install the pre-push gate.
 
-Two enforcement layers: Claude Code hooks via `.claude/settings.json` (active on clone — approval gate) + git `pre-push` via `./scripts/install-git-hooks.sh` (manual install — runs `npm test` once tests exist).
+Quality gate: the git `pre-push` hook (`./scripts/install-git-hooks.sh`, manual install — runs lint + `npm test`). No per-push approval gate; delivery is autonomous (see Ship policy). The only human gates are ADR / architectural / process questions.
