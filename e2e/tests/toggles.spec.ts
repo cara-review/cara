@@ -34,6 +34,14 @@ test("the v key toggles side-by-side", async ({ page }) => {
   await expect(editor(page)).not.toHaveClass(/side-by-side/);
 });
 
+test("the side-by-side action is reachable from the ⌘K command palette", async ({ page }) => {
+  await page.keyboard.press("ControlOrMeta+k");
+  await page.locator(".palette__input").fill("sidebyside");
+  await page.locator(".palette__item", { hasText: "Toggle side-by-side view" }).first().click();
+  await expect(editor(page)).toHaveClass(/side-by-side/);
+  await expect(splitToggle(page)).toHaveAttribute("aria-pressed", "true");
+});
+
 test("the All file changes toggle flips aria-pressed", async ({ page }) => {
   await expect(allToggle(page)).toHaveAttribute("aria-pressed", "false");
   await allToggle(page).click();

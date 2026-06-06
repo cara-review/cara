@@ -8,6 +8,7 @@ import { el, fill } from "../dom.ts";
 import { navTree } from "../selectors.ts";
 import type { AppState, AppStore } from "../store.ts";
 import { focusSection } from "./controller.ts";
+import type { DiffSurface } from "./diff-surface.ts";
 import { DIFF_ACTIONS } from "./keyboard.ts";
 
 export interface Command {
@@ -18,7 +19,7 @@ export interface Command {
 }
 
 /** Build the command list for the current state. Static actions need an active review. */
-export function buildCommands(state: AppState, store: AppStore): Command[] {
+export function buildCommands(state: AppState, store: AppStore, surface: DiffSurface): Command[] {
   const snapshot = state.snapshot;
   if (snapshot === null) return [];
 
@@ -26,7 +27,7 @@ export function buildCommands(state: AppState, store: AppStore): Command[] {
     id: action.id,
     title: action.title,
     hint: action.key,
-    run: () => action.run(store),
+    run: () => action.run({ store, surface }),
   }));
 
   navTree(snapshot).forEach((chapter, chapterIndex) => {
@@ -82,7 +83,7 @@ export interface CommandPalette {
 }
 
 /** Create the palette overlay (hidden) inside `mount` and return its controls. */
-export function createCommandPalette(mount: HTMLElement, store: AppStore): CommandPalette {
+export function createCommandPalette(mount: HTMLElement, store: AppStore, surface: DiffSurface): CommandPalette {
   let commands: readonly Command[] = [];
   let filtered: Command[] = [];
   let selected = 0;
@@ -139,7 +140,7 @@ export function createCommandPalette(mount: HTMLElement, store: AppStore): Comma
   }
 
   function open(): void {
-    commands = buildCommands(store.getState(), store);
+    commands = buildCommands(store.getState(), store, surface);
     if (commands.length === 0) return; // nothing to act on yet
     backdrop.hidden = false;
     input.value = "";

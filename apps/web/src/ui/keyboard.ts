@@ -1,8 +1,9 @@
 // The hot-path keyboard model. `keyToAction` is the pure, unit-tested mapping; `installKeyboard`
-// wires one document-level listener that suppresses while typing and dispatches to the controller.
+// wires one document-level listener that suppresses while typing and dispatches the action.
 // `⌘K`/`Ctrl+K` toggles the command palette; other chords are left untouched. `DIFF_ACTIONS` is the
-// single source of truth for the store-backed actions' title, primary key, and dispatch — shared
-// with the palette. `v` toggles the side-by-side view, which dispatches to the diff surface.
+// single source of truth for every hot-path action's title, primary key, and dispatch — shared with
+// the palette. Each action runs against a `{ store, surface }` context, so store-backed actions and
+// the surface-backed side-by-side toggle live side by side in one table.
 
 import type { AppStore } from "../store.ts";
 import type { CommandPalette } from "./command-palette.ts";
@@ -11,20 +12,27 @@ import { markSectionDone, moveFocus, skipSection } from "./controller.ts";
 
 export type DiffAction = "next" | "prev" | "done" | "skip" | "sideBySide";
 
+/** What a hot-path action can act on: the review store and the diff surface. */
+export interface DiffActionContext {
+  readonly store: AppStore;
+  readonly surface: DiffSurface;
+}
+
 export interface DiffActionSpec {
   readonly id: DiffAction;
   readonly title: string;
   /** The primary key shown as the palette hint; `keyToAction` adds aliases (arrows, upper case). */
   readonly key: string;
-  run(store: AppStore): void;
+  run(context: DiffActionContext): void;
 }
 
-/** The store-backed hot-path actions, named once. Both the keyboard handler and the palette read this. */
+/** Every hot-path action, named once. Both the keyboard handler and the palette read this. */
 export const DIFF_ACTIONS: readonly DiffActionSpec[] = [
-  { id: "next", title: "Next section", key: "j", run: (store) => moveFocus(store, "next") },
-  { id: "prev", title: "Previous section", key: "k", run: (store) => moveFocus(store, "prev") },
-  { id: "done", title: "Mark section done", key: "d", run: (store) => void markSectionDone(store) },
-  { id: "skip", title: "Skip section", key: "s", run: (store) => void skipSection(store) },
+  { id: "next", title: "Next section", key: "j", run: ({ store }) => moveFocus(store, "next") },
+  { id: "prev", title: "Previous section", key: "k", run: ({ store }) => moveFocus(store, "prev") },
+  { id: "done", title: "Mark section done", key: "d", run: ({ store }) => void markSectionDone(store) },
+  { id: "skip", title: "Skip section", key: "s", run: ({ store }) => void skipSection(store) },
+  { id: "sideBySide", title: "Toggle side-by-side view", key: "v", run: ({ surface }) => surface.toggleSideBySide() },
 ];
 
 const ACTION_BY_ID = new Map(DIFF_ACTIONS.map((action) => [action.id, action]));
@@ -71,11 +79,7 @@ export function installKeyboard(store: AppStore, palette: CommandPalette, surfac
     const action = keyToAction(event.key);
     if (action === null) return;
     event.preventDefault();
-    if (action === "sideBySide") {
-      surface.toggleSideBySide();
-      return;
-    }
-    ACTION_BY_ID.get(action)?.run(store);
+    ACTION_BY_ID.get(action)?.run({ store, surface });
   };
   document.addEventListener("keydown", handler);
   return () => document.removeEventListener("keydown", handler);

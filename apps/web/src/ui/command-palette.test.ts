@@ -5,6 +5,7 @@ import { AppStore, type AppState } from "../store.ts";
 import { RpcClient } from "../rpc.ts";
 import { FakeTransport, section } from "../test-support.ts";
 import { buildCommands, filterCommands, fuzzyScore, type Command } from "./command-palette.ts";
+import type { DiffSurface } from "./diff-surface.ts";
 
 function chapter(title: string, sections: readonly Section[]): ReviewSnapshot["review"]["chapters"][number] {
   return { title, summary: null, sections };
@@ -22,6 +23,7 @@ function snapshot(chapters: ReviewSnapshot["review"]["chapters"]): ReviewSnapsho
 }
 
 const STORE = new AppStore(new RpcClient(new FakeTransport()));
+const SURFACE: DiffSurface = { render() {}, toggleSideBySide() {} };
 
 function stateWith(snap: ReviewSnapshot | null): AppState {
   return {
@@ -70,7 +72,7 @@ test("filterCommands with empty query keeps original order", () => {
 });
 
 test("buildCommands returns nothing without a review", () => {
-  assert.deepEqual(buildCommands(stateWith(null), STORE), []);
+  assert.deepEqual(buildCommands(stateWith(null), STORE, SURFACE), []);
 });
 
 test("buildCommands lists the static actions with their hints and one jump per Section", () => {
@@ -78,7 +80,7 @@ test("buildCommands lists the static actions with their hints and one jump per S
     chapter("C0", [section("S0", ["a"]), section("S1", ["b"])]),
     chapter("C1", [section("S2", ["c"])]),
   ]);
-  const commands = buildCommands(stateWith(snap), STORE);
+  const commands = buildCommands(stateWith(snap), STORE, SURFACE);
 
   assert.deepEqual(
     commands.filter((c) => c.hint !== undefined).map((c) => [c.id, c.hint]),
@@ -87,6 +89,7 @@ test("buildCommands lists the static actions with their hints and one jump per S
       ["prev", "k"],
       ["done", "d"],
       ["skip", "s"],
+      ["sideBySide", "v"],
     ],
   );
 

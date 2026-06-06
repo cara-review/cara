@@ -32,7 +32,7 @@ if (root !== null) {
     view.render(store.getState());
     surface.render(store.getState());
   });
-  installKeyboard(store, createCommandPalette(document.body, store), surface);
+  installKeyboard(store, createCommandPalette(document.body, store, surface), surface);
   store.bindTransport(transport);
   view.render(store.getState()); // initial paint: connecting (surface is empty until a review opens)
   surface.render(store.getState());
