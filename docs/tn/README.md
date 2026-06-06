@@ -13,3 +13,4 @@ Read the `status` field before treating any TN as authoritative: `active` → au
 | [26-005](TN-26-005-reviewstore-jsonl-event-log.md) | Adapter — ReviewStore append-only JSONL event log | plan | active | #7 |
 | [26-006](TN-26-006-fake-agent-and-trivial-adapters.md) | FakeAgent and trivial driven adapters | plan | active | #8 |
 | [26-007](TN-26-007-review-service-use-cases.md) | Application — ReviewService use-cases | plan | active | #9 |
+| [26-008](TN-26-008-backend-server-and-cli.md) | Backend — HTTP/WS server, composition root, and clear-diff CLI | plan | active | #10 |
