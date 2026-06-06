@@ -1,17 +1,32 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { once } from "node:events";
-import { join } from "node:path";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, join } from "node:path";
 import { WebSocket, type RawData } from "ws";
 import type { DiffSpec } from "@clear-diff/core";
 import { makeTestRepo } from "../git/test-repo.ts";
 import { compose } from "./compose.ts";
 import { startServer } from "./server.ts";
+import type { RpcDeps } from "./dispatch.ts";
 import type { ClientRequest, ServerResponse } from "./protocol.ts";
 
+/** A backend whose use-cases throw if touched — for tests that never reach an RPC. */
+function stubDeps(): RpcDeps {
+  const unused = (): never => {
+    throw new Error("backend not exercised by this test");
+  };
+  return {
+    service: { open: unused, mark: unused, unmark: unused, comment: unused, openInEditor: unused },
+    workspace: { readFile: () => Promise.resolve(null) },
+    spec: { kind: "worktree" },
+  };
+}
+
 function rpc(socket: WebSocket, request: ClientRequest): Promise<ServerResponse> {
-  return new Promise((resolvePromise) => {
-    socket.once("message", (data: RawData) => resolvePromise(JSON.parse(String(data)) as ServerResponse));
+  return new Promise((resolve) => {
+    socket.once("message", (data: RawData) => resolve(JSON.parse(String(data)) as ServerResponse));
     socket.send(JSON.stringify(request));
   });
 }
@@ -24,11 +39,11 @@ test("WS round-trip: open, mark, and readFile over a real repo", async () => {
   const head = await repo.commit("add line");
 
   const spec: DiffSpec = { kind: "range", base, head };
-  const backend = compose({
+  const backend = await compose({
     cwd: repo.dir,
     spec,
     stateDir: join(repo.dir, ".state"),
-    editorCommand: "true",
+    config: { load: () => Promise.resolve({ editorCommand: "true" }) },
   });
   const server = await startServer(backend);
   assert.ok(server.url.startsWith("http://127.0.0.1:"), "binds localhost only");
@@ -61,5 +76,38 @@ test("WS round-trip: open, mark, and readFile over a real repo", async () => {
     socket.close();
     await server.close();
     await repo.cleanup();
+  }
+});
+
+test("a non-loopback Origin is rejected at the WS handshake", async () => {
+  const server = await startServer(stubDeps());
+  try {
+    const socket = new WebSocket(server.url.replace(/^http/, "ws"), { origin: "https://evil.example" });
+    const [error] = (await once(socket, "error")) as [Error];
+    assert.ok(error instanceof Error, "the handshake is refused, not opened");
+    socket.terminate();
+  } finally {
+    await server.close();
+  }
+});
+
+test("static serving refuses to read outside the web root", async () => {
+  const root = await mkdtemp(join(tmpdir(), "clear-diff-web-"));
+  const secret = await mkdtemp(join(tmpdir(), "clear-diff-secret-"));
+  await writeFile(join(root, "index.html"), "<h1>app</h1>");
+  await writeFile(join(secret, "secret.txt"), "TOPSECRET");
+
+  const server = await startServer(stubDeps(), { webRoot: root });
+  try {
+    const index = await fetch(`${server.url}/`);
+    assert.equal(await index.text(), "<h1>app</h1>");
+
+    // %2e%2e survives client-side normalisation; the server decodes then must reject the escape.
+    const escaped = await fetch(`${server.url}/%2e%2e/${basename(secret)}/secret.txt`);
+    assert.ok(!(await escaped.text()).includes("TOPSECRET"), "traversal must not leak outside the root");
+  } finally {
+    await server.close();
+    await rm(root, { recursive: true, force: true });
+    await rm(secret, { recursive: true, force: true });
   }
 });

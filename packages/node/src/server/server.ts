@@ -1,9 +1,17 @@
 // HTTP/WS server (ADR-0003), the driving adapter over ReviewService. HTTP serves
 // the built UI (static, when present) or a placeholder; the WebSocket carries the
 // RPC contract (protocol.ts). Binds 127.0.0.1 only — local-first, no external
-// surface (ADR-0001). All transport concerns live here; nothing leaks into core.
+// surface (ADR-0001). A loopback bind is still reachable cross-origin from any
+// page in the user's browser, so the WS handshake and HTTP both enforce a
+// loopback Origin + Host allowlist (CSRF / DNS-rebinding defence). All transport
+// concerns live here; nothing leaks into core.
 
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import {
+  createServer,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse as HttpResponse,
+} from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
 import { WebSocketServer, type RawData, type WebSocket } from "ws";
@@ -23,12 +31,18 @@ export interface RunningServer {
 }
 
 const HOST = "127.0.0.1";
+const MAX_PAYLOAD = 1 << 20; // 1 MiB: cap WS frames against a local memory DoS.
 
 export async function startServer(deps: RpcDeps, options: ServerOptions = {}): Promise<RunningServer> {
   const http = createServer((request, response) => {
     void serveHttp(request, response, options.webRoot);
   });
-  const sockets = new WebSocketServer({ server: http });
+  const sockets = new WebSocketServer({
+    server: http,
+    maxPayload: MAX_PAYLOAD,
+    verifyClient: ({ origin, req }: { origin: string; req: IncomingMessage }) =>
+      isLoopbackOrigin(origin) && isLoopbackHost(req.headers.host),
+  });
   sockets.on("connection", (socket) => {
     socket.on("message", (data) => {
       void onMessage(deps, socket, data);
@@ -61,20 +75,51 @@ function decode(data: RawData): string {
   return data.toString("utf8");
 }
 
+/** A loopback Host header (DNS-rebinding defence). A missing Host is rejected. */
+function isLoopbackHost(host: string | undefined): boolean {
+  if (host === undefined) return false;
+  const name = host.replace(/:\d+$/, "").toLowerCase();
+  return name === "127.0.0.1" || name === "localhost" || name === "[::1]";
+}
+
+/** A loopback Origin, or none at all (non-browser clients send no Origin). */
+function isLoopbackOrigin(origin: string | undefined): boolean {
+  if (origin === undefined || origin === "") return true;
+  try {
+    const { hostname } = new URL(origin);
+    return hostname === "127.0.0.1" || hostname === "localhost" || hostname === "::1";
+  } catch {
+    return false;
+  }
+}
+
 const PLACEHOLDER =
   "<!doctype html><meta charset=utf-8><title>clear-diff</title>" +
   "<p>clear-diff backend is running. The UI is not built yet.";
 
-async function serveHttp(request: IncomingMessage, response: ServerResponse, webRoot?: string): Promise<void> {
+async function serveHttp(request: IncomingMessage, response: HttpResponse, webRoot?: string): Promise<void> {
+  if (!isLoopbackHost(request.headers.host)) {
+    response.writeHead(403);
+    response.end("Forbidden.");
+    return;
+  }
   if (webRoot === undefined) {
     response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
     response.end(PLACEHOLDER);
     return;
   }
 
+  let pathname: string;
+  try {
+    pathname = decodeURIComponent((request.url ?? "/").split("?")[0] ?? "/");
+  } catch {
+    response.writeHead(400);
+    response.end("Bad request.");
+    return;
+  }
+
   const root = resolve(webRoot);
-  const path = decodeURIComponent((request.url ?? "/").split("?")[0] ?? "/");
-  const requested = resolve(root, path === "/" ? "index.html" : path.replace(/^\/+/, ""));
+  const requested = resolve(root, pathname === "/" ? "index.html" : pathname.replace(/^\/+/, ""));
   // Reject path traversal: the resolved file must stay within the web root.
   const file = requested === root || requested.startsWith(root + sep) ? requested : null;
 
@@ -108,24 +153,24 @@ const CONTENT_TYPES: Record<string, string> = {
 };
 
 function contentType(file: string): string {
-  return CONTENT_TYPES[extname(file)] ?? "application/octet-stream";
+  return CONTENT_TYPES[extname(file).toLowerCase()] ?? "application/octet-stream";
 }
 
 function listen(server: Server, port: number): Promise<void> {
-  return new Promise((resolvePromise, reject) => {
+  return new Promise((done, reject) => {
     server.once("error", reject);
     server.listen(port, HOST, () => {
       server.removeListener("error", reject);
-      resolvePromise();
+      done();
     });
   });
 }
 
 function close(server: Server, sockets: WebSocketServer): Promise<void> {
-  return new Promise((resolvePromise, reject) => {
+  return new Promise((done, reject) => {
     for (const client of sockets.clients) client.terminate();
     sockets.close(() => {
-      server.close((error) => (error ? reject(error) : resolvePromise()));
+      server.close((error) => (error ? reject(error) : done()));
     });
   });
 }

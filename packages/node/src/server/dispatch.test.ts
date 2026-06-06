@@ -134,3 +134,51 @@ test("an empty context is rejected by the smart-constructor", async () => {
   });
   assert.ok(!response.ok);
 });
+
+test("openInEditor rejects a non-positive or non-integer line", async () => {
+  for (const line of [0, -3, 1.5]) {
+    const response = await handleRequest(deps([]), {
+      id: "n",
+      method: "openInEditor",
+      params: { path: "a.ts", line },
+    });
+    assert.ok(!response.ok && /positive integer/.test(response.error), `line=${line}`);
+  }
+});
+
+test("readFile rejects a path that escapes the repository", async () => {
+  for (const path of ["../../etc/passwd", "/etc/passwd"]) {
+    const response = await handleRequest(deps([]), {
+      id: "t",
+      method: "readFile",
+      params: { path, side: "head" },
+    });
+    assert.ok(!response.ok, path);
+  }
+});
+
+test("openInEditor rejects a path that could be read as an editor flag", async () => {
+  const response = await handleRequest(deps([]), {
+    id: "f",
+    method: "openInEditor",
+    params: { path: "-rf", line: 1 },
+  });
+  assert.ok(!response.ok);
+});
+
+test("a use-case failure is masked behind a generic error", async () => {
+  const reject = () => Promise.reject(new Error("git stderr: /Users/secret/path leaked"));
+  const failing: ReviewService = {
+    open: reject,
+    mark: reject,
+    unmark: reject,
+    comment: reject,
+    openInEditor: reject,
+  };
+  const response = await handleRequest(
+    { service: failing, workspace, spec: { kind: "worktree" } },
+    { id: "9", method: "open", params: {} },
+  );
+  assert.ok(!response.ok);
+  assert.equal(response.error, "Internal error.");
+});

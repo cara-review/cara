@@ -8,7 +8,6 @@ import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { DiffSpec } from "@clear-diff/core";
-import { EnvConfig } from "./config.ts";
 import { compose } from "./server/compose.ts";
 import { startServer, type RunningServer } from "./server/server.ts";
 
@@ -44,12 +43,13 @@ export function parseArgs(argv: readonly string[]): CliArgs {
 }
 
 function parseRange(arg: string): DiffSpec {
-  const separator = arg.indexOf("..");
-  if (separator === -1) throw new CliError(`Invalid argument "${arg}". Use clear-diff <base>..<head>.`);
-  const base = arg.slice(0, separator);
-  const head = arg.slice(separator + 2);
-  if (base === "" || head === "") {
-    throw new CliError(`Invalid range "${arg}". Both base and head are required.`);
+  // Exactly one ".." with non-empty sides. A second ".." (a..b..c) or a third dot
+  // (the git three-dot form main...feature) is corrupt, not a two-dot range.
+  const parts = arg.split("..");
+  const base = parts[0] ?? "";
+  const head = parts[1] ?? "";
+  if (parts.length !== 2 || base === "" || head === "" || base.endsWith(".") || head.startsWith(".")) {
+    throw new CliError(`Invalid range "${arg}". Use clear-diff <base>..<head>.`);
   }
   return { kind: "range", base, head };
 }
@@ -64,15 +64,9 @@ export interface CliDeps {
 export async function runCli(argv: readonly string[], deps: CliDeps = {}): Promise<RunningServer> {
   const { spec, open } = parseArgs(argv);
   const cwd = deps.cwd ?? process.cwd();
-  const log = deps.log ?? ((message: string) => console.log(message));
+  const log = deps.log ?? ((message) => console.log(message));
 
-  const { editorCommand } = await new EnvConfig().load();
-  const backend = compose({
-    cwd,
-    spec,
-    stateDir: join(cwd, ".agent-state", "reviews"),
-    editorCommand: editorCommand ?? "code",
-  });
+  const backend = await compose({ cwd, spec, stateDir: join(cwd, ".agent-state", "reviews") });
 
   const webRoot = resolveWebRoot();
   const server = await startServer(backend, webRoot !== undefined ? { webRoot } : {});
@@ -82,14 +76,8 @@ export async function runCli(argv: readonly string[], deps: CliDeps = {}): Promi
 }
 
 function describe(spec: DiffSpec): string {
-  switch (spec.kind) {
-    case "worktree":
-      return "the worktree against origin/main";
-    case "range":
-      return `${spec.base}..${spec.head}`;
-    case "pr":
-      return `PR #${spec.number}`;
-  }
+  // Only worktree / range reach here — parseArgs rejects --pr before boot.
+  return spec.kind === "range" ? `${spec.base}..${spec.head}` : "the worktree against origin/main";
 }
 
 /** Locate the built UI assets shipped beside the package, or undefined if not built. */

@@ -14,11 +14,11 @@ test("composition root wires a working ReviewService and WorkspaceReader", async
     const head = await repo.commit("add line");
 
     const spec: DiffSpec = { kind: "range", base, head };
-    const backend = compose({
+    const backend = await compose({
       cwd: repo.dir,
       spec,
       stateDir: join(repo.dir, ".state"),
-      editorCommand: "true",
+      config: { load: () => Promise.resolve({ editorCommand: "true" }) },
     });
 
     const snapshot = await backend.service.open(spec);

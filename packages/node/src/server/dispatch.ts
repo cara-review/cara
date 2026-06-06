@@ -1,9 +1,18 @@
 // RPC dispatch (ADR-0003): map a wire request onto the inbound ReviewService and
 // the WorkspaceReader, returning a wire response. Pure of transport — no sockets,
 // no JSON framing — so it unit-tests against fakes. Incoming messages are the
-// untrusted boundary: parsed from `unknown`, validated, then dispatched.
+// untrusted boundary: parsed from `unknown`, validated (including path
+// containment, since a loopback server is reachable by any web page), then
+// dispatched.
 
-import type { AtomHash, DiffSpec, ReviewService, WorkspaceReader } from "@clear-diff/core";
+import { isAbsolute, normalize, sep } from "node:path";
+import type {
+  AtomHash,
+  DiffSpec,
+  ReviewContext,
+  ReviewService,
+  WorkspaceReader,
+} from "@clear-diff/core";
 import { reviewContext } from "@clear-diff/core";
 import type { ClientRequest, Method, ResultMap, ServerResponse } from "./protocol.ts";
 
@@ -14,7 +23,7 @@ export interface RpcDeps {
   readonly spec: DiffSpec;
 }
 
-/** A malformed request. Surfaced to the client as `{ ok: false }`, never thrown past the seam. */
+/** A malformed request. Its message is safe to return to the client; other errors are masked. */
 class RpcError extends Error {}
 
 /** Validate and dispatch one request. Always resolves to a response — errors are data. */
@@ -24,7 +33,10 @@ export async function handleRequest(deps: RpcDeps, raw: unknown): Promise<Server
     const result = await dispatch(deps, parseRequest(raw));
     return { id, ok: true, result };
   } catch (error) {
-    return { id, ok: false, error: error instanceof Error ? error.message : String(error) };
+    if (error instanceof RpcError) return { id, ok: false, error: error.message };
+    // Never leak git stderr or fs paths to the wire — the peer may be a remote page.
+    console.error("clear-diff RPC error:", error);
+    return { id, ok: false, error: "Internal error." };
   }
 }
 
@@ -55,35 +67,15 @@ function parseRequest(raw: unknown): ClientRequest {
   const params = asRecord(record["params"], "params");
   switch (method) {
     case "mark":
-      return {
-        id,
-        method,
-        params: {
-          context: reviewContext(str(params, "context")),
-          atomHash: str(params, "atomHash") as AtomHash,
-          disposition: disposition(params),
-        },
-      };
+      return { id, method, params: { ...contextAndHash(params), disposition: disposition(params) } };
     case "unmark":
-      return {
-        id,
-        method,
-        params: { context: reviewContext(str(params, "context")), atomHash: str(params, "atomHash") as AtomHash },
-      };
+      return { id, method, params: contextAndHash(params) };
     case "comment":
-      return {
-        id,
-        method,
-        params: {
-          context: reviewContext(str(params, "context")),
-          atomHash: str(params, "atomHash") as AtomHash,
-          body: str(params, "body"),
-        },
-      };
+      return { id, method, params: { ...contextAndHash(params), body: str(params, "body") } };
     case "openInEditor":
-      return { id, method, params: { path: str(params, "path"), line: num(params, "line") } };
+      return { id, method, params: { path: editorPath(params), line: line(params) } };
     case "readFile":
-      return { id, method, params: { path: str(params, "path"), side: side(params) } };
+      return { id, method, params: { path: repoPath(params), side: side(params) } };
     default:
       throw new RpcError(`Unknown method "${method}".`);
   }
@@ -108,9 +100,36 @@ function str(record: Record<string, unknown>, key: string): string {
   return value;
 }
 
-function num(record: Record<string, unknown>, key: string): number {
-  const value = record[key];
-  if (typeof value !== "number" || !Number.isFinite(value)) throw new RpcError(`"${key}" must be a number.`);
+function contextAndHash(params: Record<string, unknown>): {
+  readonly context: ReviewContext;
+  readonly atomHash: AtomHash;
+} {
+  return { context: reviewContext(str(params, "context")), atomHash: str(params, "atomHash") as AtomHash };
+}
+
+/** A repo-relative path: rejects absolute paths and any `..` escape (path traversal, CWE-22). */
+function repoPath(params: Record<string, unknown>): string {
+  const value = str(params, "path");
+  if (value === "" || isAbsolute(value)) throw new RpcError(`"path" must be a repo-relative path.`);
+  const normalized = normalize(value);
+  if (normalized === ".." || normalized.startsWith(`..${sep}`)) {
+    throw new RpcError(`"path" must not escape the repository.`);
+  }
+  return value;
+}
+
+/** As repoPath, plus rejecting a leading "-" so the path can't be read as an editor flag (CWE-88). */
+function editorPath(params: Record<string, unknown>): string {
+  const value = repoPath(params);
+  if (value.startsWith("-")) throw new RpcError(`"path" must not start with "-".`);
+  return value;
+}
+
+function line(params: Record<string, unknown>): number {
+  const value = params["line"];
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
+    throw new RpcError(`"line" must be a positive integer.`);
+  }
   return value;
 }
 

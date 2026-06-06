@@ -11,6 +11,9 @@
   "bin": {
     "clear-diff": "./index.js"
   },
+  "engines": {
+    "node": ">=23.6.0"
+  },
   "scripts": {
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "eslint .",

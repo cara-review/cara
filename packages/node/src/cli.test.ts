@@ -33,6 +33,14 @@ test("a half-empty range is rejected", () => {
   assert.throws(() => parseArgs(["main.."]), CliError);
 });
 
+test("the git three-dot form is rejected, not silently mangled", () => {
+  assert.throws(() => parseArgs(["main...feature"]), CliError);
+});
+
+test("a doubled range is rejected", () => {
+  assert.throws(() => parseArgs(["a..b..c"]), CliError);
+});
+
 test("a second positional argument is rejected", () => {
   assert.throws(() => parseArgs(["a..b", "c..d"]), CliError);
 });
@@ -53,8 +61,8 @@ test("runCli boots a server that serves a snapshot over WS", async () => {
   const socket = new WebSocket(server.url.replace(/^http/, "ws"));
   await once(socket, "open");
   try {
-    const opened = await new Promise<ServerResponse>((resolvePromise) => {
-      socket.once("message", (data: RawData) => resolvePromise(JSON.parse(String(data)) as ServerResponse));
+    const opened = await new Promise<ServerResponse>((resolve) => {
+      socket.once("message", (data: RawData) => resolve(JSON.parse(String(data)) as ServerResponse));
       socket.send(JSON.stringify({ id: "1", method: "open", params: {} }));
     });
     assert.ok(opened.ok && opened.result !== null && "review" in opened.result);
