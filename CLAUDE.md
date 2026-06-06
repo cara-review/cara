@@ -66,6 +66,11 @@ Use these terms exactly in code, docs, commits, and conversation:
 # Documentation
 
 - [`docs/`](docs/) — project docs. [`docs/concept.md`](docs/concept.md) is the product spec.
+- **Doc system (see [TN-26-001](docs/tn/TN-26-001-technical-notes-and-doc-structure.md)):**
+  - `docs/tn/` — **Technical Notes**: numbered timeline of proposals, specs, **plans**, explorations, research. The working surface. Format `TN-YY-NNN`.
+  - `docs/adr/` — ratified **architectural** decisions. `docs/cdr/` — ratified **convention** decisions. Both `NNNN` zero-padded.
+  - **All plans go via the TN system** (`kind: plan`) — never a loose plan file.
+  - A TN is born from an issue; the TN reservation is the first commit on the ticket. Index every TN in `docs/tn/README.md`.
 - Code change affects docs → update in the same change.
 - After writing or editing any doc, run `/streamline-doc` on it before committing.
 - **Repo state:** `agent/skills/` + `agent/agents/` = canonical skills and reviewer agents (checked in), surfaced to Claude Code via `.claude/skills` and `.claude/agents` symlinks; `.claude/settings.json` = policy. `.agent-state/` = runtime per-clone state, e.g. the approval marker (gitignored). Never invert.
@@ -80,6 +85,15 @@ Agents push directly to `main`. No feature branches for review, no PRs to merge.
 - `/start-team` — parallel agents picking up Ready issues.
 - Pre-push hook is the quality gate. **Never `--no-verify`.**
 - Issues: `clear-diff/clear-diff` GitHub Project. Reference with `Refs #N` (or `Closes #N` to auto-close).
+
+## Architecture policy
+
+The architecture is load-bearing and already ratified: hexagonal boundaries ([ADR-0003](docs/adr/0003-hexagonal-architecture.md)), atom identity ([ADR-0002](docs/adr/0002-core-review-architecture.md)), the agent-untrusted master-list invariant ([ADR-0004](docs/adr/0004-agent-untrusted-master-list.md)). Default to strict.
+
+- **Strict architectural review on every change.** Boundaries, layer direction, port discipline, the two-layers-never-mixed rule, naming. When in doubt, escalate — run the `architect` reviewer.
+- **Deviations require a human-approved ADR.** No agent may deviate from an accepted ADR, cross a layer boundary, add a port/package/cross-boundary channel, relax TS strictness, or introduce a new architectural pattern without **first** writing an ADR (born from a TN, `kind: proposal`) and getting **explicit human approval**. Silence ≠ approval.
+- Until that approval lands, the agent **stops** — it does not code around the boundary or ship a workaround. Surface the question, wait.
+- The human (project owner) is the only approver of architectural deviations, same as the ship approver below.
 
 ## Ship policy
 
