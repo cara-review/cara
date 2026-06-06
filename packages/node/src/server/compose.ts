@@ -5,7 +5,7 @@
 // the server can serve evidence file texts to the UI.
 
 import { homedir } from "node:os";
-import type { ConfigPort, DiffSpec } from "@clear-diff/core";
+import type { AgentPort, ConfigPort, DiffSpec } from "@clear-diff/core";
 import { createReviewService } from "@clear-diff/core";
 import { SystemClock } from "../clock.ts";
 import { EnvConfig } from "../config.ts";
@@ -27,6 +27,8 @@ export interface CompositionConfig {
   readonly stateDir: string;
   /** ConfigPort override for tests; defaults to EnvConfig over process.env. */
   readonly config?: ConfigPort;
+  /** AgentPort override for tests; defaults to the FakeAgent. */
+  readonly agent?: AgentPort;
 }
 
 /** Construct and wire every adapter, returning the backend the server drives. */
@@ -35,7 +37,7 @@ export async function compose(config: CompositionConfig): Promise<RpcDeps> {
   const service = createReviewService({
     diffSource: new GitDiffSource(config.cwd),
     store: new JsonlReviewStore(config.stateDir),
-    agent: new FakeAgent(),
+    agent: config.agent ?? new FakeAgent(),
     instructions: new FileInstructions(homedir(), config.cwd),
     editor: new SpawnEditor(editorCommand ?? "code"),
     clock: new SystemClock(),

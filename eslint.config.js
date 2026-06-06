@@ -23,4 +23,12 @@ export default tseslint.config(
       globals: globals.browser,
     },
   },
+  {
+    // e2e runs under Node (fixtures, server boot) but its page.evaluate callbacks
+    // execute in the browser, so both global sets apply.
+    files: ["e2e/**/*.ts"],
+    languageOptions: {
+      globals: { ...globals.node, ...globals.browser },
+    },
+  },
 );

@@ -14,6 +14,18 @@ if [[ -f package.json ]]; then
   fi
   echo "clear-diff pre-push: npm test..."
   npm test --if-present
+
+  # End-to-end Playwright suite. Runs only when the Chromium browser is already
+  # installed — a fresh clone that has not run `npx playwright install chromium`
+  # gets a clear notice instead of a silent pass or a surprise download.
+  if grep -q '"test:e2e"' package.json; then
+    if node -e "require('node:fs').accessSync(require('@playwright/test').chromium.executablePath())" >/dev/null 2>&1; then
+      echo "clear-diff pre-push: npm run test:e2e..."
+      npm run test:e2e
+    else
+      echo "clear-diff pre-push: e2e SKIPPED — Chromium not installed. Run: npx playwright install chromium"
+    fi
+  fi
 fi
 
 echo "clear-diff pre-push: all checks passed."
