@@ -17,3 +17,6 @@ Read the `status` field before treating any TN as authoritative: `active` → au
 | [26-009](TN-26-009-web-shell.md) | Web — app shell, 3-pane layout, nav tree, WS client + state store | plan | active | #11 |
 | [26-010](TN-26-010-web-diff-surface.md) | Web — diff surface, marking, keyboard navigation | plan | active | #12 |
 | [26-011](TN-26-011-e2e-playwright-suite.md) | End-to-end Playwright test suite | plan | active | #22 |
+| [26-013](TN-26-013-project-guidance-clear-diff-md.md) | Project guidance — clear-diff.md → InstructionsSource → AgentPort | plan | active | #26 |
+| [26-016](TN-26-016-comments-composer-commentsink-port.md) | Comments, composer, CommentSink port, and Go dispatch | proposal | draft | #14 |
+| [26-017](TN-26-017-bun-trpc-toolchain-transport.md) | Bun + tRPC toolchain and transport rework | proposal | draft | #23 |
