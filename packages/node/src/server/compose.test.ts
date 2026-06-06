@@ -2,8 +2,24 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import type { DiffSpec } from "@clear-diff/core";
+import { AnthropicAgent } from "../anthropic-agent.ts";
+import { FakeAgent } from "../fake-agent.ts";
 import { makeTestRepo } from "../git/test-repo.ts";
-import { compose } from "./compose.ts";
+import { compose, selectAgent } from "./compose.ts";
+
+test("selectAgent picks the real Claude adapter when ANTHROPIC_API_KEY is set, else FakeAgent", () => {
+  const original = process.env["ANTHROPIC_API_KEY"];
+  try {
+    process.env["ANTHROPIC_API_KEY"] = "sk-ant-test-not-a-real-key";
+    assert.ok(selectAgent() instanceof AnthropicAgent);
+
+    delete process.env["ANTHROPIC_API_KEY"];
+    assert.ok(selectAgent() instanceof FakeAgent);
+  } finally {
+    if (original === undefined) delete process.env["ANTHROPIC_API_KEY"];
+    else process.env["ANTHROPIC_API_KEY"] = original;
+  }
+});
 
 test("composition root wires a working ReviewService and WorkspaceReader", async () => {
   const repo = await makeTestRepo();

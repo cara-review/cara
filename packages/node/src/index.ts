@@ -13,6 +13,7 @@ export function coreAtomCount(hunks: readonly RawHunk[]): number {
 
 // Driven adapters (TN-26-006).
 export { FakeAgent } from "./fake-agent.ts";
+export { AnthropicAgent } from "./anthropic-agent.ts";
 export { SystemClock, fixedClock } from "./clock.ts";
 export { SpawnEditor, editorArgs } from "./editor.ts";
 export { EnvConfig } from "./config.ts";
