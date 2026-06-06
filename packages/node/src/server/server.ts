@@ -157,6 +157,7 @@ const CONTENT_TYPES: Record<string, string> = {
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml",
   ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
 };
 
 function contentType(file: string): string {

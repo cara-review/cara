@@ -1,139 +1,225 @@
-// The diff surface (#12): renders the focused Section's evidence into the shell's stable
-// `[data-diff-surface]` mount as change-block / gap / change-block across files. Marks are
-// canonical (read back from the snapshot); the agent never authors the diff (ADR-0004), so
-// every line here is git-verbatim and set via textContent (no markup). DOM-only — the
-// structural and marking logic it leans on (diff-model, controller) is pure and tested.
+// The diff surface (ADR-0006): renders the focused Section's evidence into the shell's stable
+// `[data-diff-surface]` mount as a vertical stack of per-file Monaco diff editors. Per file the
+// modified buffer is the real head and the original is head with only THIS Section's atoms
+// reverted (synthetic-buffers.ts), so only those atoms read as changes and Monaco folds the rest
+// via hideUnchangedRegions. Marks stay canonical (read back from the snapshot) and per-atom on the
+// wire (ADR-0004); the agent never authors the diff — every rendered line is git-verbatim head or
+// base text. DOM-bound; the structural and marking logic it leans on (diff-model, controller) is
+// pure and tested.
 
+import "./monaco-env.ts";
 import "./diff-surface.css";
+import * as monaco from "monaco-editor";
 import { el, fill } from "../dom.ts";
 import { marksMap } from "../selectors.ts";
-import type { Atom } from "../protocol.ts";
-import type { AppState, AppStore } from "../store.ts";
 import { sectionAt } from "../navigation.ts";
-import { diffModel, numberedLines, type FileGroup, type Gap } from "./diff-model.ts";
-import { markSectionDone, skipSection, toggleBlock } from "./controller.ts";
+import { groupByFile, type FileGroup } from "./diff-model.ts";
+import { syntheticBuffers } from "./synthetic-buffers.ts";
+import { markSectionDone, skipSection, toggleFile } from "./controller.ts";
+import type { AppState, AppStore, SectionPath } from "../store.ts";
+
+/** Render seams for #16 (inline ↔ side-by-side) and #28 (show all diffs). No toggle UI here. */
+export interface SurfaceOptions {
+  /** Side-by-side when true, inline when false. Seam for #16. */
+  readonly renderSideBySide: boolean;
+  /** Diff the whole file against its real base, not the per-Section synthetic base. Seam for #28. */
+  readonly showAllDiffs: boolean;
+}
+
+const DEFAULTS: SurfaceOptions = { renderSideBySide: false, showAllDiffs: false };
 
 export interface DiffSurface {
   render(state: AppState): void;
+  /** Flip a render seam (#16 / #28) and re-render. The toggle buttons live in those tickets. */
+  setOptions(patch: Partial<SurfaceOptions>): void;
 }
 
-/** Create the surface bound to a mount + store. Expansion is ephemeral view state held here. */
+interface FileCard {
+  readonly group: FileGroup;
+  readonly editor: monaco.editor.IStandaloneDiffEditor;
+  readonly original: monaco.editor.ITextModel;
+  readonly modified: monaco.editor.ITextModel;
+  readonly container: HTMLElement;
+  readonly toggle: HTMLButtonElement;
+  readonly card: HTMLElement;
+}
+
+// Synthetic originals can be invalid mid-edit; suppress IntelliSense squiggles in the read-only view.
+monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+  noSemanticValidation: true,
+  noSyntaxValidation: true,
+});
+monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+  noSemanticValidation: true,
+  noSyntaxValidation: true,
+});
+
+/** Create the surface bound to a mount + store. Editors are recycled on Section/option change. */
 export function createDiffSurface(mount: HTMLElement, store: AppStore): DiffSurface {
-  const expanded = new Map<string, readonly string[]>();
+  let options = DEFAULTS;
+  let renderKey: string | null = null;
+  let cards: FileCard[] = [];
+  let generation = 0;
+  let rafId = 0;
 
-  function rerender(): void {
-    render(store.getState());
-  }
+  const darkMedia = window.matchMedia("(prefers-color-scheme: dark)");
+  applyTheme(darkMedia.matches);
+  darkMedia.addEventListener("change", (event) => applyTheme(event.matches));
 
-  async function expand(key: string, gap: Gap, path: string): Promise<void> {
-    const { text } = await store.readFile(path, "head");
-    const lines = text === null ? [] : text.split("\n");
-    expanded.set(key, lines.slice(gap.headStart - 1, gap.headEnd));
-    rerender();
-  }
-
-  function gapRegion(group: FileGroup, atom: Atom, gap: Gap): readonly Node[] {
-    const key = atom.hash; // content-unique (ADR-0002); no path prefix needed
-    const lines = expanded.get(key);
-    if (lines === undefined) {
-      return [
-        el("button", {
-          class: "gap",
-          text: `Expand ${gap.hiddenLines} hidden ${gap.hiddenLines === 1 ? "line" : "lines"}`,
-          onClick: () => void expand(key, gap, group.path),
-        }),
-      ];
+  function disposeCards(): void {
+    if (rafId !== 0) {
+      cancelAnimationFrame(rafId);
+      rafId = 0;
     }
-    const context = lines.map((text, offset) => contextLine(gap.headStart + offset, text));
-    const collapse = el("button", {
-      class: "gap gap--open",
-      text: "Collapse",
-      onClick: () => {
-        expanded.delete(key);
-        rerender();
-      },
-    });
-    return [...context, collapse];
+    for (const card of cards) {
+      card.editor.dispose();
+      card.original.dispose();
+      card.modified.dispose();
+    }
+    cards = [];
   }
 
-  function block(group: FileGroup, atom: Atom, headStart: number, reviewed: boolean): HTMLElement {
-    const tick = el("button", {
-      class: `tick${reviewed ? " tick--on" : ""}`,
-      text: reviewed ? "✓ Reviewed" : "Mark reviewed",
-      attrs: { "aria-pressed": String(reviewed) },
-      onClick: () => void toggleBlock(store, atom),
-    });
-    const location = el("button", {
-      class: "block__loc",
-      text: locationLabel(atom),
-      title: "Open in editor",
-      onClick: () => void store.openInEditor(group.path, headStart),
-    });
-    const bar = el("div", { class: "block__bar" }, [location, tick]);
-    const lines = el("div", { class: "lines" }, numberedLines(atom).map(changeLine));
-    return el("div", { class: `block${reviewed ? " block--reviewed" : ""}` }, [bar, lines]);
+  function clear(): void {
+    disposeCards();
+    generation += 1;
+    renderKey = null;
+    mount.replaceChildren();
   }
 
-  function fileGroup(group: FileGroup, marked: ReturnType<typeof marksMap>): HTMLElement {
-    const head = el("button", {
-      class: "file__header",
+  /** Recompute height from each editor's (folded) content and resize so the page scrolls as one. */
+  function fit(): void {
+    for (const card of cards) {
+      const height = Math.max(
+        card.editor.getOriginalEditor().getContentHeight(),
+        card.editor.getModifiedEditor().getContentHeight(),
+      );
+      card.container.style.height = `${height}px`;
+      // Explicit dimensions: a no-arg layout() mis-measures the auto-sized container to ~0px.
+      card.editor.layout({ width: card.container.clientWidth, height });
+    }
+  }
+
+  function scheduleFit(): void {
+    if (rafId !== 0) return;
+    rafId = requestAnimationFrame(() => {
+      rafId = 0;
+      fit();
+    });
+  }
+
+  function makeCard(group: FileGroup, head: string, original: string): FileCard {
+    const language = languageFor(group.path);
+    const originalModel = monaco.editor.createModel(original, language);
+    const modifiedModel = monaco.editor.createModel(head, language);
+
+    const path = el("button", {
+      class: "file__path",
+      text: pathLabel(group),
       title: "Open in editor",
-      onClick: () => void store.openInEditor(group.path, group.blocks[0]?.headStart ?? 1),
-    }, [
-      el("span", { class: "file__path", text: pathLabel(group) }),
+      onClick: () => void store.openInEditor(group.path, group.atoms[0]?.newStart ?? 1),
+    });
+    const toggle = el("button", { class: "file__done", attrs: { "aria-pressed": "false" } });
+    toggle.addEventListener("click", () => void toggleFile(store, group.atoms));
+    const header = el("div", { class: "file__header" }, [
+      path,
       el("span", { class: `file__status file__status--${group.status}`, text: group.status }),
+      toggle,
     ]);
+    const container = el("div", { class: "file__editor" });
+    const card = el("section", { class: "file" }, [header, container]);
 
-    const body = el("div", { class: "file__body" });
-    for (const b of group.blocks) {
-      if (b.gap !== null) for (const node of gapRegion(group, b.atom, b.gap)) body.append(node);
-      body.append(block(group, b.atom, b.headStart, marked.get(b.atom.hash) === "done"));
+    const editor = monaco.editor.createDiffEditor(container, editorOptions(options));
+    editor.setModel({ original: originalModel, modified: modifiedModel });
+    editor.getOriginalEditor().onDidContentSizeChange(scheduleFit);
+    editor.getModifiedEditor().onDidContentSizeChange(scheduleFit);
+    editor.onDidUpdateDiff(scheduleFit);
+
+    return { group, editor, original: originalModel, modified: modifiedModel, container, toggle, card };
+  }
+
+  /** Fetch every file's buffers, then (if still current) build the stack. Async; race-guarded. */
+  async function rebuild(snapshot: AppState["snapshot"], section: ReturnType<typeof sectionAt>): Promise<void> {
+    if (snapshot === null || section === null) return;
+    const myGeneration = ++generation;
+    const groups = groupByFile(section);
+
+    const built = await Promise.all(
+      groups.map(async (group) => {
+        const head = (await store.readFile(group.path, "head")).text ?? "";
+        const original = options.showAllDiffs
+          ? (await store.readFile(group.path, "base")).text ?? ""
+          : syntheticBuffers(head, group.atoms).original;
+        return { group, head, original };
+      }),
+    );
+    if (myGeneration !== generation) return; // a newer rebuild superseded us
+
+    disposeCards();
+    cards = built.map(({ group, head, original }) => makeCard(group, head, original));
+    fill(mount, ...cards.map((card) => card.card), actionBar(store));
+    // A mark may have landed while files were fetching: paint the latest marks, not the stale ones.
+    updateMarks(store.getState().snapshot ?? snapshot);
+    scheduleFit();
+  }
+
+  function updateMarks(snapshot: NonNullable<AppState["snapshot"]>): void {
+    const marks = marksMap(snapshot);
+    for (const card of cards) {
+      const done = card.group.atoms.every((atom) => marks.get(atom.hash) === "done");
+      card.toggle.textContent = done ? "✓ Reviewed" : "Mark reviewed";
+      card.toggle.classList.toggle("file__done--on", done);
+      card.toggle.setAttribute("aria-pressed", String(done));
+      card.card.classList.toggle("file--reviewed", done);
     }
-    return el("section", { class: "file" }, [head, body]);
   }
 
   function render(state: AppState): void {
     if (state.snapshot === null || state.activeSection === null) {
-      mount.replaceChildren();
+      clear();
       return;
     }
     const section = sectionAt(state.snapshot, state.activeSection);
     if (section === null) {
-      mount.replaceChildren();
+      clear();
       return;
     }
     if (section.atoms.length === 0) {
+      disposeCards();
+      generation += 1;
+      renderKey = "empty";
       fill(mount, el("p", { class: "surface__empty", text: "No changes in this Section." }));
       return;
     }
 
-    const marked = marksMap(state.snapshot);
-    const files = diffModel(section).map((group) => fileGroup(group, marked));
-    const actions = el("div", { class: "actionbar" }, [
-      el("button", { class: "action action--skip", text: "Skip", onClick: () => void skipSection(store) }),
-      el("button", { class: "action action--done", text: "✓ Done & Next", onClick: () => void markSectionDone(store) }),
-    ]);
-    fill(mount, ...files, actions);
+    const key = renderKeyFor(state.activeSection, section, options);
+    if (key !== renderKey) {
+      renderKey = key;
+      void rebuild(state.snapshot, section);
+    } else {
+      updateMarks(state.snapshot);
+    }
   }
 
-  return { render };
+  return {
+    render,
+    setOptions(patch) {
+      options = { ...options, ...patch };
+      render(store.getState());
+    },
+  };
 }
 
-/** One diff row: line-number gutter · sign cue (`+`/`-`/space) · verbatim code. */
-function lineRow(variant: string, lineNo: number, sign: string, text: string): HTMLElement {
-  return el("div", { class: `line line--${variant}` }, [
-    el("span", { class: "line__no", text: String(lineNo) }),
-    el("span", { class: "line__sign", attrs: { "aria-hidden": "true" }, text: sign }),
-    el("code", { class: "line__code", text }),
+/** Identity of a rendered stack: the Section's atoms + the active render options. */
+function renderKeyFor(path: SectionPath, section: NonNullable<ReturnType<typeof sectionAt>>, options: SurfaceOptions): string {
+  const atoms = section.atoms.map((atom) => atom.hash).join(",");
+  return `${path.chapter}:${path.section}|sbs=${options.renderSideBySide}|all=${options.showAllDiffs}|${atoms}`;
+}
+
+function actionBar(store: AppStore): HTMLElement {
+  return el("div", { class: "actionbar" }, [
+    el("button", { class: "action action--skip", text: "Skip", onClick: () => void skipSection(store) }),
+    el("button", { class: "action action--done", text: "✓ Done & Next", onClick: () => void markSectionDone(store) }),
   ]);
-}
-
-function changeLine(line: ReturnType<typeof numberedLines>[number]): HTMLElement {
-  return lineRow(line.kind, line.lineNo, line.kind === "added" ? "+" : "-", line.text);
-}
-
-function contextLine(lineNo: number, text: string): HTMLElement {
-  return lineRow("context", lineNo, " ", text);
 }
 
 function pathLabel(group: FileGroup): string {
@@ -142,7 +228,60 @@ function pathLabel(group: FileGroup): string {
     : group.path;
 }
 
-function locationLabel(atom: Atom): string {
-  const span = atom.newLines > 0 ? `${atom.newStart}–${atom.newStart + atom.newLines - 1}` : `${atom.newStart}`;
-  return `Lines ${span}`;
+function editorOptions(options: SurfaceOptions): monaco.editor.IStandaloneDiffEditorConstructionOptions {
+  const fontFamily = readToken("--font-mono");
+  return {
+    renderSideBySide: options.renderSideBySide,
+    readOnly: true,
+    originalEditable: false,
+    automaticLayout: false,
+    hideUnchangedRegions: { enabled: true },
+    renderOverviewRuler: false,
+    scrollBeyondLastLine: false,
+    // No inner vertical scrollbar: the editor is auto-sized so the page scrolls past files as one.
+    scrollbar: { vertical: "hidden", alwaysConsumeMouseWheel: false, handleMouseWheel: false },
+    minimap: { enabled: false },
+    glyphMargin: false,
+    folding: false,
+    contextmenu: false,
+    fontSize: 13,
+    lineNumbersMinChars: 3,
+    ...(fontFamily !== "" ? { fontFamily } : {}),
+  };
+}
+
+const LANGUAGES: Record<string, string> = {
+  ts: "typescript",
+  tsx: "typescript",
+  js: "javascript",
+  jsx: "javascript",
+  mjs: "javascript",
+  cjs: "javascript",
+  json: "json",
+  css: "css",
+  scss: "scss",
+  less: "less",
+  html: "html",
+  md: "markdown",
+};
+
+function languageFor(path: string): string {
+  const ext = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
+  return LANGUAGES[ext] ?? "plaintext";
+}
+
+/** Define a theme whose background tracks the shell's light/dark tokens, and apply it. */
+function applyTheme(dark: boolean): void {
+  const background = readToken("--bg-main") || (dark ? "#0a0a0a" : "#ffffff");
+  monaco.editor.defineTheme("clear-diff", {
+    base: dark ? "vs-dark" : "vs",
+    inherit: true,
+    rules: [],
+    colors: { "editor.background": background, "editorGutter.background": background },
+  });
+  monaco.editor.setTheme("clear-diff");
+}
+
+function readToken(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }

@@ -11,14 +11,9 @@ test("the internal words 'atom' and 'hunk' never reach the DOM", async ({ page }
 
   for (const title of SECTIONS) {
     await selectSection(page, title);
+    // Wait for the Monaco surface to render so its markup is in the DOM when we assert.
+    await expect(page.locator("section.file", { hasText: title }).locator(".monaco-diff-editor")).toBeVisible();
     await expect(body).not.toContainText(/atom/i);
     await expect(body).not.toContainText(/hunk/i);
   }
-
-  // Expanded context is rendered the same way — check it too.
-  await selectSection(page, "src/alpha.ts");
-  await page.locator(".gap").first().click();
-  await expect(page.locator(".line--context").first()).toBeVisible();
-  await expect(body).not.toContainText(/atom/i);
-  await expect(body).not.toContainText(/hunk/i);
 });

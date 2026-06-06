@@ -15,7 +15,7 @@ const baseLines = (atom: Atom): string[] =>
  * Reverted bottom-up (descending `newStart`) so each splice leaves earlier indices valid.
  * An atom's head footprint is `[newStart, newStart + newLines - 1]`; a pure deletion has
  * `newLines === 0` and occupies no head line, so its base lines reinsert after head line
- * `newStart` (git `-U0`: `@@ -5,2 +4,0 @@`), matching diff-model's convention.
+ * `newStart` (git `-U0`: `@@ -5,2 +4,0 @@`).
  */
 export function revertAtoms(headText: string, atoms: readonly Atom[]): string {
   const lines = headText === "" ? [] : headText.split("\n");

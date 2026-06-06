@@ -61,17 +61,25 @@ export function skipSection(store: AppStore): Promise<void> {
   return markActiveSection(store, "skipped");
 }
 
-/** Tick / un-tick a single change-block: toggle its atom's reviewed state, then advance if complete. */
-export async function toggleBlock(store: AppStore, atom: Atom): Promise<void> {
+/** Tick / un-tick a whole file's changes: done when every atom is done; one click flips them all. */
+export async function toggleFile(store: AppStore, atoms: readonly Atom[]): Promise<void> {
   const before = store.getState();
   if (before.snapshot === null || before.activeSection === null) return;
-  const reviewed = marksMap(before.snapshot).get(atom.hash) === "done";
+  const marks = marksMap(before.snapshot);
+  const allDone = atoms.every((atom) => marks.get(atom.hash) === "done");
   const active = before.activeSection;
 
-  if (reviewed) await store.unmark(atom.hash);
-  else await store.mark(atom.hash, "done");
+  // Marks are per-atom on the wire (ADR-0004); a file toggle is just every atom marked, issued
+  // sequentially so out-of-order snapshot replies can't overwrite each other.
+  for (const atom of atoms) {
+    if (allDone) {
+      await store.unmark(atom.hash);
+    } else if (marks.get(atom.hash) !== "done") {
+      await store.mark(atom.hash, "done");
+    }
+  }
 
-  // Re-read after the mark: completion is judged on the fresh snapshot, but still for the
+  // Re-read after the marks: completion is judged on the fresh snapshot, but still for the
   // Section we acted on (a mark never regroups, so the path stays valid).
   const after = store.getState().snapshot;
   if (after === null) return;

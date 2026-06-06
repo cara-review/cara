@@ -7,18 +7,13 @@ test.beforeEach(async ({ page }) => {
   await gotoReview(page, url());
 });
 
-test("block ticks complete a Section and auto-advance", async ({ page }) => {
+test("the file Done toggle marks its changes done and auto-advances", async ({ page }) => {
   await selectSection(page, "src/alpha.ts");
+  const file = page.locator("section.file", { hasText: "src/alpha.ts" });
 
-  // Tick the first of two blocks: it dims, the Section reads partly reviewed, no advance.
-  await page.locator(".tick").first().click();
-  await expect(page.locator(".tick--on")).toHaveCount(1);
-  await expect(page.locator(".block--reviewed")).toHaveCount(1);
-  await expect(page.locator(".diff__count")).toHaveText("1/2 reviewed");
-  await expect(page.locator(".diff__title")).toHaveText("src/alpha.ts");
-
-  // Tick the second: the Section completes (glyph done) and focus auto-advances away.
-  await page.locator(".tick").nth(1).click();
+  // One toggle marks both of alpha's changes done → the Section completes and folds reviewed,
+  // its nav glyph reads done, and focus auto-advances away.
+  await file.locator(".file__done").click();
   await expect(sectionRow(page, "src/alpha.ts").locator(".glyph")).toHaveClass(/glyph--done/);
   await expect(page.locator(".diff__title")).not.toHaveText("src/alpha.ts");
 });

@@ -1,6 +1,6 @@
-/* Diff surface (#12). Consumes the shell's design tokens (styles.css :root). Change-block /
-   gap / change-block across file cards; add/remove carry a +/- sign cue plus colour (never
-   colour alone), no strikethrough on removed lines. */
+/* Diff surface (ADR-0006): per Section, a vertical stack of per-file Monaco diff editors.
+   clear-diff frames each file (sticky header + Done toggle) and owns checklist + order; Monaco
+   renders the evidence. Editors are auto-sized (no inner scrollbar) so the page scrolls as one. */
 
 .surface__empty {
   margin: var(--space-6) 0;
@@ -16,31 +16,38 @@
   overflow: hidden;
 }
 
+.file--reviewed {
+  opacity: 0.5;
+  transition: opacity var(--motion) var(--ease);
+}
+
 .file__header {
+  position: sticky;
+  top: var(--h-section);
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  width: 100%;
   padding: var(--space-2) var(--space-3);
   background: var(--bg-panel);
   border-bottom: var(--hairline) solid var(--border);
   font-family: var(--font-mono);
   font-size: 12px;
-  text-align: left;
-}
-
-.file__header:hover {
-  background: var(--bg-hover);
 }
 
 .file__path {
-  flex: 1;
+  text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.file__path:hover {
+  color: var(--accent);
+}
+
 .file__status {
+  margin-right: auto;
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -55,35 +62,7 @@
   color: var(--diff-rem-text);
 }
 
-/* --- Change-block --------------------------------------------------------- */
-
-.block--reviewed {
-  opacity: 0.4;
-  filter: grayscale(1);
-  transition: opacity var(--motion) var(--ease), filter var(--motion) var(--ease);
-}
-
-.block__bar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-3);
-  background: color-mix(in srgb, var(--bg-panel) 60%, transparent);
-}
-
-.block__loc {
-  flex: 1;
-  text-align: left;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.block__loc:hover {
-  color: var(--accent);
-}
-
-.tick {
+.file__done {
   font-size: 11px;
   padding: 2px var(--space-2);
   border: var(--hairline) solid var(--border);
@@ -92,83 +71,26 @@
   transition: color var(--motion) var(--ease), border-color var(--motion) var(--ease);
 }
 
-.tick:hover {
+.file__done:hover {
   border-color: var(--accent);
   color: var(--accent);
 }
 
-.tick--on {
+.file__done--on {
   border-color: var(--accent);
   background: var(--accent);
   color: #fff;
 }
 
-/* --- Diff lines ----------------------------------------------------------- */
+/* --- Editor --------------------------------------------------------------- */
 
-.lines {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.line {
-  display: flex;
-  white-space: pre;
-}
-
-.line__no {
-  flex: none;
-  width: 48px;
-  padding-right: var(--space-2);
-  text-align: right;
-  color: var(--text-muted);
-  user-select: none;
-}
-
-.line__sign {
-  flex: none;
-  width: 20px;
-  text-align: center;
-  user-select: none;
-}
-
-.line__code {
-  flex: 1;
-  overflow-x: auto;
-}
-
-.line--added {
-  background: var(--diff-add-bg);
-  color: var(--diff-add-text);
-}
-
-.line--removed {
-  background: var(--diff-rem-bg);
-  color: var(--diff-rem-text);
-}
-
-.line--context {
-  color: var(--text-muted);
-}
-
-/* --- Gap ------------------------------------------------------------------ */
-
-.gap {
-  display: block;
+.file__editor {
   width: 100%;
-  padding: var(--space-1) var(--space-3);
-  background: var(--bg-panel);
-  border-top: var(--hairline) solid var(--border);
-  border-bottom: var(--hairline) solid var(--border);
-  font-size: 12px;
-  text-align: center;
-  color: var(--text-muted);
-  user-select: none;
 }
 
-.gap:hover {
-  background: var(--bg-hover);
-  color: var(--accent);
+/* The page owns vertical scroll; suppress Monaco's inner vertical scrollbar entirely. */
+.file__editor .monaco-editor .scrollbar.vertical {
+  display: none;
 }
 
 /* --- Section action bar --------------------------------------------------- */
