@@ -38,18 +38,24 @@ roadmap.
 driven dependency with real behaviour or a fake worth having gets one; a single-impl-forever
 triviality stays a function.
 
-## Dependency rule (structural, not lint)
+## Dependency rule (declared deps + review)
 
 - `core` imports nothing; `packages/node` depends on `core`; `apps/web` reaches `node`
   only over HTTP/WS, never by import.
-- Enforced by **workspaces**, not lint:
+- Held by **declared dependencies + mandatory architectural review**, not lint:
   - `packages/core` — domain + application + port interfaces. Pure TS, zero runtime deps.
   - `packages/node` — driven adapters + HTTP/WS server + composition root.
   - `apps/web` — Vite UI.
 - Composition root = the `node` server bootstrap, the one place concrete adapters are
   constructed and injected. **Manual constructor injection, no DI framework.**
-- The core literally cannot import an adapter: it isn't a dependency, so the leak hex
-  exists to prevent is structurally impossible.
+- The cross-package boundary is a contract, not a structural impossibility. npm hoists
+  workspace packages into the root `node_modules`, so `core` *can* resolve a bare `@clear-diff/node`
+  specifier even without declaring it. Three guarantees hold the boundary instead:
+  - **declared deps** — `core` declares no dependency on `node`/`web`; an adapter import is
+    undeclared and caught in review.
+  - **mandatory architectural review** on every change.
+  - **compile-enforced domain purity** — `core` production sources compile with `types: []`,
+    so `node:*` / builtin imports fail to typecheck.
 
 ## What crosses the boundaries
 
