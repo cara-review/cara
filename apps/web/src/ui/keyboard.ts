@@ -1,13 +1,15 @@
 // The hot-path keyboard model. `keyToAction` is the pure, unit-tested mapping; `installKeyboard`
 // wires one document-level listener that suppresses while typing and dispatches to the controller.
 // `⌘K`/`Ctrl+K` toggles the command palette; other chords are left untouched. `DIFF_ACTIONS` is the
-// single source of truth for each action's title, primary key, and dispatch — shared with the palette.
+// single source of truth for the store-backed actions' title, primary key, and dispatch — shared
+// with the palette. `v` toggles the side-by-side view, which dispatches to the diff surface.
 
 import type { AppStore } from "../store.ts";
 import type { CommandPalette } from "./command-palette.ts";
+import type { DiffSurface } from "./diff-surface.ts";
 import { markSectionDone, moveFocus, skipSection } from "./controller.ts";
 
-export type DiffAction = "next" | "prev" | "done" | "skip";
+export type DiffAction = "next" | "prev" | "done" | "skip" | "sideBySide";
 
 export interface DiffActionSpec {
   readonly id: DiffAction;
@@ -17,7 +19,7 @@ export interface DiffActionSpec {
   run(store: AppStore): void;
 }
 
-/** Every hot-path action, named once. Both the keyboard handler and the palette read this. */
+/** The store-backed hot-path actions, named once. Both the keyboard handler and the palette read this. */
 export const DIFF_ACTIONS: readonly DiffActionSpec[] = [
   { id: "next", title: "Next section", key: "j", run: (store) => moveFocus(store, "next") },
   { id: "prev", title: "Previous section", key: "k", run: (store) => moveFocus(store, "prev") },
@@ -42,6 +44,9 @@ export function keyToAction(key: string): DiffAction | null {
     case "s":
     case "S":
       return "skip";
+    case "v":
+    case "V":
+      return "sideBySide";
     default:
       return null;
   }
@@ -54,7 +59,7 @@ function isTextEntry(target: EventTarget | null): boolean {
 }
 
 /** Install the hot-path listener on `document`. Returns a disposer. */
-export function installKeyboard(store: AppStore, palette: CommandPalette): () => void {
+export function installKeyboard(store: AppStore, palette: CommandPalette, surface: DiffSurface): () => void {
   const handler = (event: KeyboardEvent): void => {
     if ((event.metaKey || event.ctrlKey) && !event.altKey && (event.key === "k" || event.key === "K")) {
       event.preventDefault();
@@ -66,6 +71,10 @@ export function installKeyboard(store: AppStore, palette: CommandPalette): () =>
     const action = keyToAction(event.key);
     if (action === null) return;
     event.preventDefault();
+    if (action === "sideBySide") {
+      surface.toggleSideBySide();
+      return;
+    }
     ACTION_BY_ID.get(action)?.run(store);
   };
   document.addEventListener("keydown", handler);

@@ -18,20 +18,46 @@ import { syntheticBuffers } from "./synthetic-buffers.ts";
 import { markSectionDone, skipSection, toggleFile } from "./controller.ts";
 import type { AppState, AppStore, SectionPath } from "../store.ts";
 
-/** Render seams for #16 (inline ↔ side-by-side) and #28 (show all diffs). No toggle UI here. */
+/** Toolbar-controlled render flags: #16 (inline ↔ side-by-side) and #28 (show all diffs). */
 export interface SurfaceOptions {
-  /** Side-by-side when true, inline when false. Seam for #16. */
+  /** Side-by-side when true, inline when false (#16). */
   readonly renderSideBySide: boolean;
-  /** Diff the whole file against its real base, not the per-Section synthetic base. Seam for #28. */
+  /** Diff the whole file against its real base, not the per-Section synthetic base (#28). */
   readonly showAllDiffs: boolean;
 }
 
 const DEFAULTS: SurfaceOptions = { renderSideBySide: false, showAllDiffs: false };
+const STORAGE_KEY = "clear-diff:surface-options";
 
 export interface DiffSurface {
   render(state: AppState): void;
-  /** Flip a render seam (#16 / #28) and re-render. The toggle buttons live in those tickets. */
-  setOptions(patch: Partial<SurfaceOptions>): void;
+  /** Flip side-by-side (#16). The keyboard seam; the matching button lives in the toolbar. */
+  toggleSideBySide(): void;
+}
+
+/** Restore persisted toggles, falling back to defaults for missing/corrupt storage. */
+function loadOptions(): SurfaceOptions {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw === null) return DEFAULTS;
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null) return DEFAULTS;
+    const rec = parsed as Record<string, unknown>;
+    return {
+      renderSideBySide: typeof rec["renderSideBySide"] === "boolean" ? rec["renderSideBySide"] : DEFAULTS.renderSideBySide,
+      showAllDiffs: typeof rec["showAllDiffs"] === "boolean" ? rec["showAllDiffs"] : DEFAULTS.showAllDiffs,
+    };
+  } catch {
+    return DEFAULTS;
+  }
+}
+
+function saveOptions(options: SurfaceOptions): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(options));
+  } catch {
+    // Storage unavailable (private mode / quota) — toggles still work for the session.
+  }
 }
 
 interface FileCard {
@@ -56,7 +82,7 @@ monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
 
 /** Create the surface bound to a mount + store. Editors are recycled on Section/option change. */
 export function createDiffSurface(mount: HTMLElement, store: AppStore): DiffSurface {
-  let options = DEFAULTS;
+  let options = loadOptions();
   let renderKey: string | null = null;
   let cards: FileCard[] = [];
   let generation = 0;
@@ -156,7 +182,7 @@ export function createDiffSurface(mount: HTMLElement, store: AppStore): DiffSurf
 
     disposeCards();
     cards = built.map(({ group, head, original }) => makeCard(group, head, original));
-    fill(mount, ...cards.map((card) => card.card), actionBar(store));
+    fill(mount, toolbar(), ...cards.map((card) => card.card), actionBar(store));
     // A mark may have landed while files were fetching: paint the latest marks, not the stale ones.
     updateMarks(store.getState().snapshot ?? snapshot);
     scheduleFit();
@@ -200,13 +226,39 @@ export function createDiffSurface(mount: HTMLElement, store: AppStore): DiffSurf
     }
   }
 
-  return {
-    render,
-    setOptions(patch) {
-      options = { ...options, ...patch };
-      render(store.getState());
-    },
-  };
+  function setOption(patch: Partial<SurfaceOptions>): void {
+    options = { ...options, ...patch };
+    saveOptions(options);
+    render(store.getState());
+  }
+
+  function toggleSideBySide(): void {
+    setOption({ renderSideBySide: !options.renderSideBySide });
+  }
+
+  /** The diff-surface control bar: side-by-side/inline (#16) + show-all-diffs (#28). */
+  function toolbar(): HTMLElement {
+    return el("div", { class: "diff-toolbar" }, [
+      toggleButton("Side by side", "Toggle side-by-side (v)", options.renderSideBySide, toggleSideBySide),
+      toggleButton("All file changes", "Show every change in the file, not just this Section", options.showAllDiffs, () =>
+        setOption({ showAllDiffs: !options.showAllDiffs }),
+      ),
+    ]);
+  }
+
+  return { render, toggleSideBySide };
+}
+
+function toggleButton(label: string, title: string, on: boolean, onClick: () => void): HTMLButtonElement {
+  const button = el("button", {
+    class: "diff-toolbar__toggle",
+    text: label,
+    title,
+    attrs: { "aria-pressed": String(on) },
+    onClick,
+  });
+  button.classList.toggle("diff-toolbar__toggle--on", on);
+  return button;
 }
 
 /** Identity of a rendered stack: the Section's atoms + the active render options. */
@@ -232,6 +284,8 @@ function editorOptions(options: SurfaceOptions): monaco.editor.IStandaloneDiffEd
   const fontFamily = readToken("--font-mono");
   return {
     renderSideBySide: options.renderSideBySide,
+    // Honour the explicit #16 toggle; don't let Monaco silently collapse to inline in a narrow pane.
+    useInlineViewWhenSpaceIsLimited: false,
     readOnly: true,
     originalEditable: false,
     automaticLayout: false,

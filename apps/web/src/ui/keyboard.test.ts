@@ -16,6 +16,11 @@ test("keyToAction maps done/skip in either case", () => {
   assert.equal(keyToAction("S"), "skip");
 });
 
+test("keyToAction maps the side-by-side toggle in either case", () => {
+  assert.equal(keyToAction("v"), "sideBySide");
+  assert.equal(keyToAction("V"), "sideBySide");
+});
+
 test("keyToAction returns null for unbound keys", () => {
   for (const key of ["a", "Enter", "ArrowLeft", " ", "1"]) {
     assert.equal(keyToAction(key), null);
