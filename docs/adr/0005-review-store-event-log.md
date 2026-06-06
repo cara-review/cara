@@ -32,6 +32,7 @@ The `ReviewStore` adapter is an **append-only event log per context**.
 - Holds only dispositions and comments keyed by atom hash, never the atom set (ADR-0004). The set is still recomputed live each run.
 - Undo and history come free from the fold; surfacing them in the UI is a separate, deferrable decision.
 - Context identity must be stable across runs or marks die between invocations: the head branch (or `base..head`) for a worktree review, the PR number for `--pr N`.
+- **Context is resolved by the `DiffSource` adapter, not the application** (added #9, owner-approved). Context identity is source/git knowledge — the head branch is not derivable from the `DiffSpec` shape alone — so it lives behind the port; the domain never computes it. `DiffSource` gains `resolveContext(spec): Promise<ReviewContext>`, and core exports a `reviewContext(string)` smart-constructor the adapter uses to brand the key. `ReviewService.open` reads the context from the adapter.
 
 ## Open
 

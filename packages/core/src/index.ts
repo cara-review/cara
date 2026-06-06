@@ -16,6 +16,7 @@ export type {
   Comment,
   ReviewProgress,
 } from "./model.ts";
+export { reviewContext } from "./model.ts";
 
 export { atomPayload, hashAtom } from "./identity.ts";
 export { buildMasterList } from "./master-list.ts";
@@ -47,3 +48,4 @@ export type {
   ReviewSnapshot,
   ReviewService,
 } from "./ports.ts";
+export { createReviewService, type ReviewServiceDeps } from "./review-service.ts";

@@ -25,6 +25,13 @@ export type DiffSpec =
 /** Run git and parse to RawHunks (`git diff -U0 --histogram -M`). GitCli, later GitHubPR. */
 export interface DiffSource {
   diff(spec: DiffSpec): Promise<readonly RawHunk[]>;
+  /**
+   * The stable per-review context for a spec (ADR-0005): head branch for a
+   * worktree, `base..head` for a range, PR number for a PR. The adapter owns
+   * this — context identity is git/source knowledge, not derivable from the
+   * spec shape alone, so the domain never computes it.
+   */
+  resolveContext(spec: DiffSpec): Promise<ReviewContext>;
 }
 
 /** Which side of the diff to read a file from. "head" is the worktree for a worktree review. */

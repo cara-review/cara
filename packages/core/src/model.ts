@@ -11,6 +11,13 @@ export type AtomHash = string & { readonly __brand: "AtomHash" };
 /** Stable per-review key (head branch, `base..head`, or PR number). Survives sessions. */
 export type ReviewContext = string & { readonly __brand: "ReviewContext" };
 
+/** Brand a resolved key as a ReviewContext. The DiffSource adapter is the only caller (ADR-0005). */
+export function reviewContext(value: string): ReviewContext {
+  const key = value.trim();
+  if (key.length === 0) throw new Error("ReviewContext cannot be empty.");
+  return key as ReviewContext;
+}
+
 /** One added or removed line of a hunk. Text is the content, no `+`/`-` prefix. */
 export interface DiffLine {
   readonly kind: "added" | "removed";

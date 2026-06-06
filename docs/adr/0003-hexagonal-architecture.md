@@ -25,7 +25,7 @@ roadmap.
 
 | Port | Responsibility | Adapter(s) |
 |---|---|---|
-| `DiffSource` | run git, parse to `RawHunk[]` | GitCli (→ GitHubPR later) |
+| `DiffSource` | run git → `RawHunk[]`; resolve the review context for a spec (ADR-0005) | GitCli (→ GitHubPR later) |
 | `WorkspaceReader` | file content at a ref | `git show` |
 | `AgentPort` | propose grouping (structure only) | Anthropic (→ Fake for tests). See ADR-0004 |
 | `ReviewStore` | persist marks / comments / grouping per context | fs JSON (→ sqlite) |
