@@ -10,6 +10,7 @@ import { renderNav } from "./ui/nav.ts";
 import { createDiffPane } from "./ui/diff-pane.ts";
 import { createChatPane } from "./ui/chat-pane.ts";
 import { overlay } from "./ui/states.ts";
+import { installLayout } from "./ui/layout.ts";
 import type { AppState, AppStore } from "./store.ts";
 
 export interface View {
@@ -24,6 +25,7 @@ export function createView(root: HTMLElement, store: AppStore): View {
   const chatPane = createChatPane();
   const navEl = el("nav", { class: "nav" });
   const grid = el("div", { class: "grid" }, [navEl, diffPane.node, chatPane.node]);
+  installLayout(grid);
 
   const overlayHost = el("div", { class: "overlay-host" });
   const statusHost = el("footer", { class: "status" });

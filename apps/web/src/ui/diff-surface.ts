@@ -92,6 +92,10 @@ export function createDiffSurface(mount: HTMLElement, store: AppStore): DiffSurf
   applyTheme(darkMedia.matches);
   darkMedia.addEventListener("change", (event) => applyTheme(event.matches));
 
+  // Manual layout (automaticLayout is off): re-fit when the container's width changes,
+  // e.g. the shell's pane resize/collapse, which dispatches a window `resize`.
+  window.addEventListener("resize", scheduleFit);
+
   function disposeCards(): void {
     if (rafId !== 0) {
       cancelAnimationFrame(rafId);

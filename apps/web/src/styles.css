@@ -213,13 +213,88 @@ kbd {
 /* --- Grid + panes --------------------------------------------------------- */
 
 .grid {
+  --w-divider: 7px;
   display: grid;
-  grid-template-columns: var(--w-nav) 1fr var(--w-chat);
+  grid-template-columns: var(--w-nav) var(--w-divider) 1fr var(--w-divider) var(--w-chat);
   min-height: 0;
 }
 
 .grid[hidden] {
   display: none;
+}
+
+/* During a drag, suppress transitions for 1:1 tracking. */
+.grid--resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.grid--nav-collapsed .nav {
+  display: none;
+}
+
+.grid--chat-collapsed .chat {
+  display: none;
+}
+
+/* --- Resize / collapse dividers (namespaced to avoid Monaco's .gutter) ----- */
+
+.pane-divider {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: col-resize;
+  background: var(--bg-panel);
+  border-left: var(--hairline) solid var(--border);
+  border-right: var(--hairline) solid var(--border);
+}
+
+.pane-divider::before {
+  /* The grab line, accented on hover/focus. */
+  content: "";
+  position: absolute;
+  inset: 0 calc(50% - 0.5px);
+  background: transparent;
+  transition: background var(--motion) var(--ease);
+}
+
+.pane-divider:hover::before,
+.pane-divider:focus-visible::before {
+  background: var(--accent);
+}
+
+.pane-divider--collapsed {
+  cursor: default;
+}
+
+.pane-divider__toggle {
+  position: relative;
+  z-index: 1;
+  width: 16px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--text-muted);
+  background: var(--bg-panel);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  transition: opacity var(--motion) var(--ease), color var(--motion) var(--ease);
+}
+
+.pane-divider:hover .pane-divider__toggle,
+.pane-divider:focus-within .pane-divider__toggle,
+.pane-divider--collapsed .pane-divider__toggle {
+  opacity: 1;
+}
+
+.pane-divider__toggle:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .nav {
