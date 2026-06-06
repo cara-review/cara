@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "es2023",
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "useUnknownInCatchVariables": true
+  }
+}

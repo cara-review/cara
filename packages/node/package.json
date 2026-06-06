@@ -1,0 +1,17 @@
+{
+  "name": "@clear-diff/node",
+  "version": "0.1.0",
+  "description": "Driven adapters, HTTP/WS server, and composition root.",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@clear-diff/core": "*"
+  },
+  "license": "MIT"
+}

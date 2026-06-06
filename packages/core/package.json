@@ -1,0 +1,14 @@
+{
+  "name": "@clear-diff/core",
+  "version": "0.1.0",
+  "description": "Pure domain + application core. Zero runtime dependencies.",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json"
+  },
+  "license": "MIT"
+}

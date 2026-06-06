@@ -7,3 +7,4 @@ Read the `status` field before treating any TN as authoritative: `active` → au
 | TN | Title | Kind | Status | Issue |
 |---|---|---|---|---|
 | [26-001](TN-26-001-technical-notes-and-doc-structure.md) | Technical Notes and documentation structure | proposal | active | #3 |
+| [26-002](TN-26-002-monorepo-scaffold.md) | Monorepo scaffold and strict TypeScript toolchain | plan | active | #4 |

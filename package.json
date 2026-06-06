@@ -2,14 +2,27 @@
   "name": "clear-diff",
   "version": "0.1.0",
   "description": "Clearance for your code. A Diff 2.0 reviewer.",
-  "scripts": {
-    "test": "echo \"no tests yet\" && exit 0"
-  },
+  "type": "module",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "bin": {
     "clear-diff": "./index.js"
   },
-  "publishConfig": {
-    "access": "public"
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint .",
+    "test": "npm run typecheck && node --test \"packages/*/src/**/*.test.ts\" \"apps/*/src/**/*.test.ts\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^22.10.0",
+    "eslint": "^9.17.0",
+    "globals": "^15.14.0",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.0"
   },
   "license": "MIT"
 }
