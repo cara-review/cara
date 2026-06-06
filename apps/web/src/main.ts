@@ -8,6 +8,7 @@ import { RpcClient, WebSocketTransport } from "./rpc.ts";
 import { AppStore } from "./store.ts";
 import { createView } from "./view.ts";
 import { createDiffSurface } from "./ui/diff-surface.ts";
+import { createCommandPalette } from "./ui/command-palette.ts";
 import { installKeyboard } from "./ui/keyboard.ts";
 
 function backendUrl(): string {
@@ -31,7 +32,7 @@ if (root !== null) {
     view.render(store.getState());
     surface.render(store.getState());
   });
-  installKeyboard(store);
+  installKeyboard(store, createCommandPalette(document.body, store));
   store.bindTransport(transport);
   view.render(store.getState()); // initial paint: connecting (surface is empty until a review opens)
   surface.render(store.getState());

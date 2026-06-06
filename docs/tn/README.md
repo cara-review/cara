@@ -22,4 +22,5 @@ Read the `status` field before treating any TN as authoritative: `active` → au
 | [26-015](TN-26-015-monaco-diff-surface.md) | Monaco-based diff surface | proposal | active | #27 |
 | [26-016](TN-26-016-comments-composer-commentsink-port.md) | Comments, composer, CommentSink port, and Go dispatch | proposal | draft | #14 |
 | [26-017](TN-26-017-bun-trpc-toolchain-transport.md) | Bun + tRPC toolchain and transport rework | proposal | draft | #23 |
+| [26-019](TN-26-019-command-palette.md) | Web — ⌘K command palette | plan | active | #13 |
 | [26-022](TN-26-022-chat-pane-chapter-qa.md) | Chat pane — chapter-level Q&A with the agent | proposal | draft | #15 |

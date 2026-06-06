@@ -1,11 +1,31 @@
 // The hot-path keyboard model. `keyToAction` is the pure, unit-tested mapping; `installKeyboard`
 // wires one document-level listener that suppresses while typing and dispatches to the controller.
-// Chords (meta/ctrl/alt) are left untouched for the command palette and pane toggles (later).
+// `⌘K`/`Ctrl+K` toggles the command palette; other chords are left untouched. `DIFF_ACTIONS` is the
+// single source of truth for each action's title, primary key, and dispatch — shared with the palette.
 
 import type { AppStore } from "../store.ts";
+import type { CommandPalette } from "./command-palette.ts";
 import { markSectionDone, moveFocus, skipSection } from "./controller.ts";
 
 export type DiffAction = "next" | "prev" | "done" | "skip";
+
+export interface DiffActionSpec {
+  readonly id: DiffAction;
+  readonly title: string;
+  /** The primary key shown as the palette hint; `keyToAction` adds aliases (arrows, upper case). */
+  readonly key: string;
+  run(store: AppStore): void;
+}
+
+/** Every hot-path action, named once. Both the keyboard handler and the palette read this. */
+export const DIFF_ACTIONS: readonly DiffActionSpec[] = [
+  { id: "next", title: "Next section", key: "j", run: (store) => moveFocus(store, "next") },
+  { id: "prev", title: "Previous section", key: "k", run: (store) => moveFocus(store, "prev") },
+  { id: "done", title: "Mark section done", key: "d", run: (store) => void markSectionDone(store) },
+  { id: "skip", title: "Skip section", key: "s", run: (store) => void skipSection(store) },
+];
+
+const ACTION_BY_ID = new Map(DIFF_ACTIONS.map((action) => [action.id, action]));
 
 /** Map a `KeyboardEvent.key` to a hot-path action, or null if unbound. */
 export function keyToAction(key: string): DiffAction | null {
@@ -34,27 +54,19 @@ function isTextEntry(target: EventTarget | null): boolean {
 }
 
 /** Install the hot-path listener on `document`. Returns a disposer. */
-export function installKeyboard(store: AppStore): () => void {
+export function installKeyboard(store: AppStore, palette: CommandPalette): () => void {
   const handler = (event: KeyboardEvent): void => {
+    if ((event.metaKey || event.ctrlKey) && !event.altKey && (event.key === "k" || event.key === "K")) {
+      event.preventDefault();
+      palette.toggle();
+      return;
+    }
     if (event.metaKey || event.ctrlKey || event.altKey) return;
     if (isTextEntry(event.target)) return;
     const action = keyToAction(event.key);
     if (action === null) return;
     event.preventDefault();
-    switch (action) {
-      case "next":
-        moveFocus(store, "next");
-        break;
-      case "prev":
-        moveFocus(store, "prev");
-        break;
-      case "done":
-        void markSectionDone(store);
-        break;
-      case "skip":
-        void skipSection(store);
-        break;
-    }
+    ACTION_BY_ID.get(action)?.run(store);
   };
   document.addEventListener("keydown", handler);
   return () => document.removeEventListener("keydown", handler);
