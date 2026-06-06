@@ -91,6 +91,33 @@ test("a non-loopback Origin is rejected at the WS handshake", async () => {
   }
 });
 
+test("an over-cap WS frame is rejected without crashing the backend", async () => {
+  const server = await startServer(stubDeps());
+  // Exceed the 1 MiB maxPayload. ws emits 'error' on the socket for an over-cap
+  // frame; with no listener that would be an uncaught exception — a one-frame DoS.
+  const overCap = "x".repeat((1 << 20) + 1);
+  try {
+    const sender = new WebSocket(server.url.replace(/^http/, "ws"));
+    await once(sender, "open");
+    sender.on("error", () => {}); // the server closes this socket; ignore the client-side error
+    sender.send(JSON.stringify({ id: "big", method: "open", params: {}, pad: overCap }));
+    await once(sender, "close"); // the server rejects the frame and closes the offending socket
+
+    // The backend must still serve other clients: a fresh connection gets a clean
+    // error reply, proving the process survived the unhandled-'error' crash path.
+    const probe = new WebSocket(server.url.replace(/^http/, "ws"));
+    await once(probe, "open");
+    const reply = await new Promise<ServerResponse>((resolve) => {
+      probe.once("message", (data: RawData) => resolve(JSON.parse(String(data)) as ServerResponse));
+      probe.send("not json");
+    });
+    assert.equal(reply.ok, false, "the backend is alive and answering");
+    probe.close();
+  } finally {
+    await server.close();
+  }
+});
+
 test("static serving refuses to read outside the web root", async () => {
   const root = await mkdtemp(join(tmpdir(), "clear-diff-web-"));
   const secret = await mkdtemp(join(tmpdir(), "clear-diff-secret-"));

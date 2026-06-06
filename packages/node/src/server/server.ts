@@ -43,7 +43,14 @@ export async function startServer(deps: RpcDeps, options: ServerOptions = {}): P
     verifyClient: ({ origin, req }: { origin: string; req: IncomingMessage }) =>
       isLoopbackOrigin(origin) && isLoopbackHost(req.headers.host),
   });
+  // A WebSocket emits 'error' on a transport/protocol fault — e.g. a peer frame
+  // over `maxPayload`, or an abrupt reset. EventEmitter rethrows an 'error' with
+  // no listener as an uncaught exception, which would crash the backend: a
+  // one-frame DoS from any page the loopback server is reachable from. Swallow it
+  // (ws closes the offending socket itself); the same guard covers server-level faults.
+  sockets.on("error", () => {});
   sockets.on("connection", (socket) => {
+    socket.on("error", () => {});
     socket.on("message", (data) => {
       void onMessage(deps, socket, data);
     });
