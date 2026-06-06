@@ -54,17 +54,23 @@ export function createView(root: HTMLElement, store: AppStore): View {
 function statusBar(state: AppState): HTMLElement {
   const dot = el("span", { class: `status__dot status__dot--${state.connection}`, attrs: { "aria-hidden": "true" } });
   const connection = el("span", { class: "status__connection", text: connectionLabel(state.connection) });
-  const counts =
-    state.snapshot !== null
-      ? el("span", {
-          class: "status__counts",
-          text: `${state.snapshot.progress.addressed}/${state.snapshot.progress.total} changes reviewed`,
-        })
-      : null;
   return el("div", { class: "status__bar" }, [
     el("div", { class: "status__group" }, [dot, connection]),
-    counts,
+    counts(state),
   ]);
+}
+
+/** Reviewed count, becoming an accent all-done signal once every change is accounted for. */
+function counts(state: AppState): HTMLElement | null {
+  const progress = state.snapshot?.progress;
+  if (progress === undefined) return null;
+  const done = progress.total > 0 && progress.unaddressed === 0;
+  return el("span", {
+    class: done ? "status__counts status__counts--done" : "status__counts",
+    text: done
+      ? `✓ All ${progress.total} changes reviewed`
+      : `${progress.addressed}/${progress.total} changes reviewed`,
+  });
 }
 
 function connectionLabel(connection: AppState["connection"]): string {
@@ -73,9 +79,9 @@ function connectionLabel(connection: AppState["connection"]): string {
       return "Connecting…";
     case "open":
       return "Connected";
+    case "reconnecting":
+      return "Reconnecting…";
     case "closed":
       return "Disconnected";
-    case "error":
-      return "Connection error";
   }
 }

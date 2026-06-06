@@ -24,4 +24,5 @@ Read the `status` field before treating any TN as authoritative: `active` → au
 | [26-017](TN-26-017-bun-trpc-toolchain-transport.md) | Bun + tRPC toolchain and transport rework | proposal | draft | #23 |
 | [26-018](TN-26-018-diff-surface-toggles.md) | Diff-surface toggles — split/unified and show-all-diffs | plan | active | #16, #28 |
 | [26-019](TN-26-019-command-palette.md) | Web — ⌘K command palette | plan | active | #13 |
+| [26-021](TN-26-021-edge-state-polish.md) | Edge-state polish — connection lifecycle, empty, all-done | plan | active | #19 |
 | [26-022](TN-26-022-chat-pane-chapter-qa.md) | Chat pane — chapter-level Q&A with the agent | proposal | draft | #15 |

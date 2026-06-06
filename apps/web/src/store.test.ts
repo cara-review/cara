@@ -152,9 +152,9 @@ test("transport lifecycle drives the connection status", () => {
   transport.fire("open");
   assert.equal(store.getState().connection, "open");
 
+  transport.fire("reconnecting");
+  assert.equal(store.getState().connection, "reconnecting");
+
   transport.fire("close");
   assert.equal(store.getState().connection, "closed");
-
-  transport.fire("error");
-  assert.equal(store.getState().connection, "error");
 });

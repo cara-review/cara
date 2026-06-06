@@ -9,7 +9,7 @@
 import type { AtomHash, Disposition, FileSide, ReviewSnapshot } from "./protocol.ts";
 import type { RpcClient, Transport } from "./rpc.ts";
 
-export type Connection = "connecting" | "open" | "closed" | "error";
+export type Connection = "connecting" | "open" | "reconnecting" | "closed";
 
 export interface SectionPath {
   readonly chapter: number;
@@ -58,8 +58,8 @@ export class AppStore {
       this.patch({ connection: "open" });
       void this.open();
     });
+    transport.on("reconnecting", () => this.patch({ connection: "reconnecting" }));
     transport.on("close", () => this.patch({ connection: "closed" }));
-    transport.on("error", () => this.patch({ connection: "error" }));
   }
 
   async open(): Promise<ReviewSnapshot> {

@@ -13,6 +13,7 @@
   --border: #e5e7eb;
   --accent: #5e6ad2;
   --accent-hover: #4a55c0;
+  --warn: #d97706;
   --text-main: #111827;
   --text-muted: #6b7280;
 
@@ -53,6 +54,7 @@
     --bg-hover: #1a1a1a;
     --border: #222222;
     --accent-hover: #6f7bf7;
+    --warn: #f59e0b;
     --text-main: #ededed;
     --text-muted: #888888;
 
@@ -485,13 +487,40 @@ kbd {
   background: var(--diff-add-text);
 }
 
-.status__dot--error,
 .status__dot--closed {
   background: var(--diff-rem-text);
 }
 
+.status__dot--reconnecting {
+  background: var(--warn);
+}
+
+/* Live states pulse so a stalled connection reads as "working", not "stuck". */
+.status__dot--connecting,
+.status__dot--reconnecting {
+  animation: pulse 1.4s var(--ease) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status__dot--connecting,
+  .status__dot--reconnecting {
+    animation: none;
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
 .status__counts {
   font-family: var(--font-mono);
+}
+
+.status__counts--done {
+  color: var(--accent);
+  font-weight: 600;
 }
 
 /* --- Whole-window states -------------------------------------------------- */

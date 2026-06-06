@@ -7,7 +7,7 @@ import type { Transport, TransportEvent } from "./rpc.ts";
 export class FakeTransport implements Transport {
   readonly sent: string[] = [];
   private message: ((data: string) => void) | null = null;
-  private readonly handlers: Record<TransportEvent, Array<() => void>> = { open: [], close: [], error: [] };
+  private readonly handlers: Record<TransportEvent, Array<() => void>> = { open: [], close: [], reconnecting: [] };
 
   send(data: string): void {
     this.sent.push(data);
