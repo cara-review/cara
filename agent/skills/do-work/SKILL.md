@@ -44,7 +44,7 @@ If unclear, ask the user at kick-off.
 
 ## Review stage adjustments
 
-`/do-review` scales by change kind:
+`/do-review` scales by change kind. Each reviewer is an **agent** (`agent/agents/<name>.md`), invoked via the Agent tool in its own clean, isolated context — see `do-review` for the mechanism.
 
 | Reviewer            | Code                             | Docs                                     |
 | ------------------- | -------------------------------- | ---------------------------------------- |

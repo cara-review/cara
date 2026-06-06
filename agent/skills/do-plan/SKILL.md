@@ -22,11 +22,11 @@ Plans the work before any code is written. Run after `do-kick-off`.
 
 ## Autonomous Mode
 
-Plan without waiting for human approval. Once the plan is stable, assess whether specialist input is needed before proceeding:
+Plan without waiting for human approval. Once the plan is stable, assess whether specialist input is needed before proceeding. Specialists are **agents** — invoke each via the **Agent tool** with `subagent_type` set to the agent name, so it reviews the plan in its own clean, isolated context:
 
-- Architectural implications → `architect`
-- Security-sensitive changes → `security-analyst`
-- Test strategy uncertainty → `test-coverage-agent`
+- Architectural implications → `subagent_type: "architect"`
+- Security-sensitive changes → `subagent_type: "security-analyst"`
+- Test strategy uncertainty → `subagent_type: "test-coverage-agent"`
 
 Specialist input may revise the plan — that is correct and expected. Proceed only once stable.
 
@@ -88,10 +88,11 @@ Post a one-line pointer on the issue: "Plan: `docs/tn/TN-YY.N-<slug>.md`". Never
 
 After the plan is written, run specialist review **before** asking the human anything. Don't ask the human to read the plan first — specialists go first, then the human sees plan + specialist findings together.
 
-Check for signals that warrant specialist input:
-- New abstractions, layer changes, cross-package dependencies, domain model changes → `architect`
-- Auth, permissions, data handling → `security-analyst`
-- Complex async/integration test strategy → `test-coverage-agent`
+Specialists are **agents** — invoke each via the **Agent tool** with `subagent_type` set to the agent name (`agent/agents/<name>.md`). Each reviews the plan in its own clean, isolated context. Check for signals that warrant specialist input:
+
+- New abstractions, layer changes, cross-package dependencies, domain model changes → `subagent_type: "architect"`
+- Auth, permissions, data handling → `subagent_type: "security-analyst"`
+- Complex async/integration test strategy → `subagent_type: "test-coverage-agent"`
 
 Incorporate any findings back into the plan. Post a one-line outcome comment on the issue (e.g. "Architect review: adjusted layer boundaries in X").
 

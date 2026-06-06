@@ -31,50 +31,48 @@ A change can be both Architecture and Security — run both reviewers.
 
 ## Stage 2 — Select and invoke reviewers
 
-### Model selection
+### How reviewers run
 
-| Model                | When                                                                                                                       |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `opus` (Opus 4.6 1M) | Architect — always. Security reviewer for complex auth/crypto. Any review where the stakes are high or the domain is deep. |
-| `sonnet` (default)   | Security analyst for standard findings. Code quality and test coverage reviewers.                                          |
-| `haiku`              | Documentation scan only — fast, low-stakes.                                                                                |
+Reviewers are **agents**, not inline work. Invoke each via the **Agent tool** with `subagent_type` set to the agent name — every reviewer runs in its **own clean, isolated context** with no view of this conversation. Their definitions live in `agent/agents/<name>.md`.
 
-When in doubt, use `opus`. A missed architectural finding costs more than a stronger model.
+- **Model is built into each agent definition** — you do not pick one. Pass the Agent tool's `model` argument only to **override**, and only where noted below.
+- **Spawn concurrently** — issue multiple Agent calls in one message so reviewers run in parallel.
+- Each agent's final message is its findings. Collect them all before Stage 3.
 
 ### The reviewers
 
-**Architect** (`architect`) — **always `model: opus`**
+**Architect** — `subagent_type: "architect"` (model `opus`, built in)
 
 > Hexagonal architecture compliance, layer boundary violations, naming consistency, separation of concerns, duplication, structural patterns.
 > Hard stop if findings require an ADR.
 
-**Security analyst** (`security-analyst`) — `model: opus` for auth/crypto/permissions; `sonnet` for standard checks
+**Security analyst** — `subagent_type: "security-analyst"` (model `opus`, built in)
 
 > OWASP top 10, input validation, secret handling, auth/crypto correctness, dependency risk.
-> Hard stop if findings require an ADR.
+> Hard stop if findings require an ADR. **Override** to `model: "sonnet"` for standard (non-auth/crypto) checks.
 
-**Code quality reviewer** — `sonnet`
+**Code quality reviewer** — `subagent_type: "code-quality"` (model `sonnet`, built in)
 
 > Clarity, readability, unnecessary complexity, dead code.
 
-**Test coverage reviewer** (`test-coverage-agent`) — `sonnet`
+**Test coverage reviewer** — `subagent_type: "test-coverage-agent"` (model `opus`, built in)
 
-> Coverage gaps, missing edge cases, test quality. The most valuable finding is an edge case that actually breaks the implementation — a test that legitimately fails and proves the code needs to change. Hunt for those actively.
+> A meticulous TDD advocate that hunts the untested edge case. Read-only: it returns a precise description of a test that would **fail** against the current implementation, proving a real domain bug. Its headline finding is a failing test, not a coverage number.
 
-**Domain language reviewer** (`ubiquitous-language`) — `sonnet`
+**Domain language reviewer** — `subagent_type: "ubiquitous-language"` (model `sonnet`, built in)
 
 > Naming consistency with the domain model.
 
 ### Selection
 
-| Risk level   | Reviewers                                                  |
-| ------------ | ---------------------------------------------------------- |
-| Trivial      | Self-review only — no agents                               |
-| Standard     | Architect (`opus`)                                         |
-| Architecture | Architect (`opus`)                                         |
-| Security     | Architect (`opus`) + Security analyst (`opus` or `sonnet`) |
+| Risk level   | Reviewers (`subagent_type`)                              |
+| ------------ | -------------------------------------------------------- |
+| Trivial      | Self-review only — no agents                             |
+| Standard     | `architect`                                              |
+| Architecture | `architect`                                              |
+| Security     | `architect` + `security-analyst`                         |
 
-Add `test-coverage-agent` or `ubiquitous-language` when the diff warrants it. Spawn in parallel where possible.
+Add `test-coverage-agent` or `ubiquitous-language` when the diff warrants it. Spawn them in the same parallel batch.
 
 Lean on being more rigorous than fast. Quality is valued over speed in all cases.
 
@@ -86,7 +84,7 @@ Lean on being more rigorous than fast. Quality is valued over speed in all cases
 
 - **Implement** — default. No justification needed.
 - **Disagree** — finding is wrong, inapplicable, or based on a misread. State reasoning in the summary.
-- **Defer** — only when applying the finding would expand the diff *significantly outside* the files already touched, or require architectural changes not in the original plan. Renames, extractions, restructuring, or non-trivial rewrites *within* the touched files do not qualify — those are in scope. Create a follow-up issue and note the gap in the summary.
+- **Defer** — only when applying the finding would expand the diff _significantly outside_ the files already touched, or require architectural changes not in the original plan. Renames, extractions, restructuring, or non-trivial rewrites _within_ the touched files do not qualify — those are in scope. Create a follow-up issue and note the gap in the summary.
 
 Severity is not a disposition. A "Low" finding inside touched files is Implement. "It's only a medium" and "we can do it later" are not valid reasons to defer.
 
