@@ -101,7 +101,7 @@ Never skip review and push just because code is written — those are the qualit
 
 ## Autonomous mode (under start-team)
 
-- No confirmation gates _except_ the push-approval gate — `do-ship` Stage 2 always requires explicit approval. Approver identity is set by **project CLAUDE.md** (`## Ship policy`); some projects allow team-lead approval in team sessions, others require human approval even in team sessions. The shared `do-ship` reads this — do not second-guess.
+- No confirmation gates. The ship stage honors **project CLAUDE.md** (`## Ship policy`): under an **autonomous** policy there is **no push-approval gate** — push after local review, with a human gate only for a new ADR/CDR, an architectural deviation, or a process question; under a **gated** policy the ship skill waits for the approver CLAUDE.md names. The shared ship skill reads this — do not second-guess.
 - Report blockers via `SendMessage` to coordinator, don't wait
 - Each spawned agent runs `/do-work <issue>` as its single task
 

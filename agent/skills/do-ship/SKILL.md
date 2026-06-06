@@ -1,6 +1,6 @@
 ---
 name: do-ship
-description: Trunk-based delivery — review, get approval, commit, push to main. Reads ship policy from project CLAUDE.md. Pre-push hook is the final quality gate.
+description: Trunk-based delivery — local review, then commit and push to main. An approval gate applies only if project CLAUDE.md requires one; autonomous repos skip it. Pre-push hook is the final quality gate.
 disable-model-invocation: false
 ---
 
@@ -18,11 +18,12 @@ Delivers reviewed work to main. `do-review` must have run and findings addressed
 
 ## Ship policy lives in project CLAUDE.md
 
-Before running, **read the project's `CLAUDE.md`** for a section titled `## Ship policy` (or similar — search for "approval gate" / "approver" / "commit before approval"). The project specifies:
+Before running, **read the project's `CLAUDE.md`** for a section titled `## Ship policy` (or similar — search for "approval gate" / "approver" / "autonomous" / "commit before approval"). The project specifies:
 
-- **Approver identity** — human only, team lead, or either. Default: human in standalone sessions, team lead in team sessions.
-- **Commit timing** — commit *before* approval (default) or *after* (some projects hold the diff uncommitted so reviewers read it in their IDE).
-- **Approval signals** — wording that counts as go-ahead.
+- **Delivery mode** — **autonomous** (push directly to main after local review, no push-approval gate — human gate only for ADR/architecture/process) or **gated** (push waits for an approver). When CLAUDE.md declares autonomous delivery, Stage 2's approval gate does not apply.
+- **Approver identity** (gated only) — human only, team lead, or either. Default: human in standalone sessions, team lead in team sessions.
+- **Commit timing** — commit *before* approval (default) or *after* (some projects hold the diff uncommitted so reviewers read it in their IDE). Under autonomous delivery, always commit before push.
+- **Approval signals** (gated only) — wording that counts as go-ahead.
 
 If CLAUDE.md is silent on any of these, use the default in this skill. If CLAUDE.md and this skill conflict, **CLAUDE.md wins** — it is the project's authoritative policy.
 
@@ -58,9 +59,11 @@ If project policy is **commit-after-approval**: leave the diff uncommitted in th
 
 ---
 
-## Stage 2 — Approval gate
+## Stage 2 — Approval gate (only under a gated policy)
 
-**Push is gated — never push without approval.** A pushed commit on main is effectively deployed.
+**Autonomous delivery (no approval gate):** if project CLAUDE.md declares autonomous delivery, there is **no push-approval step**. The review gate (above), the pre-push hook, and the ADR/architecture/process human gate are the controls — proceed straight to push. Still hard-stop and route to the human if the change introduces a new ADR/CDR, crosses an architectural boundary, or raises a process question; silence is never approval on *those*. Everything else ships without asking.
+
+**Gated delivery — never push without approval.** A pushed commit on main is effectively deployed.
 
 The gate scales by session kind:
 
@@ -104,8 +107,8 @@ Post a concise outcome comment with the commit SHA. Set project status to **In R
 ## Rules
 
 - **`do-review` runs before every ship, no exceptions** — see the Review gate section above.
-- **Approver identity and commit timing come from project CLAUDE.md.** If unstated, use this skill's defaults and surface what you assumed.
+- **Delivery mode, approver identity, and commit timing come from project CLAUDE.md.** If unstated, use this skill's defaults and surface what you assumed.
 - Never use `--no-verify`.
 - Never push to any branch other than main.
-- Never push without approval — silence is not approval.
+- **Under a gated policy, never push without approval** — silence is not approval. **Under an autonomous policy, push after local review** — the only human gate is a new ADR/CDR, an architectural deviation, or a process question.
 - If push fails three times, stop and report.

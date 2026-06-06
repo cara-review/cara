@@ -179,14 +179,12 @@ Agent:
 
 ## Stage 4 — Monitor
 
-**Push approval requests:** agents request approval before pushing (`do-ship` Stage 2 gate). The coordinator's role here is defined by **project CLAUDE.md** (`## Ship policy`):
+**Delivery:** the coordinator's role at push time follows **project CLAUDE.md** (`## Ship policy`):
 
-- If policy allows team-lead approval: review the incoming review summary + commit list and reply with explicit approval or change requests via `SendMessage`. Do not rubber-stamp.
-- If policy requires human-only approval (no coordinator substitute): the coordinator is a **router**, not an approver. Surface the approval request to the human, forward the human's go-ahead back to the agent, and never approve unilaterally. Silence from the human is never approval — the queue holds until the human responds.
+- **Autonomous policy:** agents push directly to main after local review — there is **no push-approval step** to service. The coordinator only routes the genuine human gates: a new ADR/CDR, an architectural deviation, or a process question. Surface those to the human and forward the go-ahead; never approve them unilaterally. Silence is never approval on those — the affected agent holds until the human responds; the others continue.
+- **Gated policy:** agents request approval before pushing. If policy allows team-lead approval, review the incoming review summary + commit list and reply with explicit approval or change requests via `SendMessage` — do not rubber-stamp. If policy is human-only, the coordinator is a **router**, not an approver: surface the request to the human, forward the go-ahead, never approve unilaterally. Silence is never approval — the queue holds until the human responds.
 
-Read CLAUDE.md before the first approval request lands and surface the policy: "Per project policy I will approve directly / route to the human." So the user can correct if needed.
-
-A pushed commit on main is effectively deployed — when in doubt, route to the human.
+Read CLAUDE.md before the first delivery and surface the policy ("Per project policy: autonomous — agents push after local review / I will approve directly / I route to the human") so the user can correct it.
 
 **Push conflict:** agent rebases and retries — up to 3 times on a busy trunk. Still failing after 3 → pause, escalate to user.
 

@@ -1,11 +1,11 @@
 ---
 name: do-close
-description: Closes a GitHub issue — checks PR state, comments with outcome, sets project status to "Done". No local cleanup (use do-cleanup for that).
+description: Closes a GitHub issue — confirms the work was delivered, comments with outcome, sets project status to "Done". No local cleanup (use do-cleanup for that).
 ---
 
 # do-close
 
-Closes the GitHub issue for a piece of work. Checks what happened to the PR and updates the issue to reflect the real outcome.
+Closes the GitHub issue for a piece of work. Confirms how the work was delivered and updates the issue to reflect the real outcome.
 
 **Scope:** GitHub only — issue state, project status, comments. Does not touch worktrees, branches, or tmux sessions. Use `do-cleanup` for local cleanup.
 
@@ -32,14 +32,26 @@ If issue already closed: report and stop.
 
 ---
 
-## Step 2 — Check PR Status
+## Step 2 — Confirm delivery
+
+**Trunk-based repos** (push direct to main, no PR — CLAUDE.md `## Workflow: trunk-based`): there is no PR. Confirm the work actually landed on main.
+
+```bash
+git fetch origin main -q
+git log origin/main --oneline -10        # the issue's commits should be here
+```
+
+Determine outcome:
+
+- **Landed on main** — happy path
+- **Not on main yet** — warn: "No commits for #N on origin/main yet. Close anyway? (1) Yes / (2) No — I'll ship first via do-push"
+
+**PR-based repos:** check PR state.
 
 ```bash
 gh pr list --head "$BRANCH" --state all \
   --json number,title,state,mergedAt,closedAt,url
 ```
-
-Determine outcome:
 
 - **Merged** — happy path
 - **Closed without merge** — note it
@@ -52,7 +64,14 @@ Determine outcome:
 
 Comment reflecting the actual outcome, then close:
 
-**Merged:**
+**Delivered to main (trunk-based):**
+
+```bash
+gh issue comment "$ISSUE_NUM" --body "Delivered to main — <commit SHAs / subject lines>."
+gh issue close "$ISSUE_NUM"
+```
+
+**Merged (PR-based):**
 
 ```bash
 gh issue comment "$ISSUE_NUM" --body "Completed — merged via PR #<N>."
@@ -114,7 +133,7 @@ gh issue edit "$ISSUE_NUM" --remove-label "needs-human" 2>/dev/null
 ## Summary
 
 ```
-Issue #<N> <title> — Done (<merged / not merged / no PR>)
+Issue #<N> <title> — Done (<delivered to main / merged / not delivered>)
 ```
 
 ---
@@ -123,13 +142,13 @@ Issue #<N> <title> — Done (<merged / not merged / no PR>)
 
 When running as a developer under `start-team`:
 
-- Skip confirmation on closing — the team lead has already sequenced the merge
-- If PR is still open, report to team lead instead of waiting for user choice
+- Skip confirmation on closing
+- If the work hasn't landed on main (or, on PR repos, the PR is still open), report to the coordinator instead of waiting for user choice
 
 ---
 
 ## Rules
 
-- Never conflate merged and closed-without-merge — the comment must reflect reality
-- If PR is still open, always warn before closing the issue
+- Never conflate delivered/merged with not-delivered/closed-without-merge — the comment must reflect reality
+- If the work hasn't landed (no commits on main, or PR still open), always warn before closing the issue
 - No local cleanup — worktrees, branches, and tmux are `do-cleanup`'s job
