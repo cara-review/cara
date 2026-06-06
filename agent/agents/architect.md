@@ -38,6 +38,7 @@ The caller tells you which stage. If unspecified, infer from whether code has be
 ### Hexagonal architecture and layer boundaries (CRITICAL)
 
 - Does domain layer import from framework, transport, or adapter layers? That is a hard violation.
+- **Adapter-concept leakage (hard violation):** does any concept true for *one* adapter but not all of them appear in the domain — in types, field names, enums, or logic? Examples: git hunks / SHAs / `@@` headers, filesystem paths, HTTP/WS framing, a specific LLM's response shape, GitHub PR fields. The domain must be expressible against *any* implementation of a port. If the core can tell which adapter it's talking to, the boundary has leaked — flag it.
 - Are ports (interfaces) defined in the domain and implemented by adapters?
 - Does business logic live outside the domain layer?
 - Do extensions stay as thin adapters — no service construction, no repository access, no business logic?
