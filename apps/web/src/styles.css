@@ -1,0 +1,552 @@
+/* Design tokens + shell layout. Values transcribed from docs/design/initial-prototypes.md.
+   Light is the :root default; dark overrides under prefers-color-scheme, so the app follows
+   the macOS system appearance live. One accent (#5E6AD2). Fonts name Inter / JetBrains Mono
+   first with native fallbacks; the binaries are not bundled yet (self-hosting is a follow-up,
+   CDN is disallowed by local-first), so macOS falls back to San Francisco / Menlo. */
+
+:root {
+  color-scheme: light dark;
+
+  --bg-main: #ffffff;
+  --bg-panel: #f9fafb;
+  --bg-hover: #f3f4f6;
+  --border: #e5e7eb;
+  --accent: #5e6ad2;
+  --accent-hover: #4a55c0;
+  --text-main: #111827;
+  --text-muted: #6b7280;
+
+  --diff-add-bg: #e6ffec;
+  --diff-add-bg-hover: #ccffd8;
+  --diff-add-text: #1a7f37;
+  --diff-rem-bg: #ffebe9;
+  --diff-rem-bg-hover: #ffdce0;
+  --diff-rem-text: #cf222e;
+
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", Menlo, Monaco, "Courier New", monospace;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+
+  --h-header: 48px;
+  --h-section: 56px;
+  --w-nav: 256px;
+  --w-chat: 320px;
+
+  --radius-sm: 4px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --hairline: 1px;
+
+  --motion: 160ms;
+  --ease: ease-out;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-main: #0a0a0a;
+    --bg-panel: #111111;
+    --bg-hover: #1a1a1a;
+    --border: #222222;
+    --accent-hover: #6f7bf7;
+    --text-main: #ededed;
+    --text-muted: #888888;
+
+    --diff-add-bg: rgba(46, 160, 67, 0.1);
+    --diff-add-bg-hover: rgba(46, 160, 67, 0.15);
+    --diff-add-text: #46c05e;
+    --diff-rem-bg: rgba(248, 81, 73, 0.1);
+    --diff-rem-bg-hover: rgba(248, 81, 73, 0.15);
+    --diff-rem-text: #ff6a65;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion: 0ms;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--text-main);
+  background: var(--bg-main);
+  -webkit-font-smoothing: antialiased;
+}
+
+#app,
+.app {
+  height: 100%;
+}
+
+.app {
+  display: grid;
+  grid-template-rows: var(--h-header) 1fr auto;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+/* --- Header --------------------------------------------------------------- */
+
+.header-host {
+  border-bottom: var(--hairline) solid var(--border);
+  background: var(--bg-main);
+}
+
+.header {
+  height: var(--h-header);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-4);
+}
+
+.header__left,
+.header__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.brand {
+  padding-left: 64px; /* clear macOS traffic-light controls */
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.header__divider {
+  width: var(--hairline);
+  height: 20px;
+  background: var(--border);
+}
+
+.context {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.meter {
+  width: 128px;
+  height: 6px;
+  border-radius: var(--radius-xl);
+  background: var(--bg-hover);
+  overflow: hidden;
+}
+
+.meter__fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 300ms var(--ease);
+}
+
+.progress__label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.kbd-hint {
+  display: flex;
+  gap: 2px;
+}
+
+kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 5px;
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+}
+
+.go {
+  font-size: 12px;
+  padding: 5px var(--space-3);
+  border-radius: var(--radius-sm);
+  border: var(--hairline) solid var(--border);
+  color: var(--text-muted);
+}
+
+.go--ready {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.go--ready:hover {
+  background: var(--accent-hover);
+}
+
+/* --- Grid + panes --------------------------------------------------------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: var(--w-nav) 1fr var(--w-chat);
+  min-height: 0;
+}
+
+.grid[hidden] {
+  display: none;
+}
+
+.nav {
+  border-right: var(--hairline) solid var(--border);
+  background: var(--bg-panel);
+  overflow-y: auto;
+  padding: var(--space-2);
+}
+
+.nav__label,
+.chat__title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  padding: var(--space-2) var(--space-2);
+}
+
+.nav__tree {
+  display: flex;
+  flex-direction: column;
+}
+
+.chapter,
+.section {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  text-align: left;
+  padding: 6px var(--space-2);
+  border-radius: var(--radius-sm);
+  transition: background var(--motion) var(--ease);
+}
+
+.chapter:hover,
+.section:hover {
+  background: var(--bg-hover);
+}
+
+.chapter {
+  font-weight: 500;
+}
+
+.chapter--done .chapter__title {
+  color: var(--text-muted);
+}
+
+.chevron {
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform var(--motion) var(--ease);
+}
+
+.chevron--open {
+  transform: rotate(90deg);
+}
+
+.section {
+  padding-left: var(--space-6);
+}
+
+.section--active {
+  background: var(--bg-hover);
+  box-shadow: inset 2px 0 0 0 var(--accent);
+}
+
+.section__title,
+.chapter__title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.section__count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Mark glyphs: shape-distinct, never colour-only. */
+.glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex: none;
+  font-size: 9px;
+  line-height: 1;
+  border-radius: var(--radius-xl);
+}
+
+.glyph--unreviewed {
+  border: 1.5px solid var(--text-muted);
+}
+
+.glyph--done {
+  background: var(--accent);
+  color: #fff;
+}
+
+.glyph--skipped {
+  border: 1.5px dashed var(--text-muted);
+  color: var(--text-muted);
+}
+
+/* --- Diff pane (hero) ----------------------------------------------------- */
+
+.diff {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.diff__header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  min-height: var(--h-section);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-6);
+  border-bottom: var(--hairline) solid var(--border);
+  background: color-mix(in srgb, var(--bg-main) 85%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.diff__title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.diff__count {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.summary {
+  margin: var(--space-4) var(--space-6) 0;
+  padding: var(--space-3);
+  border: var(--hairline) solid color-mix(in srgb, var(--accent) 20%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-radius: var(--radius-lg);
+}
+
+.summary[hidden] {
+  display: none;
+}
+
+.summary__label {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  margin-bottom: var(--space-1);
+}
+
+.summary__body {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.diff__surface {
+  flex: 1;
+  padding: var(--space-4) var(--space-6) 128px;
+}
+
+/* --- Chat pane ------------------------------------------------------------ */
+
+.chat {
+  border-left: var(--hairline) solid var(--border);
+  background: var(--bg-panel);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.chat__header {
+  min-height: var(--h-section);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 var(--space-4);
+  border-bottom: var(--hairline) solid var(--border);
+}
+
+.chat__title {
+  padding: 0;
+}
+
+.chat__scope {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.chat__messages {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.chat__composer {
+  padding: var(--space-3);
+  border-top: var(--hairline) solid var(--border);
+}
+
+.chat__input {
+  width: 100%;
+  resize: none;
+  font: inherit;
+  color: inherit;
+  padding: var(--space-2);
+  background: var(--bg-main);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.chat__input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* --- Status bar ----------------------------------------------------------- */
+
+.status {
+  border-top: var(--hairline) solid var(--border);
+  background: var(--bg-panel);
+}
+
+.status__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-1) var(--space-4);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.status__group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-xl);
+  background: var(--text-muted);
+}
+
+.status__dot--open {
+  background: var(--diff-add-text);
+}
+
+.status__dot--error,
+.status__dot--closed {
+  background: var(--diff-rem-text);
+}
+
+.status__counts {
+  font-family: var(--font-mono);
+}
+
+/* --- Whole-window states -------------------------------------------------- */
+
+.overlay-host:empty {
+  display: none;
+}
+
+.overlay {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  text-align: center;
+  padding: var(--space-6);
+}
+
+.overlay__title {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.overlay__detail {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  margin-bottom: var(--space-2);
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: var(--radius-xl);
+  animation: spin 700ms linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
