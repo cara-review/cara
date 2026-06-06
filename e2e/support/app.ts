@@ -7,7 +7,12 @@
 
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { AnnotatingAgent } from "./annotating-agent.ts";
-import { makeEmptyFixture, makeReviewFixture, type ReviewFixture } from "./fixture-repo.ts";
+import {
+  makeEmptyFixture,
+  makeReviewFixture,
+  makeSpecialPathsFixture,
+  type ReviewFixture,
+} from "./fixture-repo.ts";
 import { bootReal, bootWithAgent, type BootedServer } from "./server.ts";
 
 type Boot = (fixture: ReviewFixture) => Promise<BootedServer>;
@@ -41,6 +46,11 @@ export function serveReview(): () => string {
 /** The empty-diff fixture, booted via the real CLI. */
 export function serveEmpty(): () => string {
   return serve(makeEmptyFixture, (f) => bootReal(f.dir, f.range));
+}
+
+/** A review whose file paths contain a space and a non-ASCII character, via the real CLI. */
+export function serveSpecialPaths(): () => string {
+  return serve(makeSpecialPathsFixture, (f) => bootReal(f.dir, f.range));
 }
 
 /** The review fixture booted with the summary-emitting agent. */

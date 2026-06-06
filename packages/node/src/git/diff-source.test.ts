@@ -77,6 +77,27 @@ test("range diff: a multi-hunk file yields one RawHunk per hunk", async () => {
   });
 });
 
+test("range diff: paths with spaces and non-ASCII survive verbatim", async () => {
+  // git C-quotes non-ASCII names (`"caf\303\251.ts"`) unless core.quotePath=false,
+  // and tab-delimits names with spaces in the ---/+++ lines. Both must resolve to
+  // the real on-disk path so marks, readFile, and openInEditor address it.
+  await withRepo(async (repo) => {
+    await repo.write("src/with space.ts", "a\n");
+    await repo.write("src/café.ts", "b\n");
+    const base = await repo.commit("v1");
+
+    await repo.write("src/with space.ts", "A\n");
+    await repo.write("src/café.ts", "B\n");
+    const head = await repo.commit("v2");
+
+    const hunks = await new GitDiffSource(repo.dir).diff({ kind: "range", base, head });
+    assert.deepEqual(
+      new Set(hunks.map((h) => h.path)),
+      new Set(["src/with space.ts", "src/café.ts"]),
+    );
+  });
+});
+
 test("worktree diff: live tree vs simulated origin/main", async () => {
   await withRepo(async (repo) => {
     await repo.write("f.txt", "a\nb\n");

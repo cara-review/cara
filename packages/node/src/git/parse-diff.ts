@@ -6,9 +6,14 @@ import type { ChangeStatus, DiffLine, RawHunk } from "@clear-diff/core";
 
 const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
 
-/** Strip git's `a/` or `b/` path prefix. `/dev/null` passes through unchanged. */
+/**
+ * Strip git's `a/` or `b/` path prefix. `/dev/null` passes through unchanged.
+ * git appends a tab to a `---`/`+++` path that contains a space (a delimiter, so
+ * the name's own trailing whitespace stays unambiguous); that tab is removed first.
+ */
 function stripPrefix(pathToken: string): string {
-  return pathToken === "/dev/null" ? pathToken : pathToken.replace(/^[ab]\//, "");
+  const token = pathToken.replace(/\t$/, "");
+  return token === "/dev/null" ? token : token.replace(/^[ab]\//, "");
 }
 
 interface FileHeader {

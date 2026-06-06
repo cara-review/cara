@@ -1,5 +1,10 @@
 // GitCli DiffSource (ADR-0003): run `git diff -U0 --histogram -M` and parse to
 // RawHunks. Parsing only — the domain maps RawHunk -> Atom and owns identity.
+//
+// `core.quotePath=false` keeps non-ASCII paths (e.g. `café.ts`) verbatim and
+// UTF-8 rather than C-quoted (`"caf\303\251.ts"`); without it the parser would
+// surface a mangled, quoted path. Set per-invocation so the host's git config
+// can't change the contract.
 
 import type { DiffSource, DiffSpec, RawHunk, ReviewContext } from "@clear-diff/core";
 import { reviewContext } from "@clear-diff/core";
@@ -7,7 +12,7 @@ import { parseDiff } from "./parse-diff.ts";
 import { refsForSpec } from "./refs.ts";
 import { runGit } from "./run.ts";
 
-const DIFF_FLAGS = ["diff", "-U0", "--histogram", "-M"] as const;
+const DIFF_FLAGS = ["-c", "core.quotePath=false", "diff", "-U0", "--histogram", "-M"] as const;
 
 /**
  * git args for a spec, derived from the shared ref mapping so DiffSource and

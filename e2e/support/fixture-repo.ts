@@ -71,3 +71,21 @@ export async function makeEmptyFixture(): Promise<ReviewFixture> {
   const sha = await repo.commit("only");
   return { dir: repo.dir, range: `${sha}..${sha}`, cleanup: () => repo.cleanup() };
 }
+
+/** Names that exercise git's path encoding: a space (tab-delimited) and non-ASCII (C-quoted). */
+export const SPACE_PATH = "src/with space.ts";
+export const UNICODE_PATH = "src/café.ts";
+
+/** A review whose changed files have a space and a non-ASCII char in their paths. */
+export async function makeSpecialPathsFixture(): Promise<ReviewFixture> {
+  const repo = await makeTestRepo();
+  await repo.write(SPACE_PATH, "export const a = 1;\n");
+  await repo.write(UNICODE_PATH, "export const b = 2;\n");
+  const base = await repo.commit("base");
+
+  await repo.write(SPACE_PATH, "export const a = 11;\n");
+  await repo.write(UNICODE_PATH, "export const b = 22;\n");
+  const head = await repo.commit("head");
+
+  return { dir: repo.dir, range: `${base}..${head}`, cleanup: () => repo.cleanup() };
+}

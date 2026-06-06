@@ -208,3 +208,20 @@ test("multiple files parse in git order", () => {
     ["one.txt", "two.txt"],
   );
 });
+
+test("a path containing a space: git's trailing-tab delimiter is stripped", () => {
+  // git appends a tab to the ---/+++ path when the name contains a space, so the
+  // name's boundary is unambiguous. The tab is a delimiter, not part of the path.
+  const out = [
+    "diff --git a/src/with space.ts b/src/with space.ts",
+    "index cc798ff..9607546 100644",
+    "--- a/src/with space.ts\t",
+    "+++ b/src/with space.ts\t",
+    "@@ -1 +1 @@",
+    "-export const a = 1;",
+    "+export const a = 11;",
+    "",
+  ].join("\n");
+  const hunks = parseDiff(out);
+  assert.equal(hunks[0]?.path, "src/with space.ts");
+});
