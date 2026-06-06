@@ -15,3 +15,4 @@ Read the `status` field before treating any TN as authoritative: `active` → au
 | [26-007](TN-26-007-review-service-use-cases.md) | Application — ReviewService use-cases | plan | active | #9 |
 | [26-008](TN-26-008-backend-server-and-cli.md) | Backend — HTTP/WS server, composition root, and clear-diff CLI | plan | active | #10 |
 | [26-009](TN-26-009-web-shell.md) | Web — app shell, 3-pane layout, nav tree, WS client + state store | plan | active | #11 |
+| [26-010](TN-26-010-web-diff-surface.md) | Web — diff surface, marking, keyboard navigation | plan | active | #12 |

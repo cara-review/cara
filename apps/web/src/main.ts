@@ -7,6 +7,8 @@ import "./styles.css";
 import { RpcClient, WebSocketTransport } from "./rpc.ts";
 import { AppStore } from "./store.ts";
 import { createView } from "./view.ts";
+import { createDiffSurface } from "./ui/diff-surface.ts";
+import { installKeyboard } from "./ui/keyboard.ts";
 
 function backendUrl(): string {
   // The `?ws=` override is a dev-only affordance (point the UI at a separately-run
@@ -24,7 +26,13 @@ if (root !== null) {
   const transport = new WebSocketTransport(backendUrl());
   const store = new AppStore(new RpcClient(transport));
   const view = createView(root, store);
-  store.subscribe(() => view.render(store.getState()));
+  const surface = createDiffSurface(view.mount, store);
+  store.subscribe(() => {
+    view.render(store.getState());
+    surface.render(store.getState());
+  });
+  installKeyboard(store);
   store.bindTransport(transport);
-  view.render(store.getState()); // initial paint: connecting
+  view.render(store.getState()); // initial paint: connecting (surface is empty until a review opens)
+  surface.render(store.getState());
 }

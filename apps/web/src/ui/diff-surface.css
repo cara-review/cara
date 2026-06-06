@@ -1,0 +1,204 @@
+/* Diff surface (#12). Consumes the shell's design tokens (styles.css :root). Change-block /
+   gap / change-block across file cards; add/remove carry a +/- sign cue plus colour (never
+   colour alone), no strikethrough on removed lines. */
+
+.surface__empty {
+  margin: var(--space-6) 0;
+  color: var(--text-muted);
+}
+
+/* --- File card ------------------------------------------------------------ */
+
+.file {
+  margin-bottom: var(--space-4);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.file__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-panel);
+  border-bottom: var(--hairline) solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-align: left;
+}
+
+.file__header:hover {
+  background: var(--bg-hover);
+}
+
+.file__path {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file__status {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.file__status--added {
+  color: var(--diff-add-text);
+}
+
+.file__status--deleted {
+  color: var(--diff-rem-text);
+}
+
+/* --- Change-block --------------------------------------------------------- */
+
+.block--reviewed {
+  opacity: 0.4;
+  filter: grayscale(1);
+  transition: opacity var(--motion) var(--ease), filter var(--motion) var(--ease);
+}
+
+.block__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  background: color-mix(in srgb, var(--bg-panel) 60%, transparent);
+}
+
+.block__loc {
+  flex: 1;
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.block__loc:hover {
+  color: var(--accent);
+}
+
+.tick {
+  font-size: 11px;
+  padding: 2px var(--space-2);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  transition: color var(--motion) var(--ease), border-color var(--motion) var(--ease);
+}
+
+.tick:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.tick--on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+/* --- Diff lines ----------------------------------------------------------- */
+
+.lines {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.line {
+  display: flex;
+  white-space: pre;
+}
+
+.line__no {
+  flex: none;
+  width: 48px;
+  padding-right: var(--space-2);
+  text-align: right;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.line__sign {
+  flex: none;
+  width: 20px;
+  text-align: center;
+  user-select: none;
+}
+
+.line__code {
+  flex: 1;
+  overflow-x: auto;
+}
+
+.line--added {
+  background: var(--diff-add-bg);
+  color: var(--diff-add-text);
+}
+
+.line--removed {
+  background: var(--diff-rem-bg);
+  color: var(--diff-rem-text);
+}
+
+.line--context {
+  color: var(--text-muted);
+}
+
+/* --- Gap ------------------------------------------------------------------ */
+
+.gap {
+  display: block;
+  width: 100%;
+  padding: var(--space-1) var(--space-3);
+  background: var(--bg-panel);
+  border-top: var(--hairline) solid var(--border);
+  border-bottom: var(--hairline) solid var(--border);
+  font-size: 12px;
+  text-align: center;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.gap:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+}
+
+/* --- Section action bar --------------------------------------------------- */
+
+.actionbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.action {
+  font-size: 13px;
+  padding: 6px var(--space-4);
+  border-radius: var(--radius-sm);
+  border: var(--hairline) solid var(--border);
+  color: var(--text-muted);
+  transition: background var(--motion) var(--ease), border-color var(--motion) var(--ease);
+}
+
+.action--skip:hover {
+  background: var(--bg-hover);
+}
+
+.action--done {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.action--done:hover {
+  background: var(--accent-hover);
+}
