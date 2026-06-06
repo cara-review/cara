@@ -17,3 +17,8 @@ export { SystemClock, fixedClock } from "./clock.ts";
 export { SpawnEditor, editorArgs } from "./editor.ts";
 export { EnvConfig } from "./config.ts";
 export { FileInstructions } from "./instructions.ts";
+
+// Driven adapters over git (ADR-0003).
+export { GitDiffSource } from "./git/diff-source.ts";
+export { GitWorkspaceReader } from "./git/workspace-reader.ts";
+export { refsForSpec, type GitRef, type SpecRefs } from "./git/refs.ts";
