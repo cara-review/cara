@@ -1,10 +1,10 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Chapter Q&A: a diff-reading agent capability over a sibling port
 
-Background: TN-26-022. Awaiting owner approval before implementation (CLAUDE.md › Architecture policy).
+Background: TN-26-022. Approved by owner 2026-06-06, delegated to coordinator (CLAUDE.md › Architecture policy).
 
 The chat pane (issue #15) lets a reviewer ask free-form questions scoped to the focused Chapter ("is this backwards compatible?") and have the agent answer. Answering requires the agent to **read the changed code** — which ADR-0004 currently forbids. This ADR ratifies that reversal under tight constraints, adds a Q&A capability behind a new sibling port, an inbound `ask` use-case, and an `ask` WS method.
 

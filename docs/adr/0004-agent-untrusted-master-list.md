@@ -1,8 +1,17 @@
 ---
 status: accepted
+amended-by: 0009
 ---
 
 # Agent layer: untrusted, with a canonical master atom list
+
+> **Amended in part by [ADR-0009](0009-chat-qa-agent-reads-diff.md).** The
+> diff-blind-agent invariant below ("The diff is never agent-touched") is lifted
+> **for Chapter Q&A only**: a separate, read-only `AgentChat` capability may receive
+> Chapter-scoped diff content to answer a reviewer's question. That is a *read*, not a
+> *write* — the master list stays canonical, the grouping path (`AgentPort`) stays
+> diff-blind, and the agent still cannot add, remove, hide, or edit an atom. Q&A output
+> is untrusted overlay text under the same rendering discipline as summaries (below).
 
 The LLM that groups atoms into Chapters and Sections is the only port whose output can't
 be trusted. A reviewer must never approve a diff where a change was silently hidden or

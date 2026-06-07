@@ -2,14 +2,14 @@
 number: 26-022
 title: Chat pane — chapter-level Q&A with the agent
 kind: proposal
-status: draft
+status: active
 issue: "#15"
 tags: [chat, agent, ports, protocol, qa, hexagonal, security]
 ---
 
 # TN-26-022: Chat pane — chapter-level Q&A with the agent
 
-Wire the existing chat-pane chrome (`apps/web/src/ui/chat-pane.ts`, currently a disabled placeholder) to real Q&A: the reviewer asks free-form questions scoped to the focused Chapter ("is this backwards compatible?") and the agent answers. Ephemeral, distinct from durable line comments. Background for **ADR-0009** (status: proposed). **Both await owner approval before any implementation** (CLAUDE.md › Architecture policy).
+Wire the existing chat-pane chrome (`apps/web/src/ui/chat-pane.ts`, currently a disabled placeholder) to real Q&A: the reviewer asks free-form questions scoped to the focused Chapter ("is this backwards compatible?") and the agent answers. Ephemeral, distinct from durable line comments. Background for **ADR-0009** (status: accepted). Approved by owner 2026-06-06, delegated to coordinator (CLAUDE.md › Architecture policy).
 
 ## Why this is an architecture gate, not a feature
 
