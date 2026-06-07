@@ -36,7 +36,7 @@ export function createView(root: HTMLElement, store: AppStore): View {
   return {
     mount: diffPane.mount,
     render(state) {
-      fill(headerHost, header(state));
+      fill(headerHost, header(state, store));
 
       const screen = overlay(state);
       grid.hidden = screen !== null;

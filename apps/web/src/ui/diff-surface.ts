@@ -285,31 +285,9 @@ function renderKeyFor(path: SectionPath, section: NonNullable<ReturnType<typeof 
 
 function actionBar(store: AppStore): HTMLElement {
   return el("div", { class: "actionbar" }, [
-    goButton(store),
     el("button", { class: "action action--skip", text: "Skip", onClick: () => void skipSection(store) }),
     el("button", { class: "action action--done", text: "✓ Done & Next", onClick: () => void markSectionDone(store) }),
   ]);
-}
-
-/** `Go` (ADR-0007): dispatch the review's comments out the sink and report the receipt. */
-function goButton(store: AppStore): HTMLButtonElement {
-  const button = el("button", { class: "action action--go", text: "Go", title: "Send comments to the dispatch file" });
-  button.addEventListener("click", () => {
-    button.disabled = true;
-    void store
-      .dispatch()
-      .then((receipt) => {
-        button.textContent = `✓ Sent ${receipt.count}`;
-        button.title = receipt.location; // the opaque sink locator, for the user's reference
-      })
-      .catch(() => {
-        button.textContent = "Go (failed)";
-      })
-      .finally(() => {
-        button.disabled = false;
-      });
-  });
-  return button;
 }
 
 function pathLabel(group: FileGroup): string {

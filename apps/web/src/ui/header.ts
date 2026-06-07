@@ -5,9 +5,9 @@
 
 import { el } from "../dom.ts";
 import type { ReviewProgress } from "../protocol.ts";
-import type { AppState } from "../store.ts";
+import type { AppState, AppStore } from "../store.ts";
 
-export function header(state: AppState): HTMLElement {
+export function header(state: AppState, store: AppStore): HTMLElement {
   const brand = el("div", { class: "brand", text: "clear-diff" });
   const left = el("div", { class: "header__left" }, [brand]);
 
@@ -25,7 +25,7 @@ export function header(state: AppState): HTMLElement {
     el("kbd", { text: "⌘" }),
     el("kbd", { text: "K" }),
   ]);
-  const right = el("div", { class: "header__right" }, [palette, goButton(state)]);
+  const right = el("div", { class: "header__right" }, [palette, goButton(state, store)]);
 
   return el("header", { class: "header" }, [left, right]);
 }
@@ -54,14 +54,30 @@ function progress(progress: ReviewProgress): HTMLElement {
   ]);
 }
 
-function goButton(state: AppState): HTMLElement {
+/** `Go` (ADR-0007): enabled once every change is accounted for; dispatches comments out the sink. */
+function goButton(state: AppState, store: AppStore): HTMLElement {
   const ready = state.snapshot !== null && state.snapshot.progress.unaddressed === 0;
-  return el("button", {
+  const button = el("button", {
     class: ready ? "go go--ready" : "go",
     text: ready ? "Go" : "Review incomplete",
     title: ready ? "Dispatch comments" : "Account for every Section first",
     attrs: ready ? {} : { disabled: "" },
   });
+  if (!ready) return button;
+  button.addEventListener("click", () => {
+    button.disabled = true;
+    void store
+      .dispatch()
+      .then((receipt) => {
+        button.textContent = `✓ Sent ${receipt.count}`;
+        button.title = receipt.location; // the opaque sink locator, for the user's reference
+      })
+      .catch(() => {
+        button.textContent = "Go (failed)";
+        button.disabled = false;
+      });
+  });
+  return button;
 }
 
 function divider(): HTMLElement {

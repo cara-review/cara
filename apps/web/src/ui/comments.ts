@@ -89,31 +89,34 @@ function signatureOf(atoms: readonly Atom[], comments: readonly Comment[]): stri
   return `${atoms.map((atom) => atom.hash).join(",")}|${relevant}`;
 }
 
+// All classes are `cd-`-namespaced: a comment zone's DOM lives inside Monaco's view,
+// whose own elements use generic classes (gutter, margin, view-line…) — a generic
+// class here would bleed into / collide with Monaco's styles.
 function threadNode(atom: Atom, thread: readonly Comment[], store: AppStore): HTMLElement {
-  const items = thread.map((comment) => el("p", { class: "comment__body", text: comment.body }));
-  return el("div", { class: "comment-thread" }, [
-    items.length > 0 ? el("div", { class: "comment-thread__list" }, items) : null,
+  const items = thread.map((comment) => el("p", { class: "cd-comment__body", text: comment.body }));
+  return el("div", { class: "cd-comment-thread" }, [
+    items.length > 0 ? el("div", { class: "cd-comment-thread__list" }, items) : null,
     composer(atom, store),
   ]);
 }
 
 /** Voice-first composer: collapsed to a button until opened; the textarea takes OS dictation. */
 function composer(atom: Atom, store: AppStore): HTMLElement {
-  const wrap = el("div", { class: "composer" });
+  const wrap = el("div", { class: "cd-composer" });
 
   function collapse(): void {
     wrap.replaceChildren(
-      el("button", { class: "composer__open", text: "💬 Comment", title: "Add a comment", onClick: open }),
+      el("button", { class: "cd-composer__open", text: "💬 Comment", title: "Add a comment", onClick: open }),
     );
   }
 
   function open(): void {
     const input = el("textarea", {
-      class: "composer__input",
+      class: "cd-composer__input",
       attrs: { rows: "3", placeholder: "Speak or type your comment…" },
     });
     const accept = el("button", {
-      class: "composer__accept",
+      class: "cd-composer__accept",
       text: "Accept",
       onClick: () => {
         const body = input.value.trim();
@@ -121,8 +124,8 @@ function composer(atom: Atom, store: AppStore): HTMLElement {
         else void store.comment(atom.hash, body); // accept → snapshot repaints the thread
       },
     });
-    const cancel = el("button", { class: "composer__cancel", text: "Cancel", onClick: collapse });
-    wrap.replaceChildren(input, el("div", { class: "composer__actions" }, [cancel, accept]));
+    const cancel = el("button", { class: "cd-composer__cancel", text: "Cancel", onClick: collapse });
+    wrap.replaceChildren(input, el("div", { class: "cd-composer__actions" }, [cancel, accept]));
     input.focus();
   }
 
