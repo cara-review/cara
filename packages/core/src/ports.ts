@@ -142,6 +142,12 @@ export interface CommentSink {
 export interface AppConfig {
   /** Command used to open files, e.g. "code" or "zed". Null when unset. */
   readonly editorCommand: string | null;
+  /**
+   * Model id for the grouping agent. Grouping is structural, so it defaults to a
+   * fast tier; chat keeps a stronger model. The domain never interprets the value —
+   * it is an opaque adapter detail threaded to the AgentPort adapter (ADR-0004).
+   */
+  readonly groupingModel: string;
 }
 
 export interface ConfigPort {

@@ -40,9 +40,10 @@ function stubAgent(blocks: readonly ToolBlock[], calls: unknown[]): AnthropicAge
   return new AnthropicAgent(client);
 }
 
-const validProposal = {
+// The model now references changes by short id (1-based, diff order), not by hash.
+const modelProposal = {
   chapters: [
-    { title: "Changes", sections: [{ title: "Everything", atomHashes: atoms.map((a) => a.hash) }] },
+    { title: "Changes", sections: [{ title: "Everything", atomIds: atoms.map((_, i) => i + 1) }] },
   ],
 };
 
@@ -63,9 +64,9 @@ function optionsCapturingClient(blocks: readonly unknown[], opts: unknown[]): An
   } as unknown as AnthropicSdk;
 }
 
-test("forces Sonnet to call the grouping tool and sends every atom hash", async () => {
+test("forces the grouping tool on the configured fast model, and sends short ids not hashes (#32)", async () => {
   const calls: unknown[] = [];
-  const agent = stubAgent([{ type: "tool_use", name: "propose_grouping", input: validProposal }], calls);
+  const agent = stubAgent([{ type: "tool_use", name: "propose_grouping", input: modelProposal }], calls);
 
   await agent.proposeGrouping({ atoms, instructions: { personal: null, project: null } });
 
@@ -75,15 +76,34 @@ test("forces Sonnet to call the grouping tool and sends every atom hash", async 
     tools: ReadonlyArray<{ name: string }>;
     messages: ReadonlyArray<{ content: string }>;
   };
-  assert.equal(body.model, "claude-sonnet-4-6");
+  assert.equal(body.model, "claude-haiku-4-5-20251001"); // grouping default; chat keeps Sonnet
   assert.deepEqual(body.tool_choice, { type: "tool", name: "propose_grouping" });
   assert.equal(body.tools[0]?.name, "propose_grouping");
-  for (const atom of atoms) assert.match(body.messages[0]!.content, new RegExp(atom.hash));
+  const content = body.messages[0]!.content;
+  atoms.forEach((_, i) => assert.match(content, new RegExp(`\\[${i + 1}\\]`))); // short ids shown
+  for (const atom of atoms) assert.ok(!content.includes(atom.hash)); // never the dominant-cost hashes
+});
+
+test("uses the grouping model id injected from config", async () => {
+  const calls: unknown[] = [];
+  const client = {
+    messages: {
+      create: (body: unknown) => {
+        calls.push(body);
+        return Promise.resolve({ content: [{ type: "tool_use", name: "propose_grouping", input: modelProposal }] });
+      },
+    },
+  } as unknown as AnthropicSdk;
+  const agent = new AnthropicAgent(client, { model: "claude-test-override" });
+
+  await agent.proposeGrouping({ atoms, instructions: { personal: null, project: null } });
+
+  assert.equal((calls[0] as { model: string }).model, "claude-test-override");
 });
 
 test("folds personal and project guidance into the prompt (the #26 seam)", async () => {
   const calls: unknown[] = [];
-  const agent = stubAgent([{ type: "tool_use", name: "propose_grouping", input: validProposal }], calls);
+  const agent = stubAgent([{ type: "tool_use", name: "propose_grouping", input: modelProposal }], calls);
   const request: GroupingRequest = {
     atoms,
     instructions: { personal: "PERSONAL-GUIDE", project: "PROJECT-GUIDE" },
@@ -96,11 +116,17 @@ test("folds personal and project guidance into the prompt (the #26 seam)", async
   assert.match(content, /PROJECT-GUIDE/);
 });
 
-test("returns the tool input verbatim as unknown, and repairGrouping accepts it", async () => {
-  const agent = stubAgent([{ type: "tool_use", name: "propose_grouping", input: validProposal }], []);
+test("relabels the model's short ids back to real atom hashes, and repairGrouping accepts it (#32)", async () => {
+  const agent = stubAgent([{ type: "tool_use", name: "propose_grouping", input: modelProposal }], []);
 
   const proposal = await agent.proposeGrouping({ atoms, instructions: { personal: null, project: null } });
-  assert.deepEqual(proposal, validProposal);
+
+  // Core receives real content-hashes, never the short ids the model spoke.
+  assert.deepEqual(proposal, {
+    chapters: [
+      { title: "Changes", summary: undefined, sections: [{ title: "Everything", summary: undefined, atomHashes: atoms.map((a) => a.hash) }] },
+    ],
+  });
 
   const review = repairGrouping(atoms, proposal);
   const placed = review.chapters.flatMap((c) => c.sections.flatMap((s) => s.atoms));
@@ -108,6 +134,38 @@ test("returns the tool input verbatim as unknown, and repairGrouping accepts it"
     placed.map((a) => a.hash).sort(),
     [...atoms].map((a) => a.hash).sort(),
   );
+  assert.ok(!review.chapters.some((c) => c.title === "Other changes"));
+});
+
+test("drops short ids outside the supplied list; the unreferenced atom sweeps to Other changes (#32)", async () => {
+  const proposal = {
+    chapters: [{ title: "Some", sections: [{ title: "Two", atomIds: [1, 3, 99] }] }], // 99 is unknown
+  };
+  const agent = stubAgent([{ type: "tool_use", name: "propose_grouping", input: proposal }], []);
+
+  const translated = await agent.proposeGrouping({ atoms, instructions: { personal: null, project: null } });
+  const review = repairGrouping(atoms, translated);
+
+  // atoms[0] and atoms[2] placed in "Two"; the unknown id vanished; atoms[1] -> Other changes.
+  const named = review.chapters.find((c) => c.title === "Some");
+  assert.deepEqual(named?.sections[0]?.atoms.map((a) => a.hash), [atoms[0]!.hash, atoms[2]!.hash]);
+  const other = review.chapters.find((c) => c.title === "Other changes");
+  assert.deepEqual(other?.sections.flatMap((s) => s.atoms).map((a) => a.hash), [atoms[1]!.hash]);
+});
+
+test("keeps identical-payload atoms distinct when the model references each by its own id (#32)", async () => {
+  // Two byte-identical hunks -> identical content hash; short ids 1 and 2 must still
+  // map to two distinct placements (repairGrouping's per-index claim queue).
+  const dup = buildMasterList([hunk("x.ts", "same"), hunk("x.ts", "same")]);
+  assert.equal(dup[0]!.hash, dup[1]!.hash); // identical payload, same hash by design
+  const proposal = {
+    chapters: [{ title: "Dup", sections: [{ title: "Both", atomIds: [1, 2] }] }],
+  };
+  const agent = stubAgent([{ type: "tool_use", name: "propose_grouping", input: proposal }], []);
+
+  const review = repairGrouping(dup, await agent.proposeGrouping({ atoms: dup, instructions: { personal: null, project: null } }));
+  const placed = review.chapters.flatMap((c) => c.sections.flatMap((s) => s.atoms));
+  assert.equal(placed.length, 2); // both atoms placed, none lost or duplicated
   assert.ok(!review.chapters.some((c) => c.title === "Other changes"));
 });
 
@@ -184,14 +242,15 @@ test("chat returns the concatenated answer text as { answer } unknown", async ()
 test("grouping bounds the call with a finite timeout and retry budget", async () => {
   const opts: unknown[] = [];
   const agent = new AnthropicAgent(
-    optionsCapturingClient([{ type: "tool_use", name: "propose_grouping", input: validProposal }], opts),
+    optionsCapturingClient([{ type: "tool_use", name: "propose_grouping", input: modelProposal }], opts),
   );
 
   await agent.proposeGrouping({ atoms, instructions: { personal: null, project: null } });
 
-  const options = opts[0] as { timeout: number; maxRetries: number };
+  const options = opts[0] as { timeout: number; maxRetries: number; signal: unknown };
   assert.ok(options.timeout > 0 && options.timeout <= 120_000, "a finite, bounded timeout");
   assert.ok(options.maxRetries <= 1, "a tight retry budget on the first-paint path");
+  assert.ok(options.signal instanceof AbortSignal, "the hard wall-clock cap's abort signal");
 });
 
 test("grouping's hard wall-clock cap aborts a slow-but-progressing call (#31)", async () => {

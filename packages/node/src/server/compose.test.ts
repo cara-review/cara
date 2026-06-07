@@ -11,10 +11,10 @@ test("selectAgent picks the real Claude adapter when ANTHROPIC_API_KEY is set, e
   const original = process.env["ANTHROPIC_API_KEY"];
   try {
     process.env["ANTHROPIC_API_KEY"] = "sk-ant-test-not-a-real-key";
-    assert.ok(selectAgent() instanceof AnthropicAgent);
+    assert.ok(selectAgent("claude-haiku-4-5-20251001") instanceof AnthropicAgent);
 
     delete process.env["ANTHROPIC_API_KEY"];
-    assert.ok(selectAgent() instanceof FakeAgent);
+    assert.ok(selectAgent("claude-haiku-4-5-20251001") instanceof FakeAgent);
   } finally {
     if (original === undefined) delete process.env["ANTHROPIC_API_KEY"];
     else process.env["ANTHROPIC_API_KEY"] = original;
@@ -48,7 +48,7 @@ test("composition root wires a working ReviewService and WorkspaceReader", async
       cwd: repo.dir,
       spec,
       stateDir: join(repo.dir, ".state"),
-      config: { load: () => Promise.resolve({ editorCommand: "true" }) },
+      config: { load: () => Promise.resolve({ editorCommand: "true", groupingModel: "claude-haiku-4-5-20251001" }) },
     });
 
     const snapshot = await backend.service.open(spec);

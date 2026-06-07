@@ -56,7 +56,7 @@ test("WS round-trip: open, mark, and readFile over a real repo", async () => {
     cwd: repo.dir,
     spec: { kind: "range", base, head },
     stateDir: join(repo.dir, ".state"),
-    config: { load: () => Promise.resolve({ editorCommand: "true" }) },
+    config: { load: () => Promise.resolve({ editorCommand: "true", groupingModel: "claude-haiku-4-5-20251001" }) },
   });
   const server = await startServer(backend);
   assert.ok(server.url.startsWith("http://127.0.0.1:"), "binds localhost only");

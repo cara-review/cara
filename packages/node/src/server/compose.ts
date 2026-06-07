@@ -38,8 +38,8 @@ export interface CompositionConfig {
 }
 
 /** Real Claude adapter when an API key is present (env), else the offline FakeAgent. */
-export function selectAgent(): AgentPort {
-  return process.env["ANTHROPIC_API_KEY"] ? new AnthropicAgent() : new FakeAgent();
+export function selectAgent(groupingModel: string): AgentPort {
+  return process.env["ANTHROPIC_API_KEY"] ? new AnthropicAgent(undefined, { model: groupingModel }) : new FakeAgent();
 }
 
 /** Real Claude Q&A adapter when an API key is present (env), else the offline FakeAgentChat. */
@@ -49,11 +49,11 @@ export function selectChat(): AgentChat {
 
 /** Construct and wire every adapter, returning the backend the server drives. */
 export async function compose(config: CompositionConfig): Promise<RpcDeps> {
-  const { editorCommand } = await (config.config ?? new EnvConfig()).load();
+  const { editorCommand, groupingModel } = await (config.config ?? new EnvConfig()).load();
   const service = createReviewService({
     diffSource: new GitDiffSource(config.cwd),
     store: new JsonlReviewStore(config.stateDir),
-    agent: config.agent ?? selectAgent(),
+    agent: config.agent ?? selectAgent(groupingModel),
     chat: config.chat ?? selectChat(),
     instructions: new FileInstructions(homedir(), config.cwd),
     editor: new SpawnEditor(editorCommand ?? "code"),
