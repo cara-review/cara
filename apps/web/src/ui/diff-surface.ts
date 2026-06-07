@@ -17,6 +17,7 @@ import { groupByFile, type FileGroup } from "./diff-model.ts";
 import { syntheticBuffers } from "./synthetic-buffers.ts";
 import { createCommentThreads, type CommentThreads } from "./comments.ts";
 import { markSectionDone, skipSection, toggleFile } from "./controller.ts";
+import { dispatchMark } from "./toast.ts";
 import type { AppState, AppStore, SectionPath } from "../store.ts";
 
 /** Toolbar-controlled render flags: #16 (inline ↔ side-by-side) and #28 (show all diffs). */
@@ -152,7 +153,7 @@ export function createDiffSurface(mount: HTMLElement, store: AppStore): DiffSurf
       onClick: () => void store.openInEditor(group.path, group.atoms[0]?.newStart ?? 1),
     });
     const toggle = el("button", { class: "file__done", attrs: { "aria-pressed": "false" } });
-    toggle.addEventListener("click", () => void toggleFile(store, group.atoms));
+    toggle.addEventListener("click", () => dispatchMark("Couldn’t update this file.", () => toggleFile(store, group.atoms)));
     const header = el("div", { class: "file__header" }, [
       path,
       el("span", { class: `file__status file__status--${group.status}`, text: group.status }),
@@ -285,8 +286,16 @@ function renderKeyFor(path: SectionPath, section: NonNullable<ReturnType<typeof 
 
 function actionBar(store: AppStore): HTMLElement {
   return el("div", { class: "actionbar" }, [
-    el("button", { class: "action action--skip", text: "Skip", onClick: () => void skipSection(store) }),
-    el("button", { class: "action action--done", text: "✓ Done & Next", onClick: () => void markSectionDone(store) }),
+    el("button", {
+      class: "action action--skip",
+      text: "Skip",
+      onClick: () => dispatchMark("Couldn’t skip this section.", () => skipSection(store)),
+    }),
+    el("button", {
+      class: "action action--done",
+      text: "✓ Done & Next",
+      onClick: () => dispatchMark("Couldn’t mark this section reviewed.", () => markSectionDone(store)),
+    }),
   ]);
 }
 

@@ -9,6 +9,7 @@ import type { AppStore } from "../store.ts";
 import type { CommandPalette } from "./command-palette.ts";
 import type { DiffSurface } from "./diff-surface.ts";
 import { markSectionDone, moveFocus, skipSection } from "./controller.ts";
+import { dispatchMark } from "./toast.ts";
 
 export type DiffAction = "next" | "prev" | "done" | "skip" | "sideBySide";
 
@@ -30,8 +31,13 @@ export interface DiffActionSpec {
 export const DIFF_ACTIONS: readonly DiffActionSpec[] = [
   { id: "next", title: "Next section", key: "j", run: ({ store }) => moveFocus(store, "next") },
   { id: "prev", title: "Previous section", key: "k", run: ({ store }) => moveFocus(store, "prev") },
-  { id: "done", title: "Mark section done", key: "d", run: ({ store }) => void markSectionDone(store) },
-  { id: "skip", title: "Skip section", key: "s", run: ({ store }) => void skipSection(store) },
+  {
+    id: "done",
+    title: "Mark section done",
+    key: "d",
+    run: ({ store }) => dispatchMark("Couldn’t mark this section reviewed.", () => markSectionDone(store)),
+  },
+  { id: "skip", title: "Skip section", key: "s", run: ({ store }) => dispatchMark("Couldn’t skip this section.", () => skipSection(store)) },
   { id: "sideBySide", title: "Toggle side-by-side view", key: "v", run: ({ surface }) => surface.toggleSideBySide() },
 ];
 
