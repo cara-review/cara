@@ -4,8 +4,9 @@
 // textarea). View zones are a Monaco/adapter concern — the domain never names them.
 //
 // Comments anchor to atoms by hash (ADR-0002), never to raw line numbers. Bodies
-// are agent/user text rendered via textContent (the `el` factory) — escaped by
-// construction, never interpreted as markup (ADR-0004).
+// are user text rendered via textContent (the `el` factory) — escaped by
+// construction, never interpreted as markup (ADR-0004). (The ADR-0007 agent-drafting
+// seam is an open question, deliberately unwired: the composer takes dictation direct.)
 
 import * as monaco from "monaco-editor";
 import { el } from "../dom.ts";

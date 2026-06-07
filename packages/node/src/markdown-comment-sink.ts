@@ -6,6 +6,10 @@
 // Every adapter concern (markdown shape, output path, frontmatter, node:fs) lives
 // here and never leaks into core (ADR-0003): the domain hands over a domain-neutral
 // ReviewDispatch and gets back a DispatchReceipt whose `location` it treats as opaque.
+//
+// The receipt's `location` is the written file's basename, never an absolute path —
+// the receipt crosses the WS boundary to a possibly-remote page, and leaking the
+// user's home/username would breach the no-fs-paths-on-the-wire rule (dispatch.ts).
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
@@ -27,14 +31,13 @@ export class MarkdownCommentSink implements CommentSink {
     this.#outDir = outDir;
   }
 
-  async dispatch(context: ReviewContext, dispatch: ReviewDispatch): Promise<DispatchReceipt> {
+  async dispatch(context: ReviewContext, payload: ReviewDispatch): Promise<DispatchReceipt> {
     await mkdir(this.#outDir, { recursive: true });
     // One file per Go, keyed by context hash so repeated dispatches of the same
     // review overwrite rather than accumulate — stable whatever the branch/range.
-    const name = createHash("sha256").update(context).digest("hex");
-    const path = join(this.#outDir, `${name}.md`);
-    await writeFile(path, render(context, dispatch.comments), "utf8");
-    return { count: dispatch.comments.length, location: path };
+    const name = `${createHash("sha256").update(context).digest("hex")}.md`;
+    await writeFile(join(this.#outDir, name), render(context, payload.comments), "utf8");
+    return { count: payload.comments.length, location: name };
   }
 }
 
@@ -49,12 +52,21 @@ function renderComment(comment: CommentRecord): string {
     "",
     `## ${comment.path}`,
     "",
-    `- **atom**: \`${comment.atomHash}\``,
+    `- **id**: \`${comment.atomHash}\``,
     `- **lines**: ${describeRange(comment.lineRange)}`,
     "",
-    comment.body,
+    // Quote the body so a body containing `---`/`##`/`- **…**` can't forge another
+    // record's structure in the file a downstream actor parses (output neutralisation).
+    quote(comment.body),
     "",
   ].join("\n");
+}
+
+function quote(body: string): string {
+  return body
+    .split("\n")
+    .map((line) => `> ${line}`)
+    .join("\n");
 }
 
 function describeRange(range: LineRange): string {

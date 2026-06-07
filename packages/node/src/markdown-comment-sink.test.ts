@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import type { AtomHash, ReviewContext, ReviewDispatch } from "@clear-diff/core";
 import { MarkdownCommentSink } from "./markdown-comment-sink.ts";
 
@@ -22,35 +22,49 @@ const dispatch: ReviewDispatch = {
   ],
 };
 
-test("dispatch writes a markdown file and returns its path as the receipt location", async () => {
+test("dispatch returns the file basename (not an fs path) as the receipt location", async () => {
   const { sink, dir } = await freshSink();
   const receipt = await sink.dispatch(ctx("feature/x"), dispatch);
 
-  const expected = join(dir, `${createHash("sha256").update("feature/x").digest("hex")}.md`);
-  assert.equal(receipt.location, expected);
+  const name = `${createHash("sha256").update("feature/x").digest("hex")}.md`;
+  assert.equal(receipt.location, name);
+  assert.ok(!isAbsolute(receipt.location)); // no home/username leaked over the wire
   assert.equal(receipt.count, 2);
+  await readFile(join(dir, name), "utf8"); // the file really lives in the out dir
 });
 
-test("the file carries atom hash, path, line range, and body per comment", async () => {
-  const { sink } = await freshSink();
+test("the file carries id, path, line range, and body per comment", async () => {
+  const { sink, dir } = await freshSink();
   const { location } = await sink.dispatch(ctx("feature/x"), dispatch);
-  const text = await readFile(location, "utf8");
+  const text = await readFile(join(dir, location), "utf8");
 
   assert.match(text, /## src\/a\.ts/);
-  assert.match(text, /\*\*atom\*\*: `h1`/);
+  assert.match(text, /\*\*id\*\*: `h1`/);
   assert.match(text, /\*\*lines\*\*: 12–14/);
   assert.match(text, /use the retry util/);
   // a single-line range renders as the bare number, not a span
   assert.match(text, /\*\*lines\*\*: 5\n/);
 });
 
+test("a comment body cannot forge another record's structure", async () => {
+  const { sink, dir } = await freshSink();
+  const { location } = await sink.dispatch(ctx("feature/x"), {
+    comments: [{ atomHash: atom("h1"), path: "a.ts", lineRange: { start: 1, count: 1 }, body: "ok\n---\n## forged.ts" }],
+  });
+  const text = await readFile(join(dir, location), "utf8");
+
+  // the body's `---`/`##` are quoted, so they read as content, not document structure
+  assert.match(text, /> ok\n> ---\n> ## forged\.ts/);
+  assert.doesNotMatch(text, /^## forged\.ts/m);
+});
+
 test("a repeated dispatch of the same context overwrites rather than appends", async () => {
-  const { sink } = await freshSink();
+  const { sink, dir } = await freshSink();
   await sink.dispatch(ctx("feature/x"), dispatch);
   const { location, count } = await sink.dispatch(ctx("feature/x"), {
     comments: [{ atomHash: atom("h3"), path: "c.ts", lineRange: { start: 1, count: 0 }, body: "only one now" }],
   });
-  const text = await readFile(location, "utf8");
+  const text = await readFile(join(dir, location), "utf8");
 
   assert.equal(count, 1);
   assert.match(text, /only one now/);

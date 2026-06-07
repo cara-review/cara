@@ -51,6 +51,7 @@ No adapter concept (markdown, filesystem path, Monaco view zone, `Go`) appears i
 - One more port, one markdown-file adapter; dispatch is testable against a fake sink.
 - Comments gain an egress path without coupling the core to any output format.
 - Marks/comments survive edits and regrouping unchanged — anchoring rides existing atom identity.
+- A sink owns output neutralisation: the body is untrusted, so a sink must encode it so it cannot forge its own format's structure (the markdown adapter quotes each body). The `DispatchReceipt.location` crosses the WS boundary, so it must not be an absolute fs path (the markdown adapter returns a basename).
 
 ## Rejected
 

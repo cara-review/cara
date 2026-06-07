@@ -116,7 +116,7 @@ export interface DispatchReceipt {
  * is persistence, this is export.
  */
 export interface CommentSink {
-  dispatch(context: ReviewContext, dispatch: ReviewDispatch): Promise<DispatchReceipt>;
+  dispatch(context: ReviewContext, payload: ReviewDispatch): Promise<DispatchReceipt>;
 }
 
 export interface AppConfig {
