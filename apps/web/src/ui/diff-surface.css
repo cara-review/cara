@@ -159,6 +159,12 @@
    elements use generic classes — a bare name here would collide with Monaco. */
 
 .cd-comment-thread {
+  /* Lift the zone above Monaco's .view-lines text layer. A view zone shares the
+     content layer with .view-lines, which paints over the zone's full width and
+     otherwise swallows pointer events on the composer buttons — the thread looks
+     present but is unclickable. A stacking context puts its controls back on top. */
+  position: relative;
+  z-index: 2;
   padding: var(--space-2) var(--space-4);
   font-family: var(--font-sans);
   font-size: 13px;
