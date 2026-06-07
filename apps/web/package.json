@@ -6,7 +6,7 @@
   "private": true,
   "scripts": {
     "dev": "bun ./index.html",
-    "build": "bun build ./index.html --outdir dist --minify --sourcemap=linked",
+    "build": "bun build ./index.html --outdir dist --minify --sourcemap=linked && bun build ./src/workers/editor.worker.ts ./src/workers/ts.worker.ts ./src/workers/json.worker.ts ./src/workers/css.worker.ts ./src/workers/html.worker.ts --outdir dist --target=browser --minify --entry-naming=[name].[ext]",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json"
   },
   "dependencies": {

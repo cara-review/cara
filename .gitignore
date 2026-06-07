@@ -1,6 +1,6 @@
 node_modules/
 
-# Build output (Vite). The backend serves apps/web/dist; it is generated, not tracked.
+# Build output (Bun bundler). The backend serves apps/web/dist; generated, not tracked.
 dist/
 
 # Playwright e2e artefacts (reports, traces) — generated, not tracked.

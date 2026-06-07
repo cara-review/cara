@@ -2,8 +2,7 @@ import { test } from "bun:test";
 import assert from "node:assert/strict";
 import type { ReviewSnapshot, Section } from "../protocol.ts";
 import { AppStore, type AppState } from "../store.ts";
-import { RpcClient } from "../rpc.ts";
-import { FakeTransport, section } from "../test-support.ts";
+import { FakeBackend, section } from "../test-support.ts";
 import { buildCommands, filterCommands, fuzzyScore, type Command } from "./command-palette.ts";
 import type { DiffSurface } from "./diff-surface.ts";
 
@@ -22,7 +21,7 @@ function snapshot(chapters: ReviewSnapshot["review"]["chapters"]): ReviewSnapsho
   };
 }
 
-const STORE = new AppStore(new RpcClient(new FakeTransport()));
+const STORE = new AppStore(new FakeBackend());
 const SURFACE: DiffSurface = { render() {}, toggleSideBySide() {} };
 
 function stateWith(snap: ReviewSnapshot | null): AppState {
@@ -32,6 +31,7 @@ function stateWith(snap: ReviewSnapshot | null): AppState {
     error: null,
     activeSection: null,
     expandedChapters: new Set<number>(),
+    grouping: null,
   };
 }
 

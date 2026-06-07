@@ -685,6 +685,55 @@ kbd {
   color: var(--text-muted);
 }
 
+.overlay__elapsed {
+  margin: var(--space-2) 0 0;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* The grouping reveal: resolved Section titles scrolling up as they stream in. */
+.grouping-stream {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  width: min(420px, 70vw);
+  max-height: 96px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 40%);
+  mask-image: linear-gradient(to bottom, transparent, #000 40%);
+}
+
+.grouping-stream__item {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: grouping-reveal 280ms ease-out;
+}
+
+@keyframes grouping-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grouping-stream__item {
+    animation: none;
+  }
+}
+
 .spinner {
   width: 20px;
   height: 20px;

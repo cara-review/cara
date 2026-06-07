@@ -15,7 +15,7 @@
     "typecheck": "bun run --filter='*' typecheck",
     "typecheck:e2e": "tsc -p e2e/tsconfig.json",
     "lint": "eslint .",
-    "test": "bun run typecheck && bun test",
+    "test": "bun run typecheck && bun test packages apps",
     "build": "bun run --filter='@clear-diff/web' build",
     "test:e2e": "bun run typecheck:e2e && bun run build && playwright test -c e2e/playwright.config.ts"
   },

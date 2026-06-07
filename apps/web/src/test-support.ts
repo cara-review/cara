@@ -1,37 +1,80 @@
 // Shared test fixtures (imported only by *.test.ts; never by the app bundle).
-import assert from "node:assert/strict";
-import type { Atom, AtomHash, Section } from "./protocol.ts";
-import type { Transport, TransportEvent } from "./rpc.ts";
+import type { Backend, ConnectionStatus, OpenHandlers } from "./backend.ts";
+import type { Atom, AtomHash, ChatAnswer, DispatchReceipt, ReviewSnapshot, Section } from "./protocol.ts";
 
-/** An in-memory Transport: capture sent frames, deliver responses, fire lifecycle events. */
-export class FakeTransport implements Transport {
-  readonly sent: string[] = [];
-  private message: ((data: string) => void) | null = null;
-  private readonly handlers: Record<TransportEvent, Array<() => void>> = { open: [], close: [], reconnecting: [] };
+/**
+ * An in-memory Backend: record the actions issued, and drive the open subscription +
+ * connection lifecycle from the test. Mutations resolve with `reply` (the snapshot the
+ * test stages); dispatch/ask/readFile resolve with their own staged replies.
+ */
+export class FakeBackend implements Backend {
+  readonly calls: string[] = [];
+  /** Snapshot the next mutation resolves with — the test stages it before acting. */
+  reply: ReviewSnapshot | null = null;
+  dispatchReply: DispatchReceipt = { count: 0, location: "sink://ctx" };
+  askReply: ChatAnswer = { answer: "ok" };
+  fileReply: { readonly text: string | null } = { text: "body" };
 
-  send(data: string): void {
-    this.sent.push(data);
+  private connectionHandler: ((status: ConnectionStatus) => void) | null = null;
+  private handlers: OpenHandlers | null = null;
+
+  onConnection(handler: (status: ConnectionStatus) => void): void {
+    this.connectionHandler = handler;
   }
-  close(): void {}
-  onMessage(handler: (data: string) => void): void {
-    this.message = handler;
+  openReview(handlers: OpenHandlers): void {
+    this.handlers = handlers;
   }
-  on(event: TransportEvent, handler: () => void): void {
-    this.handlers[event].push(handler);
+
+  // --- test drivers ---------------------------------------------------------
+  fireConnection(status: ConnectionStatus): void {
+    this.connectionHandler?.(status);
   }
-  deliver(data: string): void {
-    this.message?.(data);
+  emitProgress(elapsedMs: number): void {
+    this.handlers?.onProgress(elapsedMs);
   }
-  fire(event: TransportEvent): void {
-    for (const handler of this.handlers[event]) handler();
+  emitSection(title: string): void {
+    this.handlers?.onSection(title);
   }
-  lastRequest(): { id: string; method: string; params: Record<string, unknown> } {
-    const raw = this.sent.at(-1);
-    assert.ok(raw !== undefined, "expected a request to have been sent");
-    return JSON.parse(raw);
+  deliver(snapshot: ReviewSnapshot): void {
+    this.handlers?.onSnapshot(snapshot);
   }
-  lastId(): string {
-    return this.lastRequest().id;
+  failOpen(message: string): void {
+    this.handlers?.onError(message);
+  }
+
+  // --- Backend mutations / queries -----------------------------------------
+  mark(context: string, atomHash: string, disposition: string): Promise<ReviewSnapshot> {
+    this.calls.push(`mark:${context}:${atomHash}:${disposition}`);
+    return Promise.resolve(this.requireReply());
+  }
+  unmark(context: string, atomHash: string): Promise<ReviewSnapshot> {
+    this.calls.push(`unmark:${context}:${atomHash}`);
+    return Promise.resolve(this.requireReply());
+  }
+  comment(context: string, atomHash: string, body: string): Promise<ReviewSnapshot> {
+    this.calls.push(`comment:${context}:${atomHash}:${body}`);
+    return Promise.resolve(this.requireReply());
+  }
+  dispatch(context: string): Promise<DispatchReceipt> {
+    this.calls.push(`dispatch:${context}`);
+    return Promise.resolve(this.dispatchReply);
+  }
+  ask(context: string, chapterIndex: number, question: string): Promise<ChatAnswer> {
+    this.calls.push(`ask:${context}:${chapterIndex}:${question}`);
+    return Promise.resolve(this.askReply);
+  }
+  openInEditor(path: string, line: number): Promise<void> {
+    this.calls.push(`editor:${path}:${line}`);
+    return Promise.resolve();
+  }
+  readFile(path: string, side: string): Promise<{ readonly text: string | null }> {
+    this.calls.push(`readFile:${path}:${side}`);
+    return Promise.resolve(this.fileReply);
+  }
+
+  private requireReply(): ReviewSnapshot {
+    if (this.reply === null) throw new Error("FakeBackend.reply not staged for this mutation");
+    return this.reply;
   }
 }
 

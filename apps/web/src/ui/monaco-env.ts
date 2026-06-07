@@ -1,22 +1,29 @@
-// Monaco worker wiring for Vite (ADR-0006). Imported for side effect before any editor is
-// created: the diff editor computes its diff on a web worker, and each language contributes
-// its own. Vite bundles each via the `?worker` suffix; we route Monaco's label to the right
-// one. Only `apps/web` — Monaco is a client-side presentation library.
+// Monaco worker wiring for the Bun bundler (ADR-0006, ADR-0008). Imported for side
+// effect before any editor is created: the diff editor computes its diff on a web
+// worker, and each language contributes its own. The workers are built as separate
+// entrypoints (see apps/web/package.json `build`) into the bundle root as
+// `<name>.worker.js`; here we resolve each relative to the loaded bundle
+// (`import.meta.url`) and route Monaco's label to the right one. Only `apps/web` —
+// Monaco is a client-side library.
 
 import type { Environment } from "monaco-editor";
-import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
-import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker";
-import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
-import cssWorker from "monaco-editor/esm/vs/language/css/css.worker?worker";
-import htmlWorker from "monaco-editor/esm/vs/language/html/html.worker?worker";
+
+const worker = (name: string): Worker =>
+  new Worker(new URL(`./${name}.worker.js`, import.meta.url), { type: "module" });
+
+const editorWorker = (): Worker => worker("editor");
+const tsWorker = (): Worker => worker("ts");
+const jsonWorker = (): Worker => worker("json");
+const cssWorker = (): Worker => worker("css");
+const htmlWorker = (): Worker => worker("html");
 
 const environment: Environment = {
   getWorker(_workerId, label) {
-    if (label === "typescript" || label === "javascript") return new tsWorker();
-    if (label === "json") return new jsonWorker();
-    if (label === "css" || label === "scss" || label === "less") return new cssWorker();
-    if (label === "html" || label === "handlebars" || label === "razor") return new htmlWorker();
-    return new editorWorker();
+    if (label === "typescript" || label === "javascript") return tsWorker();
+    if (label === "json") return jsonWorker();
+    if (label === "css" || label === "scss" || label === "less") return cssWorker();
+    if (label === "html" || label === "handlebars" || label === "razor") return htmlWorker();
+    return editorWorker();
   },
 };
 
