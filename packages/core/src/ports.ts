@@ -76,6 +76,49 @@ export interface EditorPort {
   open(path: string, line: number): Promise<void>;
 }
 
+/** Where a change sits, in the change's own terms. Line numbers, never the agent's grouping. */
+export interface LineRange {
+  readonly start: number;
+  readonly count: number;
+}
+
+/**
+ * One comment positioned for a downstream actor (ADR-0007): stable identity
+ * (atom hash, ADR-0002), current location, and the user-authored body. Built
+ * from the master list + comment events — domain-neutral, no sink format in it.
+ */
+export interface CommentRecord {
+  readonly atomHash: AtomHash;
+  readonly path: string;
+  readonly lineRange: LineRange;
+  readonly body: string;
+}
+
+/** The payload `Go` pushes out: the accumulated comments, sink-format-agnostic. */
+export interface ReviewDispatch {
+  readonly comments: readonly CommentRecord[];
+}
+
+/**
+ * Confirmation of a dispatch. `location` is an opaque locator of what the sink
+ * wrote — a file path for MarkdownFile, a URL for a later GitHubPR — the domain
+ * never interprets it, only relays it to the UI.
+ */
+export interface DispatchReceipt {
+  readonly count: number;
+  readonly location: string;
+}
+
+/**
+ * Driven egress port (ADR-0007): push the accumulated comments out of the review
+ * (the `Go` use-case). MarkdownFile first; GitHubPR later, same port. The domain
+ * never knows which sink, nor its output format. Distinct from ReviewStore: that
+ * is persistence, this is export.
+ */
+export interface CommentSink {
+  dispatch(context: ReviewContext, dispatch: ReviewDispatch): Promise<DispatchReceipt>;
+}
+
 export interface AppConfig {
   /** Command used to open files, e.g. "code" or "zed". Null when unset. */
   readonly editorCommand: string | null;
@@ -119,5 +162,7 @@ export interface ReviewService {
   mark(context: ReviewContext, atomHash: AtomHash, disposition: Disposition): Promise<ReviewSnapshot>;
   unmark(context: ReviewContext, atomHash: AtomHash): Promise<ReviewSnapshot>;
   comment(context: ReviewContext, atomHash: AtomHash, body: string): Promise<ReviewSnapshot>;
+  /** `Go` (ADR-0007): gather the commented atoms into a ReviewDispatch and push it out the sink. */
+  dispatch(context: ReviewContext): Promise<DispatchReceipt>;
   openInEditor(path: string, line: number): Promise<void>;
 }

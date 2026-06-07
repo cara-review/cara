@@ -37,6 +37,10 @@ function fakeService(calls: string[]): ReviewService {
       calls.push(`comment:${context}:${atomHash}:${body}`);
       return snapshot(context);
     },
+    dispatch: async (context) => {
+      calls.push(`dispatch:${context}`);
+      return { count: 0, location: `sink://${context}` };
+    },
     openInEditor: async (path, line) => {
       calls.push(`editor:${path}:${line}`);
     },
@@ -70,6 +74,19 @@ test("mark passes branded context, atom hash, and disposition through", async ()
 
   assert.deepEqual(calls, ["mark:feature/x:abc:done"]);
   assert.ok(response.ok);
+});
+
+test("dispatch passes the branded context through and returns the receipt", async () => {
+  const calls: string[] = [];
+  const response = await handleRequest(deps(calls), {
+    id: "d",
+    method: "dispatch",
+    params: { context: "feature/x" },
+  });
+
+  assert.deepEqual(calls, ["dispatch:feature/x"]);
+  assert.ok(response.ok);
+  assert.deepEqual(response.result, { count: 0, location: "sink://feature/x" });
 });
 
 test("readFile round-trips the WorkspaceReader", async () => {
@@ -173,6 +190,7 @@ test("a use-case failure is masked behind a generic error", async () => {
     mark: reject,
     unmark: reject,
     comment: reject,
+    dispatch: reject,
     openInEditor: reject,
   };
   const response = await handleRequest(

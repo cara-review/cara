@@ -11,13 +11,16 @@
 // re-calling the agent. A fresh snapshot is rebuilt from the live event log on
 // every mutation.
 
-import type { AtomHash, Disposition, Review, ReviewContext } from "./model.ts";
+import type { Atom, AtomHash, Disposition, Review, ReviewContext } from "./model.ts";
 import type {
   AgentPort,
   ClockPort,
+  CommentRecord,
+  CommentSink,
   DiffSource,
   EditorPort,
   InstructionsSource,
+  LineRange,
   ReviewService,
   ReviewSnapshot,
   ReviewStore,
@@ -34,6 +37,7 @@ export interface ReviewServiceDeps {
   readonly instructions: InstructionsSource;
   readonly editor: EditorPort;
   readonly clock: ClockPort;
+  readonly sink: CommentSink;
 }
 
 export function createReviewService(deps: ReviewServiceDeps): ReviewService {
@@ -100,8 +104,32 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
       return buildSnapshot(context, review);
     },
 
+    async dispatch(context: ReviewContext) {
+      const review = cachedReview(context);
+      const byHash = new Map(review.masterList.map((atom) => [atom.hash, atom]));
+      const { comments } = project(await deps.store.load(context));
+
+      // A comment whose atom is no longer in the master list (the reviewed lines
+      // were edited away) has no current location to point a downstream actor at,
+      // so it is left out of the dispatch — its mark survives in the log regardless.
+      const records: CommentRecord[] = [];
+      for (const comment of comments) {
+        const atom = byHash.get(comment.atomHash);
+        if (atom === undefined) continue;
+        records.push({ atomHash: comment.atomHash, path: atom.path, lineRange: locate(atom), body: comment.body });
+      }
+      return deps.sink.dispatch(context, { comments: records });
+    },
+
     async openInEditor(path: string, line: number) {
       await deps.editor.open(path, line);
     },
   };
+}
+
+/** An atom's location on the side it lives: head for an edit/add, base for a deletion. */
+function locate(atom: Atom): LineRange {
+  return atom.status === "deleted"
+    ? { start: atom.oldStart, count: atom.oldLines }
+    : { start: atom.newStart, count: atom.newLines };
 }

@@ -50,6 +50,8 @@ async function dispatch(deps: RpcDeps, request: ClientRequest): Promise<ResultMa
       return deps.service.unmark(request.params.context, request.params.atomHash);
     case "comment":
       return deps.service.comment(request.params.context, request.params.atomHash, request.params.body);
+    case "dispatch":
+      return deps.service.dispatch(request.params.context);
     case "openInEditor":
       await deps.service.openInEditor(request.params.path, request.params.line);
       return null;
@@ -72,6 +74,8 @@ function parseRequest(raw: unknown): ClientRequest {
       return { id, method, params: contextAndHash(params) };
     case "comment":
       return { id, method, params: { ...contextAndHash(params), body: str(params, "body") } };
+    case "dispatch":
+      return { id, method, params: { context: reviewContext(str(params, "context")) } };
     case "openInEditor":
       return { id, method, params: { path: editorPath(params), line: line(params) } };
     case "readFile":

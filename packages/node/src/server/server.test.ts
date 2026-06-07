@@ -18,7 +18,7 @@ function stubDeps(): RpcDeps {
     throw new Error("backend not exercised by this test");
   };
   return {
-    service: { open: unused, mark: unused, unmark: unused, comment: unused, openInEditor: unused },
+    service: { open: unused, mark: unused, unmark: unused, comment: unused, dispatch: unused, openInEditor: unused },
     workspace: { readFile: () => Promise.resolve(null) },
     spec: { kind: "worktree" },
   };

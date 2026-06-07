@@ -7,6 +7,7 @@ import type { AtomHash, RawHunk } from "./model.ts";
 import type {
   AgentPort,
   ClockPort,
+  CommentSink,
   DiffSource,
   DiffSpec,
   EditorPort,
@@ -14,6 +15,7 @@ import type {
   InstructionsSource,
   MarkEvent,
   ReviewContext,
+  ReviewDispatch,
   ReviewInstructions,
   ReviewStore,
 } from "./index.ts";
@@ -94,6 +96,14 @@ class FakeClock implements ClockPort {
   }
 }
 
+class FakeSink implements CommentSink {
+  dispatched: Array<{ context: ReviewContext; dispatch: ReviewDispatch }> = [];
+  async dispatch(context: ReviewContext, dispatch: ReviewDispatch) {
+    this.dispatched.push({ context, dispatch });
+    return { count: dispatch.comments.length, location: `sink://${context}` };
+  }
+}
+
 function build(opts: {
   hunks?: readonly RawHunk[];
   proposal?: unknown;
@@ -104,6 +114,7 @@ function build(opts: {
   const agent = new FakeAgent(opts.proposal ?? {});
   const editor = new FakeEditor();
   const clock = new FakeClock();
+  const sink = new FakeSink();
   const service = createReviewService({
     diffSource: fakeDiff({ ...(opts.hunks ? { hunks: opts.hunks } : {}), ...(opts.resolve ? { resolve: opts.resolve } : {}) }),
     store,
@@ -111,8 +122,9 @@ function build(opts: {
     instructions: fakeInstructions(opts.instructions),
     editor,
     clock,
+    sink,
   });
-  return { service, store, agent, editor, clock };
+  return { service, store, agent, editor, clock, sink };
 }
 
 const WORKTREE: DiffSpec = { kind: "worktree" };
@@ -264,6 +276,42 @@ test("re-opening the same context refreshes the cached review and preserves mark
   // mutations after re-open still work against the refreshed cache entry
   const after = await service.mark(ctx, HASH(1), "done");
   assert.equal(after.progress.addressed, 2);
+});
+
+// --- dispatch (Go, ADR-0007) ------------------------------------------------
+
+test("dispatch gathers commented atoms into records with current location and body", async () => {
+  const { service, sink } = build();
+  const ctx = (await service.open(WORKTREE)).context;
+  await service.comment(ctx, HASH(0), "use the retry util");
+  const receipt = await service.dispatch(ctx);
+
+  assert.equal(receipt.count, 1);
+  assert.equal(sink.dispatched.length, 1);
+  const record = sink.dispatched[0]?.dispatch.comments[0];
+  assert.equal(record?.atomHash, HASH(0));
+  assert.equal(record?.path, "a.ts");
+  assert.deepEqual(record?.lineRange, { start: 1, count: 1 });
+  assert.equal(record?.body, "use the retry util");
+});
+
+test("dispatch drops a comment whose atom is no longer in the master list", async () => {
+  const { service, store, sink } = build();
+  const ctx = (await service.open(WORKTREE)).context;
+  await store.append(ctx, { type: "commented", ts: 1, atomHash: "gone" as AtomHash, body: "stale" });
+  await service.comment(ctx, HASH(1), "live");
+  const receipt = await service.dispatch(ctx);
+
+  assert.equal(receipt.count, 1);
+  assert.deepEqual(
+    sink.dispatched[0]?.dispatch.comments.map((c) => c.body),
+    ["live"],
+  );
+});
+
+test("dispatch on an unopened context throws", async () => {
+  const { service } = build();
+  await assert.rejects(() => service.dispatch(reviewContext("never-opened")), /No open review/);
 });
 
 // --- context isolation ------------------------------------------------------

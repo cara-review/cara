@@ -6,6 +6,7 @@
 // to the UI.
 
 import { homedir } from "node:os";
+import { join } from "node:path";
 import type { AgentPort, ConfigPort, DiffSpec } from "@clear-diff/core";
 import { createReviewService } from "@clear-diff/core";
 import { AnthropicAgent } from "../anthropic-agent.ts";
@@ -17,6 +18,7 @@ import { GitDiffSource } from "../git/diff-source.ts";
 import { refsForSpec } from "../git/refs.ts";
 import { GitWorkspaceReader } from "../git/workspace-reader.ts";
 import { FileInstructions } from "../instructions.ts";
+import { MarkdownCommentSink } from "../markdown-comment-sink.ts";
 import { JsonlReviewStore } from "../review-store.ts";
 import type { RpcDeps } from "./dispatch.ts";
 
@@ -48,6 +50,7 @@ export async function compose(config: CompositionConfig): Promise<RpcDeps> {
     instructions: new FileInstructions(homedir(), config.cwd),
     editor: new SpawnEditor(editorCommand ?? "code"),
     clock: new SystemClock(),
+    sink: new MarkdownCommentSink(join(config.cwd, ".agent-state", "comments")),
   });
   const workspace = new GitWorkspaceReader(config.cwd, refsForSpec(config.spec));
   return { service, workspace, spec: config.spec };

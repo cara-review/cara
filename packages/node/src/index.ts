@@ -3,6 +3,7 @@
 import { buildMasterList, type RawHunk } from "@clear-diff/core";
 
 export { JsonlReviewStore } from "./review-store.ts";
+export { MarkdownCommentSink } from "./markdown-comment-sink.ts";
 
 export const PACKAGE_ID = "@clear-diff/node";
 

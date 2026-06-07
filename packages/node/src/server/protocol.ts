@@ -10,6 +10,7 @@
 
 import type {
   AtomHash,
+  DispatchReceipt,
   Disposition,
   FileSide,
   ReviewContext,
@@ -29,6 +30,7 @@ export interface RequestParams {
   };
   unmark: { readonly context: ReviewContext; readonly atomHash: AtomHash };
   comment: { readonly context: ReviewContext; readonly atomHash: AtomHash; readonly body: string };
+  dispatch: { readonly context: ReviewContext };
   openInEditor: { readonly path: string; readonly line: number };
   readFile: { readonly path: string; readonly side: FileSide };
 }
@@ -39,6 +41,7 @@ export interface ResultMap {
   mark: ReviewSnapshot;
   unmark: ReviewSnapshot;
   comment: ReviewSnapshot;
+  dispatch: DispatchReceipt;
   openInEditor: null;
   readFile: { readonly text: string | null };
 }
