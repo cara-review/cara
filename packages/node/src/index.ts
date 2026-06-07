@@ -25,15 +25,8 @@ export { GitDiffSource } from "./git/diff-source.ts";
 export { GitWorkspaceReader } from "./git/workspace-reader.ts";
 export { refsForSpec, type GitRef, type SpecRefs } from "./git/refs.ts";
 
-// Driving adapter: composition root + HTTP/WS server + CLI (TN-26-008).
+// Driving adapter: composition root + Bun.serve/tRPC server + CLI (TN-26-008, ADR-0008).
 export { compose, selectAgent, selectChat, type CompositionConfig } from "./server/compose.ts";
 export { startServer, type RunningServer, type ServerOptions } from "./server/server.ts";
-export { handleRequest, type RpcDeps } from "./server/dispatch.ts";
-export type {
-  ClientRequest,
-  ServerResponse,
-  Method,
-  RequestParams,
-  ResultMap,
-} from "./server/protocol.ts";
+export { createAppRouter, type AppRouter, type OpenEvent, type RpcDeps } from "./server/router.ts";
 export { runCli, parseArgs, CliError, type CliArgs, type CliDeps } from "./cli.ts";

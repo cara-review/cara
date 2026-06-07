@@ -1,18 +1,17 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import { once } from "node:events";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { WebSocket, type RawData } from "ws";
-import type { DiffSpec } from "@clear-diff/core";
+import { createTRPCClient, createWSClient, wsLink } from "@trpc/client";
+import type { ReviewService, ReviewSnapshot } from "@clear-diff/core";
 import { makeTestRepo } from "../git/test-repo.ts";
+import { UserFacingError } from "../user-facing-error.ts";
 import { compose } from "./compose.ts";
 import { startServer } from "./server.ts";
-import type { RpcDeps } from "./dispatch.ts";
-import type { ClientRequest, ServerResponse } from "./protocol.ts";
+import type { AppRouter, RpcDeps } from "./router.ts";
 
-/** A backend whose use-cases throw if touched — for tests that never reach an RPC. */
+/** A backend whose use-cases throw if touched — for tests that never reach a procedure. */
 function stubDeps(): RpcDeps {
   const unused = (): never => {
     throw new Error("backend not exercised by this test");
@@ -24,10 +23,25 @@ function stubDeps(): RpcDeps {
   };
 }
 
-function rpc(socket: WebSocket, request: ClientRequest): Promise<ServerResponse> {
-  return new Promise((resolve) => {
-    socket.once("message", (data: RawData) => resolve(JSON.parse(String(data)) as ServerResponse));
-    socket.send(JSON.stringify(request));
+/** A tRPC client over the server's WebSocket, plus a close(). */
+function connect(httpUrl: string) {
+  const ws = createWSClient({ url: httpUrl.replace(/^http/, "ws") });
+  const trpc = createTRPCClient<AppRouter>({ links: [wsLink({ client: ws })] });
+  return { trpc, close: () => ws.close() };
+}
+
+/** Drive the `open` subscription to its terminal snapshot event. */
+function openSnapshot(trpc: ReturnType<typeof connect>["trpc"]): Promise<ReviewSnapshot> {
+  return new Promise((resolve, reject) => {
+    const sub = trpc.open.subscribe(undefined, {
+      onData: (event) => {
+        if (event.kind === "snapshot") {
+          resolve(event.snapshot);
+          sub.unsubscribe();
+        }
+      },
+      onError: (error) => reject(error),
+    });
   });
 }
 
@@ -38,81 +52,89 @@ test("WS round-trip: open, mark, and readFile over a real repo", async () => {
   await repo.write("a.ts", "one\ntwo\n");
   const head = await repo.commit("add line");
 
-  const spec: DiffSpec = { kind: "range", base, head };
   const backend = await compose({
     cwd: repo.dir,
-    spec,
+    spec: { kind: "range", base, head },
     stateDir: join(repo.dir, ".state"),
     config: { load: () => Promise.resolve({ editorCommand: "true" }) },
   });
   const server = await startServer(backend);
   assert.ok(server.url.startsWith("http://127.0.0.1:"), "binds localhost only");
 
-  const socket = new WebSocket(server.url.replace(/^http/, "ws"));
-  await once(socket, "open");
+  const { trpc, close } = connect(server.url);
   try {
-    const opened = await rpc(socket, { id: "1", method: "open", params: {} });
-    assert.ok(opened.ok && opened.result !== null && "review" in opened.result);
-    const hash = opened.result.review.masterList[0]?.hash;
+    const opened = await openSnapshot(trpc);
+    const hash = opened.review.masterList[0]?.hash;
     assert.ok(hash, "open returns at least one atom");
 
-    const marked = await rpc(socket, {
-      id: "2",
-      method: "mark",
-      params: { context: opened.result.context, atomHash: hash, disposition: "done" },
-    });
-    assert.ok(marked.ok && marked.result !== null && "marks" in marked.result);
-    assert.equal(marked.result.marks.length, 1);
-    assert.equal(marked.result.progress.addressed, 1);
+    const marked = await trpc.mark.mutate({ context: opened.context, atomHash: hash, disposition: "done" });
+    assert.equal(marked.marks.length, 1);
+    assert.equal(marked.progress.addressed, 1);
 
-    const file = await rpc(socket, {
-      id: "3",
-      method: "readFile",
-      params: { path: "a.ts", side: "head" },
-    });
-    assert.ok(file.ok);
-    assert.deepEqual(file.result, { text: "one\ntwo\n" });
+    const file = await trpc.readFile.query({ path: "a.ts", side: "head" });
+    assert.deepEqual(file, { text: "one\ntwo\n" });
   } finally {
-    socket.close();
+    close();
     await server.close();
     await repo.cleanup();
+  }
+});
+
+test("a use-case failure is masked behind a generic error over the wire", async () => {
+  const reject = () => Promise.reject(new Error("git stderr: /Users/secret/path leaked"));
+  const failing: ReviewService = {
+    open: reject,
+    mark: reject,
+    unmark: reject,
+    comment: reject,
+    dispatch: reject,
+    ask: reject,
+    openInEditor: reject,
+  };
+  const server = await startServer({ service: failing, workspace: stubDeps().workspace, spec: { kind: "worktree" } });
+  const { trpc, close } = connect(server.url);
+  try {
+    await assert.rejects(() => openSnapshot(trpc), /Internal error\./);
+  } finally {
+    close();
+    await server.close();
+  }
+});
+
+test("a UserFacingError surfaces its curated message instead of being masked", async () => {
+  const message = "AI grouping timed out — the diff may be too large. Try a smaller range.";
+  const reject = () => Promise.reject(new UserFacingError(message));
+  const failing: ReviewService = {
+    open: reject,
+    mark: reject,
+    unmark: reject,
+    comment: reject,
+    dispatch: reject,
+    ask: reject,
+    openInEditor: reject,
+  };
+  const server = await startServer({ service: failing, workspace: stubDeps().workspace, spec: { kind: "worktree" } });
+  const { trpc, close } = connect(server.url);
+  try {
+    await assert.rejects(() => openSnapshot(trpc), new RegExp(message.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  } finally {
+    close();
+    await server.close();
   }
 });
 
 test("a non-loopback Origin is rejected at the WS handshake", async () => {
   const server = await startServer(stubDeps());
   try {
-    const socket = new WebSocket(server.url.replace(/^http/, "ws"), { origin: "https://evil.example" });
-    const [error] = (await once(socket, "error")) as [Error];
-    assert.ok(error instanceof Error, "the handshake is refused, not opened");
-    socket.terminate();
-  } finally {
-    await server.close();
-  }
-});
-
-test("an over-cap WS frame is rejected without crashing the backend", async () => {
-  const server = await startServer(stubDeps());
-  // Exceed the 1 MiB maxPayload. ws emits 'error' on the socket for an over-cap
-  // frame; with no listener that would be an uncaught exception — a one-frame DoS.
-  const overCap = "x".repeat((1 << 20) + 1);
-  try {
-    const sender = new WebSocket(server.url.replace(/^http/, "ws"));
-    await once(sender, "open");
-    sender.on("error", () => {}); // the server closes this socket; ignore the client-side error
-    sender.send(JSON.stringify({ id: "big", method: "open", params: {}, pad: overCap }));
-    await once(sender, "close"); // the server rejects the frame and closes the offending socket
-
-    // The backend must still serve other clients: a fresh connection gets a clean
-    // error reply, proving the process survived the unhandled-'error' crash path.
-    const probe = new WebSocket(server.url.replace(/^http/, "ws"));
-    await once(probe, "open");
-    const reply = await new Promise<ServerResponse>((resolve) => {
-      probe.once("message", (data: RawData) => resolve(JSON.parse(String(data)) as ServerResponse));
-      probe.send("not json");
+    const socket = new WebSocket(server.url.replace(/^http/, "ws"), {
+      headers: { Origin: "https://evil.example" },
     });
-    assert.equal(reply.ok, false, "the backend is alive and answering");
-    probe.close();
+    const refused = await new Promise<boolean>((resolve) => {
+      socket.addEventListener("open", () => resolve(false), { once: true });
+      socket.addEventListener("close", () => resolve(true), { once: true });
+      socket.addEventListener("error", () => resolve(true), { once: true });
+    });
+    assert.ok(refused, "the handshake is refused, not opened");
   } finally {
     await server.close();
   }

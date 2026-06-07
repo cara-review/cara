@@ -1,22 +1,13 @@
-// HTTP/WS server (ADR-0003), the driving adapter over ReviewService. HTTP serves
-// the built UI (static, when present) or a placeholder; the WebSocket carries the
-// RPC contract (protocol.ts). Binds 127.0.0.1 only — local-first, no external
-// surface (ADR-0001). A loopback bind is still reachable cross-origin from any
-// page in the user's browser, so the WS handshake and HTTP both enforce a
-// loopback Origin + Host allowlist (CSRF / DNS-rebinding defence). All transport
-// concerns live here; nothing leaks into core.
+// The Bun.serve server (ADR-0003, ADR-0008): the driving adapter that carries the
+// tRPC router over one WebSocket and serves the built UI over HTTP. Binds 127.0.0.1
+// only — local-first, no external surface (ADR-0001). A loopback bind is still
+// reachable cross-origin from any page in the user's browser, so both HTTP and the WS
+// upgrade enforce a loopback Origin + Host allowlist (CSRF / DNS-rebinding defence).
+// All transport concerns live here; nothing leaks into core or the router contract.
 
-import {
-  createServer,
-  type IncomingMessage,
-  type Server,
-  type ServerResponse as HttpResponse,
-} from "node:http";
-import { readFile } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
-import { WebSocketServer, type RawData, type WebSocket } from "ws";
-import type { RpcDeps } from "./dispatch.ts";
-import { handleRequest } from "./dispatch.ts";
+import { createBunWSHandler, type BunWSClientCtx } from "trpc-bun-adapter";
+import { createAppRouter, type RpcDeps } from "./router.ts";
 
 export interface ServerOptions {
   /** Port to listen on. 0 (default) lets the OS pick a free ephemeral port. */
@@ -34,64 +25,53 @@ const HOST = "127.0.0.1";
 const MAX_PAYLOAD = 1 << 20; // 1 MiB: cap WS frames against a local memory DoS.
 
 export async function startServer(deps: RpcDeps, options: ServerOptions = {}): Promise<RunningServer> {
-  const http = createServer((request, response) => {
-    void serveHttp(request, response, options.webRoot);
-  });
-  const sockets = new WebSocketServer({
-    server: http,
-    maxPayload: MAX_PAYLOAD,
-    verifyClient: ({ origin, req }: { origin: string; req: IncomingMessage }) =>
-      isLoopbackOrigin(origin) && isLoopbackHost(req.headers.host),
-  });
-  // A WebSocket emits 'error' on a transport/protocol fault — e.g. a peer frame
-  // over `maxPayload`, or an abrupt reset. EventEmitter rethrows an 'error' with
-  // no listener as an uncaught exception, which would crash the backend: a
-  // one-frame DoS from any page the loopback server is reachable from. Swallow it
-  // (ws closes the offending socket itself); the same guard covers server-level faults.
-  sockets.on("error", () => {});
-  sockets.on("connection", (socket) => {
-    socket.on("error", () => {});
-    socket.on("message", (data) => {
-      void onMessage(deps, socket, data);
-    });
+  const router = createAppRouter(deps);
+  const websocket = createBunWSHandler({
+    router,
+    // Log the full error server-side; the router's errorFormatter masks what reaches the peer.
+    onError: ({ error }: { error: unknown }) => console.error("clear-diff RPC error:", error),
   });
 
-  await listen(http, options.port ?? 0);
-  const address = http.address();
-  const port = typeof address === "object" && address !== null ? address.port : 0;
+  const server = Bun.serve({
+    hostname: HOST,
+    port: options.port ?? 0,
+    fetch(request, srv) {
+      // DNS-rebinding defence: a non-loopback Host is refused outright (HTTP and WS alike).
+      if (!isLoopbackHost(request.headers.get("host"))) return new Response("Forbidden.", { status: 403 });
+
+      if ((request.headers.get("upgrade") ?? "").toLowerCase() === "websocket") {
+        // CSRF defence: only a loopback (or absent, for non-browser clients) Origin may upgrade.
+        if (!isLoopbackOrigin(request.headers.get("origin"))) {
+          return new Response("Forbidden origin.", { status: 403 });
+        }
+        const data = { req: request } as BunWSClientCtx<typeof router>;
+        if (srv.upgrade(request, { data })) return undefined;
+        return new Response("WebSocket upgrade failed.", { status: 400 });
+      }
+
+      return serveHttp(request, options.webRoot);
+    },
+    websocket: { ...websocket, maxPayloadLength: MAX_PAYLOAD },
+  });
+
   return {
-    url: `http://${HOST}:${port}`,
-    close: () => close(http, sockets),
+    url: `http://${HOST}:${server.port}`,
+    close: async () => {
+      await server.stop(true);
+    },
   };
 }
 
-async function onMessage(deps: RpcDeps, socket: WebSocket, data: RawData): Promise<void> {
-  let raw: unknown;
-  try {
-    raw = JSON.parse(decode(data));
-  } catch {
-    socket.send(JSON.stringify({ id: "", ok: false, error: "Invalid JSON." }));
-    return;
-  }
-  socket.send(JSON.stringify(await handleRequest(deps, raw)));
-}
-
-function decode(data: RawData): string {
-  if (Array.isArray(data)) return Buffer.concat(data).toString("utf8");
-  if (data instanceof ArrayBuffer) return Buffer.from(data).toString("utf8");
-  return data.toString("utf8");
-}
-
 /** A loopback Host header (DNS-rebinding defence). A missing Host is rejected. */
-function isLoopbackHost(host: string | undefined): boolean {
-  if (host === undefined) return false;
+function isLoopbackHost(host: string | null): boolean {
+  if (host === null) return false;
   const name = host.replace(/:\d+$/, "").toLowerCase();
   return name === "127.0.0.1" || name === "localhost" || name === "[::1]";
 }
 
 /** A loopback Origin, or none at all (non-browser clients send no Origin). */
-function isLoopbackOrigin(origin: string | undefined): boolean {
-  if (origin === undefined || origin === "") return true;
+function isLoopbackOrigin(origin: string | null): boolean {
+  if (origin === null || origin === "") return true;
   try {
     const { hostname } = new URL(origin);
     return hostname === "127.0.0.1" || hostname === "localhost" || hostname === "::1";
@@ -104,25 +84,16 @@ const PLACEHOLDER =
   "<!doctype html><meta charset=utf-8><title>clear-diff</title>" +
   "<p>clear-diff backend is running. The UI is not built yet.";
 
-async function serveHttp(request: IncomingMessage, response: HttpResponse, webRoot?: string): Promise<void> {
-  if (!isLoopbackHost(request.headers.host)) {
-    response.writeHead(403);
-    response.end("Forbidden.");
-    return;
-  }
+async function serveHttp(request: Request, webRoot?: string): Promise<Response> {
   if (webRoot === undefined) {
-    response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-    response.end(PLACEHOLDER);
-    return;
+    return new Response(PLACEHOLDER, { headers: { "content-type": "text/html; charset=utf-8" } });
   }
 
   let pathname: string;
   try {
-    pathname = decodeURIComponent((request.url ?? "/").split("?")[0] ?? "/");
+    pathname = decodeURIComponent(new URL(request.url).pathname);
   } catch {
-    response.writeHead(400);
-    response.end("Bad request.");
-    return;
+    return new Response("Bad request.", { status: 400 });
   }
 
   const root = resolve(webRoot);
@@ -131,23 +102,17 @@ async function serveHttp(request: IncomingMessage, response: HttpResponse, webRo
   const file = requested === root || requested.startsWith(root + sep) ? requested : null;
 
   if (file !== null) {
-    try {
-      const body = await readFile(file);
-      response.writeHead(200, { "content-type": contentType(file) });
-      response.end(body);
-      return;
-    } catch {
-      // Fall through to the SPA index fallback below.
+    const asset = Bun.file(file);
+    if (await asset.exists()) {
+      return new Response(asset, { headers: { "content-type": contentType(file) } });
     }
   }
-  try {
-    const index = await readFile(resolve(root, "index.html"));
-    response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-    response.end(index);
-  } catch {
-    response.writeHead(404);
-    response.end("Not found.");
+  // SPA fallback: serve index.html for unknown in-app routes.
+  const index = Bun.file(resolve(root, "index.html"));
+  if (await index.exists()) {
+    return new Response(index, { headers: { "content-type": "text/html; charset=utf-8" } });
   }
+  return new Response("Not found.", { status: 404 });
 }
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -158,27 +123,9 @@ const CONTENT_TYPES: Record<string, string> = {
   ".svg": "image/svg+xml",
   ".woff2": "font/woff2",
   ".ttf": "font/ttf",
+  ".map": "application/json; charset=utf-8",
 };
 
 function contentType(file: string): string {
   return CONTENT_TYPES[extname(file).toLowerCase()] ?? "application/octet-stream";
-}
-
-function listen(server: Server, port: number): Promise<void> {
-  return new Promise((done, reject) => {
-    server.once("error", reject);
-    server.listen(port, HOST, () => {
-      server.removeListener("error", reject);
-      done();
-    });
-  });
-}
-
-function close(server: Server, sockets: WebSocketServer): Promise<void> {
-  return new Promise((done, reject) => {
-    for (const client of sockets.clients) client.terminate();
-    sockets.close(() => {
-      server.close((error) => (error ? reject(error) : done()));
-    });
-  });
 }

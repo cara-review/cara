@@ -20,7 +20,7 @@ import { GitWorkspaceReader } from "../git/workspace-reader.ts";
 import { FileInstructions } from "../instructions.ts";
 import { MarkdownCommentSink } from "../markdown-comment-sink.ts";
 import { JsonlReviewStore } from "../review-store.ts";
-import type { RpcDeps } from "./dispatch.ts";
+import type { RpcDeps } from "./router.ts";
 
 export interface CompositionConfig {
   /** Repo directory the git adapters run in. */

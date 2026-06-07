@@ -1,10 +1,9 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import { once } from "node:events";
-import { WebSocket, type RawData } from "ws";
+import { createTRPCClient, createWSClient, wsLink } from "@trpc/client";
 import { CliError, parseArgs, runCli } from "./cli.ts";
 import { makeTestRepo } from "./git/test-repo.ts";
-import type { ServerResponse } from "./server/protocol.ts";
+import type { AppRouter } from "./server/router.ts";
 
 test("no arguments review the worktree", () => {
   assert.deepEqual(parseArgs([]), { spec: { kind: "worktree" }, open: true });
@@ -58,17 +57,23 @@ test("runCli boots a server that serves a snapshot over WS", async () => {
     log: () => {},
   });
 
-  const socket = new WebSocket(server.url.replace(/^http/, "ws"));
-  await once(socket, "open");
+  const ws = createWSClient({ url: server.url.replace(/^http/, "ws") });
+  const trpc = createTRPCClient<AppRouter>({ links: [wsLink({ client: ws })] });
   try {
-    const opened = await new Promise<ServerResponse>((resolve) => {
-      socket.once("message", (data: RawData) => resolve(JSON.parse(String(data)) as ServerResponse));
-      socket.send(JSON.stringify({ id: "1", method: "open", params: {} }));
+    const snapshot = await new Promise<{ review: { masterList: readonly unknown[] } }>((resolve, reject) => {
+      const sub = trpc.open.subscribe(undefined, {
+        onData: (event) => {
+          if (event.kind === "snapshot") {
+            resolve(event.snapshot);
+            sub.unsubscribe();
+          }
+        },
+        onError: (error) => reject(error),
+      });
     });
-    assert.ok(opened.ok && opened.result !== null && "review" in opened.result);
-    assert.ok(opened.result.review.masterList.length >= 1);
+    assert.ok(snapshot.review.masterList.length >= 1);
   } finally {
-    socket.close();
+    ws.close();
     await server.close();
     await repo.cleanup();
   }
