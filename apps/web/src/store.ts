@@ -6,7 +6,7 @@
 // Chapters/Sections have no domain id; focus is an index path within the current
 // snapshot (the grouping is regenerated on every `open`).
 
-import type { AtomHash, Disposition, FileSide, ReviewSnapshot } from "./protocol.ts";
+import type { AtomHash, DispatchReceipt, Disposition, FileSide, ReviewSnapshot } from "./protocol.ts";
 import type { RpcClient, Transport } from "./rpc.ts";
 
 export type Connection = "connecting" | "open" | "reconnecting" | "closed";
@@ -103,6 +103,11 @@ export class AppStore {
     });
     this.patch({ snapshot });
     return snapshot;
+  }
+
+  /** `Go` (ADR-0007): push the accumulated comments out the sink; returns the receipt. */
+  async dispatch(): Promise<DispatchReceipt> {
+    return this.rpc.request("dispatch", { context: this.requireContext() });
   }
 
   openInEditor(path: string, line: number): Promise<null> {

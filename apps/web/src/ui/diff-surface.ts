@@ -15,6 +15,7 @@ import { marksMap } from "../selectors.ts";
 import { sectionAt } from "../navigation.ts";
 import { groupByFile, type FileGroup } from "./diff-model.ts";
 import { syntheticBuffers } from "./synthetic-buffers.ts";
+import { createCommentThreads, type CommentThreads } from "./comments.ts";
 import { markSectionDone, skipSection, toggleFile } from "./controller.ts";
 import type { AppState, AppStore, SectionPath } from "../store.ts";
 
@@ -68,6 +69,7 @@ interface FileCard {
   readonly container: HTMLElement;
   readonly toggle: HTMLButtonElement;
   readonly card: HTMLElement;
+  readonly threads: CommentThreads;
 }
 
 // Synthetic originals can be invalid mid-edit; suppress IntelliSense squiggles in the read-only view.
@@ -102,6 +104,7 @@ export function createDiffSurface(mount: HTMLElement, store: AppStore): DiffSurf
       rafId = 0;
     }
     for (const card of cards) {
+      card.threads.dispose();
       card.editor.dispose();
       card.original.dispose();
       card.modified.dispose();
@@ -164,7 +167,9 @@ export function createDiffSurface(mount: HTMLElement, store: AppStore): DiffSurf
     editor.getModifiedEditor().onDidContentSizeChange(scheduleFit);
     editor.onDidUpdateDiff(scheduleFit);
 
-    return { group, editor, original: originalModel, modified: modifiedModel, container, toggle, card };
+    const threads = createCommentThreads(editor.getModifiedEditor(), group.atoms, store);
+
+    return { group, editor, original: originalModel, modified: modifiedModel, container, toggle, card, threads };
   }
 
   /** Fetch every file's buffers, then (if still current) build the stack. Async; race-guarded. */
@@ -187,8 +192,10 @@ export function createDiffSurface(mount: HTMLElement, store: AppStore): DiffSurf
     disposeCards();
     cards = built.map(({ group, head, original }) => makeCard(group, head, original));
     fill(mount, toolbar(), ...cards.map((card) => card.card), actionBar(store));
-    // A mark may have landed while files were fetching: paint the latest marks, not the stale ones.
-    updateMarks(store.getState().snapshot ?? snapshot);
+    // A mark or comment may have landed while files were fetching: paint the latest, not the stale.
+    const current = store.getState().snapshot ?? snapshot;
+    updateMarks(current);
+    updateComments(current);
     scheduleFit();
   }
 
@@ -201,6 +208,10 @@ export function createDiffSurface(mount: HTMLElement, store: AppStore): DiffSurf
       card.toggle.setAttribute("aria-pressed", String(done));
       card.card.classList.toggle("file--reviewed", done);
     }
+  }
+
+  function updateComments(snapshot: NonNullable<AppState["snapshot"]>): void {
+    for (const card of cards) card.threads.update(snapshot.comments);
   }
 
   function render(state: AppState): void {
@@ -227,6 +238,7 @@ export function createDiffSurface(mount: HTMLElement, store: AppStore): DiffSurf
       void rebuild(state.snapshot, section);
     } else {
       updateMarks(state.snapshot);
+      updateComments(state.snapshot);
     }
   }
 
@@ -273,9 +285,31 @@ function renderKeyFor(path: SectionPath, section: NonNullable<ReturnType<typeof 
 
 function actionBar(store: AppStore): HTMLElement {
   return el("div", { class: "actionbar" }, [
+    goButton(store),
     el("button", { class: "action action--skip", text: "Skip", onClick: () => void skipSection(store) }),
     el("button", { class: "action action--done", text: "✓ Done & Next", onClick: () => void markSectionDone(store) }),
   ]);
+}
+
+/** `Go` (ADR-0007): dispatch the review's comments out the sink and report the receipt. */
+function goButton(store: AppStore): HTMLButtonElement {
+  const button = el("button", { class: "action action--go", text: "Go", title: "Send comments to the dispatch file" });
+  button.addEventListener("click", () => {
+    button.disabled = true;
+    void store
+      .dispatch()
+      .then((receipt) => {
+        button.textContent = `✓ Sent ${receipt.count}`;
+        button.title = receipt.location; // the opaque sink locator, for the user's reference
+      })
+      .catch(() => {
+        button.textContent = "Go (failed)";
+      })
+      .finally(() => {
+        button.disabled = false;
+      });
+  });
+  return button;
 }
 
 function pathLabel(group: FileGroup): string {

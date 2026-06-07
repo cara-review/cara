@@ -119,11 +119,24 @@ test("unmark and comment send the context-bearing frame and patch the snapshot",
   await commented;
 });
 
+test("dispatch sends the active context and returns the receipt", async () => {
+  const { store, transport } = harness();
+  await openWith(store, transport, snapshot([chapter("C", [SECTION])]));
+
+  const sent = store.dispatch();
+  const req = transport.lastRequest();
+  assert.equal(req.method, "dispatch");
+  assert.equal(req.params.context, "ctx");
+  transport.deliver(JSON.stringify({ id: req.id, ok: true, result: { count: 2, location: "sink://ctx" } }));
+  assert.deepEqual(await sent, { count: 2, location: "sink://ctx" });
+});
+
 test("mutating before a review is open rejects", async () => {
   const { store } = harness();
   await assert.rejects(store.mark("a" as AtomHash, "done"), /No active review/);
   await assert.rejects(store.unmark("a" as AtomHash), /No active review/);
   await assert.rejects(store.comment("a" as AtomHash, "x"), /No active review/);
+  await assert.rejects(store.dispatch(), /No active review/);
 });
 
 test("openInEditor and readFile pass through to the rpc", async () => {

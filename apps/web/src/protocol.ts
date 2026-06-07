@@ -75,6 +75,12 @@ export interface ReviewProgress {
   readonly unaddressed: number;
 }
 
+/** Confirmation of a `Go` dispatch (ADR-0007). `location` is opaque — display only. */
+export interface DispatchReceipt {
+  readonly count: number;
+  readonly location: string;
+}
+
 /** Everything the UI needs after any operation. Plain JSON for the wire. */
 export interface ReviewSnapshot {
   readonly context: ReviewContext;
@@ -96,6 +102,7 @@ export interface RequestParams {
   };
   unmark: { readonly context: ReviewContext; readonly atomHash: AtomHash };
   comment: { readonly context: ReviewContext; readonly atomHash: AtomHash; readonly body: string };
+  dispatch: { readonly context: ReviewContext };
   openInEditor: { readonly path: string; readonly line: number };
   readFile: { readonly path: string; readonly side: FileSide };
 }
@@ -106,6 +113,7 @@ export interface ResultMap {
   mark: ReviewSnapshot;
   unmark: ReviewSnapshot;
   comment: ReviewSnapshot;
+  dispatch: DispatchReceipt;
   openInEditor: null;
   readFile: { readonly text: string | null };
 }

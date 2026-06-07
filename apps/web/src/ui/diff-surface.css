@@ -153,3 +153,93 @@
 .action--done:hover {
   background: var(--accent-hover);
 }
+
+.action--go {
+  margin-right: auto;
+}
+
+.action--go:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.action--go:disabled {
+  opacity: 0.6;
+}
+
+/* --- Inline comment threads (Monaco view zones, ADR-0006/0007) ------------- */
+
+.comment-thread {
+  padding: var(--space-2) var(--space-4);
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+
+.comment-thread__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+}
+
+.comment__body {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  border: var(--hairline) solid var(--border);
+  white-space: pre-wrap;
+  color: var(--text-main);
+}
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.composer__open {
+  align-self: flex-start;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 4px var(--space-3);
+  border-radius: var(--radius-sm);
+  border: var(--hairline) solid var(--border);
+}
+
+.composer__open:hover {
+  background: var(--bg-hover);
+}
+
+.composer__input {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: var(--hairline) solid var(--border);
+  background: var(--bg-main);
+  color: var(--text-main);
+}
+
+.composer__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.composer__accept,
+.composer__cancel {
+  font-size: 12px;
+  padding: 4px var(--space-3);
+  border-radius: var(--radius-sm);
+  border: var(--hairline) solid var(--border);
+}
+
+.composer__accept {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.composer__cancel:hover {
+  background: var(--bg-hover);
+}
