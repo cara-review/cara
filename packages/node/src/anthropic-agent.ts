@@ -4,8 +4,10 @@
 // or alter the change. So this asks Claude to group git's atoms via a forced
 // tool call, then returns that proposal verbatim as `unknown` at the seam —
 // core's repairGrouping owns coercion and the bijection invariant. The adapter
-// never calls repairGrouping and never retries; a malformed or empty proposal
-// degrades safely downstream. Summaries are display-only aids, never the diff.
+// never calls repairGrouping and never re-prompts to fix a proposal; a malformed
+// or empty proposal degrades safely downstream. Summaries are display-only aids,
+// never the diff. (Transport-level retry on a stalled call is a separate concern,
+// bounded below alongside the request timeout.)
 //
 // The Sonnet response shape (content blocks, tool_use) stays behind the port:
 // the domain only ever sees `unknown`, so no LLM specifics leak into it.
@@ -19,10 +21,38 @@ import type {
   GroupingRequest,
   ReviewInstructions,
 } from "@clear-diff/core";
+import { UserFacingError } from "./user-facing-error.ts";
 
 const MODEL = "claude-sonnet-4-6";
 const TOOL_NAME = "propose_grouping";
 const MAX_TOKENS = 16_000;
+
+// Bound the wait so the UI never hangs behind an unresponsive call. The SDK
+// defaults (10-min timeout, 2 retries) let a stalled request block first paint
+// for tens of minutes — indistinguishable from a crash. A generous-but-finite
+// timeout lets even a large diff finish, yet caps a true hang; one retry rides
+// out a transient blip without doubling worst-case latency on the critical path.
+const GROUPING_TIMEOUT_MS = 120_000;
+const CHAT_TIMEOUT_MS = 60_000;
+const MAX_RETRIES = 1;
+
+/**
+ * Translate a known SDK failure into a curated, user-safe message. A timeout and a
+ * plain unavailability read differently to the reviewer; anything that is not an
+ * SDK error is a genuine fault, re-thrown to be logged and masked upstream.
+ */
+function asUserFacing(error: unknown, label: string): never {
+  if (error instanceof Anthropic.AnthropicError) {
+    const reason =
+      error instanceof Anthropic.APIConnectionTimeoutError
+        ? "timed out — the diff may be too large, or the AI is taking too long. Try a smaller range"
+        : error instanceof Anthropic.AuthenticationError
+          ? "rejected the request — check that ANTHROPIC_API_KEY is set and valid"
+          : "is unavailable right now — check your connection and try again";
+    throw new UserFacingError(`${label} ${reason}.`);
+  }
+  throw error;
+}
 
 const SYSTEM_PROMPT = [
   "You organise a code review. You are given a set of changes — each with a stable",
@@ -129,14 +159,22 @@ export class AnthropicAgent implements AgentPort {
   }
 
   async proposeGrouping(request: GroupingRequest): Promise<unknown> {
-    const message = await this.#client.messages.create({
-      model: MODEL,
-      max_tokens: MAX_TOKENS,
-      system: SYSTEM_PROMPT,
-      tools: [GROUPING_TOOL],
-      tool_choice: { type: "tool", name: TOOL_NAME },
-      messages: [{ role: "user", content: renderRequest(request) }],
-    });
+    let message: Anthropic.Message;
+    try {
+      message = await this.#client.messages.create(
+        {
+          model: MODEL,
+          max_tokens: MAX_TOKENS,
+          system: SYSTEM_PROMPT,
+          tools: [GROUPING_TOOL],
+          tool_choice: { type: "tool", name: TOOL_NAME },
+          messages: [{ role: "user", content: renderRequest(request) }],
+        },
+        { timeout: GROUPING_TIMEOUT_MS, maxRetries: MAX_RETRIES },
+      );
+    } catch (error) {
+      asUserFacing(error, "AI grouping");
+    }
 
     // The forced tool's input is the untrusted proposal — return it verbatim.
     // Anything missing degrades to a single "Other changes" chapter via repairGrouping.
@@ -216,12 +254,20 @@ export class AnthropicAgentChat implements AgentChat {
   }
 
   async answer(request: ChatRequest): Promise<unknown> {
-    const message = await this.#client.messages.create({
-      model: MODEL,
-      max_tokens: CHAT_MAX_TOKENS,
-      system: CHAT_SYSTEM_PROMPT,
-      messages: [{ role: "user", content: renderChatRequest(request) }],
-    });
+    let message: Anthropic.Message;
+    try {
+      message = await this.#client.messages.create(
+        {
+          model: MODEL,
+          max_tokens: CHAT_MAX_TOKENS,
+          system: CHAT_SYSTEM_PROMPT,
+          messages: [{ role: "user", content: renderChatRequest(request) }],
+        },
+        { timeout: CHAT_TIMEOUT_MS, maxRetries: MAX_RETRIES },
+      );
+    } catch (error) {
+      asUserFacing(error, "The AI");
+    }
     return { answer: answerText(message) };
   }
 }

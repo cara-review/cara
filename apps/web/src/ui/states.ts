@@ -36,7 +36,10 @@ export function overlay(state: AppState): HTMLElement | null {
 
   const content: Record<OverlayKind, { title: string; detail: string }> = {
     connecting: { title: "Connecting…", detail: "Reaching the clear-diff backend." },
-    loading: { title: "Reading the diff…", detail: "Proposing a structure for this review." },
+    loading: {
+      title: "Grouping with AI…",
+      detail: "Organising this diff into a navigable structure. Large diffs take longer.",
+    },
     reconnecting: { title: "Reconnecting…", detail: "Lost the backend — trying to restore the connection." },
     disconnected: { title: "Disconnected", detail: "Couldn’t reach the backend. Restart clear-diff to continue." },
     error: { title: "Something went wrong", detail: state.error ?? "Could not reach the backend." },

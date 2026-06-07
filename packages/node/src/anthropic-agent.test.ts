@@ -1,8 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import Anthropic from "@anthropic-ai/sdk";
 import type AnthropicSdk from "@anthropic-ai/sdk";
 import { buildMasterList, repairGrouping, type GroupingRequest, type RawHunk } from "@clear-diff/core";
 import { AnthropicAgent, AnthropicAgentChat } from "./anthropic-agent.ts";
+import { UserFacingError } from "./user-facing-error.ts";
 
 function hunk(path: string, text: string): RawHunk {
   return {
@@ -43,6 +45,23 @@ const validProposal = {
     { title: "Changes", sections: [{ title: "Everything", atomHashes: atoms.map((a) => a.hash) }] },
   ],
 };
+
+/** A client whose create rejects — exercises the adapter's failure translation. */
+function rejectingClient(error: unknown): AnthropicSdk {
+  return { messages: { create: () => Promise.reject(error) } } as unknown as AnthropicSdk;
+}
+
+/** Capture the per-request options (the create 2nd arg): the timeout + retry budget. */
+function optionsCapturingClient(blocks: readonly unknown[], opts: unknown[]): AnthropicSdk {
+  return {
+    messages: {
+      create: (_body: unknown, options: unknown) => {
+        opts.push(options);
+        return Promise.resolve({ content: blocks });
+      },
+    },
+  } as unknown as AnthropicSdk;
+}
 
 test("forces Sonnet to call the grouping tool and sends every atom hash", async () => {
   const calls: unknown[] = [];
@@ -158,4 +177,67 @@ test("chat returns the concatenated answer text as { answer } unknown", async ()
 
   const result = await chat.answer({ atoms, question: "q", instructions: { personal: null, project: null } });
   assert.deepEqual(result, { answer: "Yes — additive only." });
+});
+
+// --- Robustness: bounded wait + clear failure (never a silent hang) ---------
+
+test("grouping bounds the call with a finite timeout and retry budget", async () => {
+  const opts: unknown[] = [];
+  const agent = new AnthropicAgent(
+    optionsCapturingClient([{ type: "tool_use", name: "propose_grouping", input: validProposal }], opts),
+  );
+
+  await agent.proposeGrouping({ atoms, instructions: { personal: null, project: null } });
+
+  const options = opts[0] as { timeout: number; maxRetries: number };
+  assert.ok(options.timeout > 0 && options.timeout <= 120_000, "a finite, bounded timeout");
+  assert.ok(options.maxRetries <= 1, "a tight retry budget on the first-paint path");
+});
+
+test("grouping turns an SDK timeout into a clear, user-facing message", async () => {
+  const agent = new AnthropicAgent(rejectingClient(new Anthropic.APIConnectionTimeoutError({ message: "x" })));
+
+  await assert.rejects(
+    agent.proposeGrouping({ atoms, instructions: { personal: null, project: null } }),
+    (error: unknown) => error instanceof UserFacingError && /timed out/i.test(error.message),
+  );
+});
+
+test("grouping turns an SDK connection failure into an availability message", async () => {
+  const agent = new AnthropicAgent(rejectingClient(new Anthropic.APIConnectionError({ message: "down" })));
+
+  await assert.rejects(
+    agent.proposeGrouping({ atoms, instructions: { personal: null, project: null } }),
+    (error: unknown) => error instanceof UserFacingError && /unavailable/i.test(error.message),
+  );
+});
+
+test("grouping turns an SDK auth failure into an API-key message (the 'just works' failure)", async () => {
+  const agent = new AnthropicAgent(
+    rejectingClient(new Anthropic.AuthenticationError(401, undefined, "invalid key", new Headers())),
+  );
+
+  await assert.rejects(
+    agent.proposeGrouping({ atoms, instructions: { personal: null, project: null } }),
+    (error: unknown) => error instanceof UserFacingError && /ANTHROPIC_API_KEY/.test(error.message),
+  );
+});
+
+test("grouping re-throws a non-SDK fault unchanged (logged and masked upstream)", async () => {
+  const boom = new Error("programming bug");
+  const agent = new AnthropicAgent(rejectingClient(boom));
+
+  await assert.rejects(
+    agent.proposeGrouping({ atoms, instructions: { personal: null, project: null } }),
+    (error: unknown) => error === boom,
+  );
+});
+
+test("chat bounds the call and turns an SDK timeout into a clear message", async () => {
+  const chat = new AnthropicAgentChat(rejectingClient(new Anthropic.APIConnectionTimeoutError({ message: "x" })));
+
+  await assert.rejects(
+    chat.answer({ atoms, question: "q", instructions: { personal: null, project: null } }),
+    (error: unknown) => error instanceof UserFacingError && /timed out/i.test(error.message),
+  );
 });

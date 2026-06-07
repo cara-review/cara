@@ -8,6 +8,7 @@ import type {
   WorkspaceReader,
 } from "@clear-diff/core";
 import { handleRequest, type RpcDeps } from "./dispatch.ts";
+import { UserFacingError } from "../user-facing-error.ts";
 
 function snapshot(context: string): ReviewSnapshot {
   return {
@@ -239,4 +240,24 @@ test("a use-case failure is masked behind a generic error", async () => {
   );
   assert.ok(!response.ok);
   assert.equal(response.error, "Internal error.");
+});
+
+test("a UserFacingError surfaces its curated message instead of being masked", async () => {
+  const message = "AI grouping timed out — the diff may be too large. Try a smaller range.";
+  const reject = () => Promise.reject(new UserFacingError(message));
+  const failing: ReviewService = {
+    open: reject,
+    mark: reject,
+    unmark: reject,
+    comment: reject,
+    dispatch: reject,
+    ask: reject,
+    openInEditor: reject,
+  };
+  const response = await handleRequest(
+    { service: failing, workspace, spec: { kind: "worktree" } },
+    { id: "9", method: "open", params: {} },
+  );
+  assert.ok(!response.ok);
+  assert.equal(response.error, message);
 });

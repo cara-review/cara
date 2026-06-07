@@ -14,6 +14,7 @@ import type {
   WorkspaceReader,
 } from "@clear-diff/core";
 import { reviewContext } from "@clear-diff/core";
+import { UserFacingError } from "../user-facing-error.ts";
 import type { ClientRequest, Method, ResultMap, ServerResponse } from "./protocol.ts";
 
 /** The driving adapter's view of the backend: the inbound port + evidence reader + boot spec. */
@@ -33,7 +34,11 @@ export async function handleRequest(deps: RpcDeps, raw: unknown): Promise<Server
     const result = await dispatch(deps, parseRequest(raw));
     return { id, ok: true, result };
   } catch (error) {
-    if (error instanceof RpcError) return { id, ok: false, error: error.message };
+    // RpcError (malformed request) and UserFacingError (a curated operational
+    // failure, e.g. the agent timing out) both carry messages safe to return.
+    if (error instanceof RpcError || error instanceof UserFacingError) {
+      return { id, ok: false, error: error.message };
+    }
     // Never leak git stderr or fs paths to the wire — the peer may be a remote page.
     console.error("clear-diff RPC error:", error);
     return { id, ok: false, error: "Internal error." };
