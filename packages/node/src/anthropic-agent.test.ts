@@ -194,6 +194,28 @@ test("grouping bounds the call with a finite timeout and retry budget", async ()
   assert.ok(options.maxRetries <= 1, "a tight retry budget on the first-paint path");
 });
 
+test("grouping's hard wall-clock cap aborts a slow-but-progressing call (#31)", async () => {
+  // A request that never resolves on its own — only the adapter's AbortController
+  // signal ends it, exactly the streaming-progress hang the SDK timeout misses.
+  const client = {
+    messages: {
+      create: (_body: unknown, options: unknown) =>
+        new Promise((_resolve, reject) => {
+          const signal = (options as { signal?: AbortSignal }).signal;
+          signal?.addEventListener("abort", () =>
+            reject(new Anthropic.APIUserAbortError({ message: "aborted" })),
+          );
+        }),
+    },
+  } as unknown as AnthropicSdk;
+  const agent = new AnthropicAgent(client, { timeoutMs: 10 });
+
+  await assert.rejects(
+    agent.proposeGrouping({ atoms, instructions: { personal: null, project: null } }),
+    (error: unknown) => error instanceof UserFacingError && /timed out/i.test(error.message),
+  );
+});
+
 test("grouping turns an SDK timeout into a clear, user-facing message", async () => {
   const agent = new AnthropicAgent(rejectingClient(new Anthropic.APIConnectionTimeoutError({ message: "x" })));
 

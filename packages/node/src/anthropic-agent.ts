@@ -28,10 +28,13 @@ const TOOL_NAME = "propose_grouping";
 const MAX_TOKENS = 16_000;
 
 // Bound the wait so the UI never hangs behind an unresponsive call. The SDK
-// defaults (10-min timeout, 2 retries) let a stalled request block first paint
-// for tens of minutes — indistinguishable from a crash. A generous-but-finite
-// timeout lets even a large diff finish, yet caps a true hang; one retry rides
-// out a transient blip without doubling worst-case latency on the critical path.
+// `timeout` option is NOT a reliable hard wall-clock cap: a slow-but-streaming
+// generation keeps making progress, so the SDK never trips its idle timeout and a
+// large diff can spin for minutes with no error (#31). The authoritative bound is
+// therefore an AbortController + a wall-clock setTimeout in proposeGrouping that
+// aborts the request outright once the deadline passes, whatever it is doing. The
+// SDK `timeout`/`maxRetries` stay as a cheap secondary for connection-level stalls.
+// A generous-but-finite deadline lets even a large diff finish, yet caps a true hang.
 const GROUPING_TIMEOUT_MS = 120_000;
 const CHAT_TIMEOUT_MS = 60_000;
 const MAX_RETRIES = 1;
@@ -44,7 +47,9 @@ const MAX_RETRIES = 1;
 function asUserFacing(error: unknown, label: string): never {
   if (error instanceof Anthropic.AnthropicError) {
     const reason =
-      error instanceof Anthropic.APIConnectionTimeoutError
+      // Our hard wall-clock cap (AbortController, below) surfaces as a user abort;
+      // an SDK connection timeout reads the same to the reviewer — both are "too slow".
+      error instanceof Anthropic.APIConnectionTimeoutError || error instanceof Anthropic.APIUserAbortError
         ? "timed out — the diff may be too large, or the AI is taking too long. Try a smaller range"
         : error instanceof Anthropic.AuthenticationError
           ? "rejected the request — check that ANTHROPIC_API_KEY is set and valid"
@@ -153,12 +158,19 @@ function renderRequest(request: GroupingRequest): string {
  */
 export class AnthropicAgent implements AgentPort {
   readonly #client: Anthropic;
+  readonly #timeoutMs: number;
 
-  constructor(client: Anthropic = new Anthropic()) {
+  constructor(client: Anthropic = new Anthropic(), options: { timeoutMs?: number } = {}) {
     this.#client = client;
+    this.#timeoutMs = options.timeoutMs ?? GROUPING_TIMEOUT_MS;
   }
 
   async proposeGrouping(request: GroupingRequest): Promise<unknown> {
+    // Hard wall-clock cap (#31): abort the request once the deadline passes, even
+    // while it is streaming progress. clearTimeout in `finally` so a fast call never
+    // leaves a dangling timer. An abort surfaces as APIUserAbortError → "timed out".
+    const controller = new AbortController();
+    const deadline = setTimeout(() => controller.abort(), this.#timeoutMs);
     let message: Anthropic.Message;
     try {
       message = await this.#client.messages.create(
@@ -170,10 +182,12 @@ export class AnthropicAgent implements AgentPort {
           tool_choice: { type: "tool", name: TOOL_NAME },
           messages: [{ role: "user", content: renderRequest(request) }],
         },
-        { timeout: GROUPING_TIMEOUT_MS, maxRetries: MAX_RETRIES },
+        { signal: controller.signal, timeout: GROUPING_TIMEOUT_MS, maxRetries: MAX_RETRIES },
       );
     } catch (error) {
       asUserFacing(error, "AI grouping");
+    } finally {
+      clearTimeout(deadline);
     }
 
     // The forced tool's input is the untrusted proposal — return it verbatim.
