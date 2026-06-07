@@ -40,15 +40,23 @@ triviality stays a function.
 
 ## Dependency rule (declared deps + review)
 
+> **Amended by [ADR-0008](0008-bun-trpc-transport-and-type-only-contract-imports.md):**
+> the web↔node boundary is narrowed from "never by import" to "never by *runtime*
+> import." A **type-only** contract import (`import type { AppRouter } from
+> "@clear-diff/node/contract"`, runtime-erased) is permitted; the enforced boundary is
+> that the prod web bundle contains **zero node runtime code** (build-time verified).
+> Data still flows only over the WebSocket, as structured data.
+
 - `core` imports nothing; `packages/node` depends on `core`; `apps/web` reaches `node`
-  only over HTTP/WS, never by import.
+  only over WS at runtime — never a runtime import (type-only contract imports permitted,
+  ADR-0008).
 - Held by **declared dependencies + mandatory architectural review**, not lint:
   - `packages/core` — domain + application + port interfaces. Pure TS, zero runtime deps.
-  - `packages/node` — driven adapters + HTTP/WS server + composition root.
-  - `apps/web` — Vite UI.
+  - `packages/node` — driven adapters + Bun.serve/tRPC WS server + composition root.
+  - `apps/web` — Bun-bundled UI (CDR-0001).
 - Composition root = the `node` server bootstrap, the one place concrete adapters are
   constructed and injected. **Manual constructor injection, no DI framework.**
-- The cross-package boundary is a contract, not a structural impossibility. npm hoists
+- The cross-package boundary is a contract, not a structural impossibility. Bun hoists
   workspace packages into the root `node_modules`, so `core` *can* resolve a bare `@clear-diff/node`
   specifier even without declaring it. Three guarantees hold the boundary instead:
   - **declared deps** — `core` declares no dependency on `node`/`web`; an adapter import is

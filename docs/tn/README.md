@@ -21,7 +21,7 @@ Read the `status` field before treating any TN as authoritative: `active` → au
 | [26-013](TN-26-013-project-guidance-clear-diff-md.md) | Project guidance — clear-diff.md → InstructionsSource → AgentPort | plan | active | #26 |
 | [26-015](TN-26-015-monaco-diff-surface.md) | Monaco-based diff surface | proposal | active | #27 |
 | [26-016](TN-26-016-comments-composer-commentsink-port.md) | Comments, composer, CommentSink port, and Go dispatch | proposal | draft | #14 |
-| [26-017](TN-26-017-bun-trpc-toolchain-transport.md) | Bun + tRPC toolchain and transport rework | proposal | draft | #23 |
+| [26-017](TN-26-017-bun-trpc-toolchain-transport.md) | Bun + tRPC toolchain and transport rework | proposal | active | #23 |
 | [26-018](TN-26-018-diff-surface-toggles.md) | Diff-surface toggles — split/unified and show-all-diffs | plan | active | #16, #28 |
 | [26-019](TN-26-019-command-palette.md) | Web — ⌘K command palette | plan | active | #13 |
 | [26-020](TN-26-020-pane-resize-collapse-persisted-layout.md) | Pane resize / collapse + persisted layout | plan | active | #17 |

@@ -1,10 +1,10 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Bun + tRPC transport, with type-only contract imports across the web↔node seam
 
-Background: TN-26-017. The Bun + tRPC direction is owner-approved in #23; this ADR — the ADR-0003 amendment and the CDR-0001 promotion it carries — awaits explicit owner approval before implementation (CLAUDE.md › Architecture policy).
+Background: TN-26-017. The Bun + tRPC direction, the ADR-0003 amendment, and the CDR-0001 promotion this ADR carries are owner-approved in #23 (the issue is the record of approval) and ratified here.
 
 The skeleton ships a bespoke `{id,method,params}` RPC over `ws` with hand-rolled validation. Rather than build that and swap it later, #23 builds the WebSocket server **once** as `Bun.serve` + tRPC. This ADR ratifies the tRPC transport, amends ADR-0003 to permit **type-only** contract imports across the web↔node seam (the runtime boundary stays enforced), and records the Bun toolchain decision for promotion to **CDR-0001**.
 
@@ -22,21 +22,21 @@ The skeleton ships a bespoke `{id,method,params}` RPC over `ws` with hand-rolled
 - Replace the bespoke RPC with a **tRPC router** over `Bun.serve` WS.
 - **zod** validates every input at the boundary, replacing #10's hand-rolled validation.
 - Retain structured-data-only, Origin/Host hardening, and path containment.
-- A tRPC **subscription** channel is established — the future home of the grouping-progress stream (#18/#19). No streaming behaviour is added now; only the channel.
+- A tRPC **subscription** channel carries `open` as a stream: grouping progress (an elapsed tick while the agent groups, then the resolved Section titles revealed one by one), then the snapshot. The progress is synthesised in the transport layer — the core grouping stays a single use-case, **no new port** — so the diff-blind invariant (ADR-0004) is untouched.
 
 ### 2. ADR-0003 amendment: type-only contract imports
 
 ADR-0003's "never by import" is **narrowed to runtime**:
 
-- **Permitted:** `apps/web` may `import type { AppRouter } from "@clear-diff/node"` — type-only, runtime-erased.
+- **Permitted:** `apps/web` may import the contract **type-only** from the node package — `import type { AppRouter } from "@clear-diff/node/contract"`, runtime-erased. The dedicated `/contract` subpath is a pure type surface (the router type + domain types); it carries no server runtime, so importing it never drags `Bun.serve` / node builtins into the web program.
 - **Enforced boundary is the runtime one:** no node runtime code in the web bundle; data flows only over WS.
 - **Verification:** the prod web bundle is checked to contain zero backend/node code. This build-time check *is* the boundary now that a type import is allowed.
 
-On approval, ADR-0003 gains a pointer to this amendment; its dependency rule reads "type-only contract imports permitted; no node *runtime* code in the web bundle."
+ADR-0003's dependency rule now reads "type-only contract imports permitted; no node *runtime* code in the web bundle," pointing here.
 
 ### 3. Bun toolchain → CDR-0001
 
-The Bun toolchain (runtime, `bun test`, `bun install`, Bun bundler/dev server replacing Vite, bun pre-push hook; drop `ws`/Vite/npm) is a **convention**, not an architectural boundary. On approval it is promoted to **CDR-0001** (the first Convention Decision Record), referencing TN-26-017.
+The Bun toolchain (runtime, `bun test`, `bun install`, Bun bundler/dev server replacing Vite, bun pre-push hook; drop `ws`/Vite/npm) is a **convention**, not an architectural boundary. It is promoted to **CDR-0001** (the first Convention Decision Record), referencing TN-26-017.
 
 ## What stays unchanged
 

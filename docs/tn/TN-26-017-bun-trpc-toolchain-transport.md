@@ -2,14 +2,14 @@
 number: 26-017
 title: Bun + tRPC toolchain and transport rework
 kind: proposal
-status: draft
+status: active
 issue: "#23"
 tags: [tooling, transport, bun, trpc, hexagonal]
 ---
 
 # TN-26-017: Bun + tRPC toolchain and transport rework
 
-One coherent post-skeleton wave: rework the toolchain (Bun) **and** the RPC/transport (tRPC) together, so the WebSocket server is built **once** as Bun.serve + tRPC rather than bespoke-then-swapped. Background for **ADR-0008** (status: proposed). The Bun+tRPC direction is **owner-approved in #23**; the **ADR-0003 amendment** and **CDR-0001 promotion** still need explicit owner sign-off on the ADR before implementation.
+One coherent post-skeleton wave: rework the toolchain (Bun) **and** the RPC/transport (tRPC) together, so the WebSocket server is built **once** as Bun.serve + tRPC rather than bespoke-then-swapped. Background for **[ADR-0008](../adr/0008-bun-trpc-transport-and-type-only-contract-imports.md)** (the ADR-0003 amendment) and **[CDR-0001](../cdr/0001-bun-toolchain.md)** (the Bun toolchain), both ratified — owner-approved in #23.
 
 ## Context
 
@@ -30,7 +30,7 @@ One coherent post-skeleton wave: rework the toolchain (Bun) **and** the RPC/tran
 - Replace the bespoke RPC with a **tRPC router** over `Bun.serve` WebSocket.
 - **zod** input validation at the boundary, replacing #10's hand-rolled validation.
 - Keep **structured-data-only** (ADR-0003) + #10's **Origin/Host hardening** (CSRF / DNS-rebinding) + path containment.
-- **Subscriptions:** stand up the tRPC subscription channel — the home for the deferred grouping-progress stream (real-agent case, #18/#19).
+- **Subscriptions:** `open` is a tRPC subscription streaming grouping progress — an elapsed tick while the agent groups, then the resolved Section titles revealed one by one (the scrolling UX), then the snapshot. Synthesised in the transport layer; the core grouping stays a single use-case, no new port.
 - **Web client:** `import type { AppRouter } from "@clear-diff/node"` (type-only, runtime-erased) + tRPC client. Replaces dev-11's local `protocol.ts` mirror.
 
 ### ADR-0003 amendment (type-only carve-out)

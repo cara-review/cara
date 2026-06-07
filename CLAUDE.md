@@ -38,7 +38,7 @@
 
 # Project
 
-**clear-diff** — a local-first, diff-first conversational code reviewer. The agent reads a whole diff, reorganises it into a navigable structure, and surfaces the right part at the right time. You direct; it writes the comments (voice-first). Node CLI.
+**clear-diff** — a local-first, diff-first conversational code reviewer. The agent reads a whole diff, reorganises it into a navigable structure, and surfaces the right part at the right time. You direct; it writes the comments (voice-first). Bun CLI.
 
 - `index.js` — bin entry (`clear-diff`). Currently a stub.
 - Invocation: `clear-diff` (worktree vs `origin/main`), `clear-diff <base>..<head>`, `clear-diff --pr N` (later).
@@ -116,6 +116,6 @@ Prefer one larger issue over several small. Sub-features belong in the parent's 
 
 # Build
 
-Node CLI. After cloning: `./scripts/install-git-hooks.sh` to install the pre-push gate.
+Bun CLI (CDR-0001). After cloning: `bun install`, then `./scripts/install-git-hooks.sh` to install the pre-push gate.
 
-Quality gate: the git `pre-push` hook (`./scripts/install-git-hooks.sh`, manual install — runs lint + `npm test`). No per-push approval gate; delivery is autonomous (see Ship policy). The only human gates are ADR / architectural / process questions.
+Quality gate: the git `pre-push` hook (`./scripts/install-git-hooks.sh`, manual install — runs lint + `bun run test` + `bun run test:e2e`). No per-push approval gate; delivery is autonomous (see Ship policy). The only human gates are ADR / architectural / process questions.
