@@ -17,7 +17,7 @@
     "lint": "eslint .",
     "test": "bun run typecheck && bun test packages apps",
     "build": "bun run --filter='@clear-diff/web' build",
-    "test:e2e": "bun run typecheck:e2e && bun run build && playwright test -c e2e/playwright.config.ts"
+    "test:e2e": "bun run typecheck:e2e && bun run build && bun --bun playwright test -c e2e/playwright.config.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

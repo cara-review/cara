@@ -342,7 +342,9 @@ function languageFor(path: string): string {
 
 /** Define a theme whose background tracks the shell's light/dark tokens, and apply it. */
 function applyTheme(dark: boolean): void {
-  const background = readToken("--bg-main") || (dark ? "#0a0a0a" : "#ffffff");
+  // Monaco requires 6-digit hex; the CSS token may arrive 3-digit (a bundler can shorten
+  // #ffffff to #fff), so normalise before handing it over.
+  const background = hex6(readToken("--bg-main")) ?? (dark ? "#0a0a0a" : "#ffffff");
   monaco.editor.defineTheme("clear-diff", {
     base: dark ? "vs-dark" : "vs",
     inherit: true,
@@ -354,4 +356,11 @@ function applyTheme(dark: boolean): void {
 
 function readToken(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+/** A 6-digit `#rrggbb` hex, expanding the 3-digit `#rgb` form; null when it is neither. */
+function hex6(color: string): string | null {
+  if (/^#[0-9a-fA-F]{6}$/.test(color)) return color;
+  if (/^#[0-9a-fA-F]{3}$/.test(color)) return `#${[...color.slice(1)].map((c) => c + c).join("")}`;
+  return null;
 }
