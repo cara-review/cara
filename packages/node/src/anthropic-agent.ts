@@ -92,18 +92,23 @@ function renderAtom(atom: Atom): string {
   return body.length > 0 ? `${header}\n${body}` : header;
 }
 
-/** Fold the loaded personal/project guidance into the prompt, or null when absent. */
-function renderInstructions(instructions: ReviewInstructions): string | null {
+/** The personal/project guidance blocks, empty when none supplied. */
+function guidanceSections(instructions: ReviewInstructions): string[] {
   const sections: string[] = [];
   if (instructions.personal) sections.push(`Personal reviewer guidance:\n${instructions.personal.trim()}`);
   if (instructions.project) sections.push(`Project reviewer guidance:\n${instructions.project.trim()}`);
-  if (sections.length === 0) return null;
-  return ["Apply this reviewer guidance when grouping:", ...sections].join("\n\n");
+  return sections;
+}
+
+/** Fold guidance under a lead line, or null when absent. The lead differs per call site. */
+function renderGuidance(instructions: ReviewInstructions, lead: string): string | null {
+  const sections = guidanceSections(instructions);
+  return sections.length === 0 ? null : [lead, ...sections].join("\n\n");
 }
 
 function renderRequest(request: GroupingRequest): string {
   const parts: string[] = [];
-  const guidance = renderInstructions(request.instructions);
+  const guidance = renderGuidance(request.instructions, "Apply this reviewer guidance when grouping:");
   if (guidance) parts.push(guidance);
   parts.push(
     "Changes to group (each shown as `[hash] status path`, then its added/removed lines):",
@@ -173,19 +178,10 @@ const CHAT_SYSTEM_PROMPT = [
   'Chapters and Sections; never expose internal words like "atom" or "hunk".',
 ].join("\n");
 
-/** Fold trusted reviewer guidance into the chat prompt, or null when absent. */
-function renderChatInstructions(instructions: ReviewInstructions): string | null {
-  const parts: string[] = [];
-  if (instructions.personal) parts.push(`Personal reviewer guidance:\n${instructions.personal.trim()}`);
-  if (instructions.project) parts.push(`Project reviewer guidance:\n${instructions.project.trim()}`);
-  if (parts.length === 0) return null;
-  return ["Reviewer guidance (trusted):", ...parts].join("\n\n");
-}
-
 /** The question (trusted) plus the Chapter's changes inside an explicit untrusted-data fence. */
 function renderChatRequest(request: ChatRequest): string {
   const parts: string[] = [];
-  const guidance = renderChatInstructions(request.instructions);
+  const guidance = renderGuidance(request.instructions, "Reviewer guidance (trusted):");
   if (guidance) parts.push(guidance);
   parts.push(`Reviewer's question:\n${request.question}`);
   parts.push(

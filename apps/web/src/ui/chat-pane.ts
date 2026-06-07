@@ -8,6 +8,10 @@
 //
 // The agent's answer is UNTRUSTED text (ADR-0004): rendered via textContent (the `el`
 // factory), never innerHTML, never interpreted as markup or allowed to drive an action.
+//
+// Classes extend the pane's existing `chat__` block. (The `cd-` namespacing convention
+// applies to DOM rendered inside Monaco's view zones, where generic class names collide
+// with Monaco's own — this pane is a top-level aside, so the collision risk is absent.)
 
 import { el } from "../dom.ts";
 import type { AppState, AppStore } from "../store.ts";
@@ -28,7 +32,7 @@ export function createChatPane(store: AppStore): ChatPane {
     class: "chat__input",
     attrs: { rows: "1", placeholder: "Ask about this Chapter…" },
   });
-  const send = el("button", { class: "cd-chat-send", text: "Ask", onClick: submit });
+  const send = el("button", { class: "chat__send", text: "Ask", onClick: submit });
   const composer = el("div", { class: "chat__composer" }, [input, send]);
   const node = el("aside", { class: "chat" }, [head, messages, composer]);
 
@@ -43,7 +47,7 @@ export function createChatPane(store: AppStore): ChatPane {
   }
 
   function addMessage(role: "user" | "agent" | "error", text: string): HTMLElement {
-    const message = el("p", { class: `cd-chat-msg cd-chat-msg--${role}`, text });
+    const message = el("p", { class: `chat__message chat__message--${role}`, text });
     messages.append(message);
     messages.scrollTop = messages.scrollHeight;
     return message;
@@ -57,7 +61,7 @@ export function createChatPane(store: AppStore): ChatPane {
     input.value = "";
     addMessage("user", question);
     const reply = addMessage("agent", "…");
-    reply.classList.add("cd-chat-msg--pending");
+    reply.classList.add("chat__message--pending");
     pending = true;
     syncComposer();
 
@@ -68,10 +72,10 @@ export function createChatPane(store: AppStore): ChatPane {
       })
       .catch((error: unknown) => {
         reply.textContent = error instanceof Error ? error.message : "Something went wrong.";
-        reply.classList.add("cd-chat-msg--error");
+        reply.classList.add("chat__message--error");
       })
       .finally(() => {
-        reply.classList.remove("cd-chat-msg--pending");
+        reply.classList.remove("chat__message--pending");
         pending = false;
         syncComposer();
         input.focus();
