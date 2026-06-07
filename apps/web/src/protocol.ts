@@ -81,6 +81,11 @@ export interface DispatchReceipt {
   readonly location: string;
 }
 
+/** A Chapter Q&A answer (ADR-0009): untrusted agent prose. Render via textContent. */
+export interface ChatAnswer {
+  readonly answer: string;
+}
+
 /** Everything the UI needs after any operation. Plain JSON for the wire. */
 export interface ReviewSnapshot {
   readonly context: ReviewContext;
@@ -103,6 +108,7 @@ export interface RequestParams {
   unmark: { readonly context: ReviewContext; readonly atomHash: AtomHash };
   comment: { readonly context: ReviewContext; readonly atomHash: AtomHash; readonly body: string };
   dispatch: { readonly context: ReviewContext };
+  ask: { readonly context: ReviewContext; readonly chapterIndex: number; readonly question: string };
   openInEditor: { readonly path: string; readonly line: number };
   readFile: { readonly path: string; readonly side: FileSide };
 }
@@ -114,6 +120,7 @@ export interface ResultMap {
   unmark: ReviewSnapshot;
   comment: ReviewSnapshot;
   dispatch: DispatchReceipt;
+  ask: ChatAnswer;
   openInEditor: null;
   readFile: { readonly text: string | null };
 }

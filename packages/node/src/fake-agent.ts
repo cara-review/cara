@@ -4,7 +4,7 @@
 // or alter the change. So this returns only ids + titles (never the diff lines),
 // typed `unknown` at the seam — core's repairGrouping owns coercion.
 
-import type { AgentPort, GroupingRequest } from "@clear-diff/core";
+import type { AgentChat, AgentPort, ChatRequest, GroupingRequest } from "@clear-diff/core";
 
 // The untrusted proposal overlay repairGrouping targets. Adapter-local: the
 // domain never names this shape — it arrives there as `unknown` (ADR-0004).
@@ -41,5 +41,20 @@ export class FakeAgent implements AgentPort {
 
     const grouping: ProposedGrouping = { chapters: [{ title: "Changes", sections }] };
     return Promise.resolve(grouping);
+  }
+}
+
+/**
+ * FakeAgentChat: a deterministic AgentChat for offline Q&A tests (ADR-0009). Echoes
+ * the question and the Chapter's size so a test can assert the round-trip without an
+ * LLM. Returns `unknown` at the seam, like the real adapter — core validates it.
+ */
+export class FakeAgentChat implements AgentChat {
+  answer(request: ChatRequest): Promise<unknown> {
+    const count = request.atoms.length;
+    const noun = count === 1 ? "change" : "changes";
+    return Promise.resolve({
+      answer: `You asked: "${request.question}". This Chapter has ${count} ${noun}.`,
+    });
   }
 }

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildMasterList, repairGrouping, type RawHunk } from "@clear-diff/core";
-import { FakeAgent } from "./fake-agent.ts";
+import { FakeAgent, FakeAgentChat } from "./fake-agent.ts";
 
 function hunk(path: string, text: string): RawHunk {
   return {
@@ -54,4 +54,15 @@ test("FakeAgent groups one section per file, in first-appearance order", async (
     review.chapters[0]!.sections[0]!.atoms.map((a) => a.lines[0]!.text),
     ["0", "2"],
   );
+});
+
+test("FakeAgentChat echoes the question and the Chapter's change count (ADR-0009)", async () => {
+  const result = await new FakeAgentChat().answer({
+    atoms,
+    question: "is this backwards compatible?",
+    instructions,
+  });
+  assert.deepEqual(result, {
+    answer: 'You asked: "is this backwards compatible?". This Chapter has 3 changes.',
+  });
 });

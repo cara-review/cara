@@ -41,6 +41,10 @@ function fakeService(calls: string[]): ReviewService {
       calls.push(`dispatch:${context}`);
       return { count: 0, location: `sink://${context}` };
     },
+    ask: async (context, chapterIndex, question) => {
+      calls.push(`ask:${context}:${chapterIndex}:${question}`);
+      return { answer: `re ${chapterIndex}: ${question}` };
+    },
     openInEditor: async (path, line) => {
       calls.push(`editor:${path}:${line}`);
     },
@@ -87,6 +91,41 @@ test("dispatch passes the branded context through and returns the receipt", asyn
   assert.deepEqual(calls, ["dispatch:feature/x"]);
   assert.ok(response.ok);
   assert.deepEqual(response.result, { count: 0, location: "sink://feature/x" });
+});
+
+test("ask passes the branded context, chapter index, and question through (ADR-0009)", async () => {
+  const calls: string[] = [];
+  const response = await handleRequest(deps(calls), {
+    id: "a",
+    method: "ask",
+    params: { context: "feature/x", chapterIndex: 2, question: "is this backwards compatible?" },
+  });
+
+  assert.deepEqual(calls, ["ask:feature/x:2:is this backwards compatible?"]);
+  assert.ok(response.ok);
+  assert.deepEqual(response.result, { answer: "re 2: is this backwards compatible?" });
+});
+
+test("ask rejects a negative, non-integer, or non-number chapter index", async () => {
+  for (const chapterIndex of [-1, 1.5, "0"]) {
+    const response = await handleRequest(deps([]), {
+      id: "ai",
+      method: "ask",
+      params: { context: "c", chapterIndex, question: "q" },
+    });
+    assert.ok(!response.ok && /chapterIndex/.test(response.error), `chapterIndex=${chapterIndex}`);
+  }
+});
+
+test("ask rejects an empty or whitespace-only question", async () => {
+  for (const question of ["", "   "]) {
+    const response = await handleRequest(deps([]), {
+      id: "aq",
+      method: "ask",
+      params: { context: "c", chapterIndex: 0, question },
+    });
+    assert.ok(!response.ok && /question/.test(response.error), `question=${JSON.stringify(question)}`);
+  }
 });
 
 test("readFile round-trips the WorkspaceReader", async () => {
@@ -191,6 +230,7 @@ test("a use-case failure is masked behind a generic error", async () => {
     unmark: reject,
     comment: reject,
     dispatch: reject,
+    ask: reject,
     openInEditor: reject,
   };
   const response = await handleRequest(

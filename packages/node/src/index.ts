@@ -13,8 +13,8 @@ export function coreAtomCount(hunks: readonly RawHunk[]): number {
 }
 
 // Driven adapters (TN-26-006).
-export { FakeAgent } from "./fake-agent.ts";
-export { AnthropicAgent } from "./anthropic-agent.ts";
+export { FakeAgent, FakeAgentChat } from "./fake-agent.ts";
+export { AnthropicAgent, AnthropicAgentChat } from "./anthropic-agent.ts";
 export { SystemClock, fixedClock } from "./clock.ts";
 export { SpawnEditor, editorArgs } from "./editor.ts";
 export { EnvConfig } from "./config.ts";
@@ -26,7 +26,7 @@ export { GitWorkspaceReader } from "./git/workspace-reader.ts";
 export { refsForSpec, type GitRef, type SpecRefs } from "./git/refs.ts";
 
 // Driving adapter: composition root + HTTP/WS server + CLI (TN-26-008).
-export { compose, type CompositionConfig } from "./server/compose.ts";
+export { compose, selectAgent, selectChat, type CompositionConfig } from "./server/compose.ts";
 export { startServer, type RunningServer, type ServerOptions } from "./server/server.ts";
 export { handleRequest, type RpcDeps } from "./server/dispatch.ts";
 export type {

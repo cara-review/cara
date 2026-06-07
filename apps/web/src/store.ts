@@ -6,7 +6,7 @@
 // Chapters/Sections have no domain id; focus is an index path within the current
 // snapshot (the grouping is regenerated on every `open`).
 
-import type { AtomHash, DispatchReceipt, Disposition, FileSide, ReviewSnapshot } from "./protocol.ts";
+import type { AtomHash, ChatAnswer, DispatchReceipt, Disposition, FileSide, ReviewSnapshot } from "./protocol.ts";
 import type { RpcClient, Transport } from "./rpc.ts";
 
 export type Connection = "connecting" | "open" | "reconnecting" | "closed";
@@ -108,6 +108,11 @@ export class AppStore {
   /** `Go` (ADR-0007): push the accumulated comments out the sink; returns the receipt. */
   async dispatch(): Promise<DispatchReceipt> {
     return this.rpc.request("dispatch", { context: this.requireContext() });
+  }
+
+  /** Chapter Q&A (ADR-0009): ask the agent about a Chapter; returns its untrusted answer. */
+  async ask(chapterIndex: number, question: string): Promise<ChatAnswer> {
+    return this.rpc.request("ask", { context: this.requireContext(), chapterIndex, question });
   }
 
   openInEditor(path: string, line: number): Promise<null> {

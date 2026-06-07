@@ -62,6 +62,26 @@ export interface AgentPort {
   proposeGrouping(request: GroupingRequest): Promise<unknown>;
 }
 
+export interface ChatRequest {
+  /** The focused Chapter's atoms, carrying their git-verbatim diff `lines`. */
+  readonly atoms: readonly Atom[];
+  readonly question: string;
+  readonly instructions: ReviewInstructions;
+}
+
+/**
+ * Answer a Chapter-scoped reviewer question (ADR-0009). The sibling of `AgentPort`
+ * and the one capability that *reads* diff content — a ratified, narrow relaxation
+ * of ADR-0004's diff-blind invariant. It only reads to answer: it never defines or
+ * changes the review. Output is `unknown`, validated at the boundary to a string and
+ * treated as untrusted overlay text (escape on render, never drives an action).
+ * The diff content it receives is attacker-influenced (git content) — a
+ * prompt-injection surface the adapter must delimit and never expose tools/secrets to.
+ */
+export interface AgentChat {
+  answer(request: ChatRequest): Promise<unknown>;
+}
+
 /**
  * Persist dispositions and comments per context as an append-only event log
  * (ADR-0005). Never holds the atom set (ADR-0004) — that is recomputed live.
@@ -164,5 +184,15 @@ export interface ReviewService {
   comment(context: ReviewContext, atomHash: AtomHash, body: string): Promise<ReviewSnapshot>;
   /** `Go` (ADR-0007): gather the commented atoms into a ReviewDispatch and push it out the sink. */
   dispatch(context: ReviewContext): Promise<DispatchReceipt>;
+  /**
+   * Chapter-scoped Q&A (ADR-0009): resolve the Chapter's atoms from the live review,
+   * have the agent read them to answer the question. Ephemeral — mutates no review state.
+   */
+  ask(context: ReviewContext, chapterIndex: number, question: string): Promise<ChatAnswer>;
   openInEditor(path: string, line: number): Promise<void>;
+}
+
+/** A Q&A answer (ADR-0009): untrusted overlay prose, escape on render. */
+export interface ChatAnswer {
+  readonly answer: string;
 }

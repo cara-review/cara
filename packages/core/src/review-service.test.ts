@@ -5,7 +5,9 @@ import { hashAtom } from "./identity.ts";
 import { reviewContext } from "./model.ts";
 import type { AtomHash, RawHunk } from "./model.ts";
 import type {
+  AgentChat,
   AgentPort,
+  ChatRequest,
   ClockPort,
   CommentSink,
   DiffSource,
@@ -78,6 +80,20 @@ class FakeAgent implements AgentPort {
   }
 }
 
+// Records the request and returns a configurable answer (or `unknown` garbage), to
+// exercise the ADR-0009 Q&A path and the boundary coercion of the agent's output.
+class FakeAgentChat implements AgentChat {
+  lastRequest: ChatRequest | null = null;
+  readonly result: unknown;
+  constructor(result: unknown = { answer: "an answer" }) {
+    this.result = result;
+  }
+  async answer(request: ChatRequest): Promise<unknown> {
+    this.lastRequest = request;
+    return this.result;
+  }
+}
+
 function fakeInstructions(value: ReviewInstructions = { personal: null, project: null }): InstructionsSource {
   return { load: async () => value };
 }
@@ -109,9 +125,11 @@ function build(opts: {
   proposal?: unknown;
   instructions?: ReviewInstructions;
   resolve?: (spec: DiffSpec) => string;
+  answer?: unknown;
 } = {}) {
   const store = new FakeStore();
   const agent = new FakeAgent(opts.proposal ?? {});
+  const chat = new FakeAgentChat("answer" in opts ? opts.answer : { answer: "an answer" });
   const editor = new FakeEditor();
   const clock = new FakeClock();
   const sink = new FakeSink();
@@ -119,12 +137,13 @@ function build(opts: {
     diffSource: fakeDiff({ ...(opts.hunks ? { hunks: opts.hunks } : {}), ...(opts.resolve ? { resolve: opts.resolve } : {}) }),
     store,
     agent,
+    chat,
     instructions: fakeInstructions(opts.instructions),
     editor,
     clock,
     sink,
   });
-  return { service, store, agent, editor, clock, sink };
+  return { service, store, agent, chat, editor, clock, sink };
 }
 
 const WORKTREE: DiffSpec = { kind: "worktree" };
@@ -344,6 +363,59 @@ test("mutating an unopened context throws (no silent no-op)", async () => {
     () => service.mark(reviewContext("never-opened"), HASH(0), "done"),
     /No open review/,
   );
+});
+
+// --- ask: Chapter Q&A (ADR-0009) --------------------------------------------
+
+const CTX = reviewContext("ctx");
+
+test("ask hands the agent the focused Chapter's atoms (with diff lines) + instructions", async () => {
+  const instructions: ReviewInstructions = { personal: "be terse", project: null };
+  const { service, chat } = build({
+    instructions,
+    proposal: { chapters: [{ title: "Core", sections: [{ title: "s", atomHashes: [HASH(0), HASH(1)] }] }] },
+  });
+  await service.open(WORKTREE);
+
+  await service.ask(CTX, 0, "is this backwards compatible?");
+  assert.equal(chat.lastRequest?.question, "is this backwards compatible?");
+  assert.deepEqual(chat.lastRequest?.instructions, instructions);
+  assert.equal(chat.lastRequest?.atoms.length, 2);
+  assert.ok(chat.lastRequest?.atoms[0]?.lines !== undefined); // atoms carry git-verbatim lines
+});
+
+test("ask returns the agent's answer prose", async () => {
+  const { service } = build({ answer: { answer: "Yes — the export is additive." } });
+  await service.open(WORKTREE);
+  const result = await service.ask(CTX, 0, "compatible?");
+  assert.deepEqual(result, { answer: "Yes — the export is additive." });
+});
+
+test("ask coerces a malformed/empty agent answer to a safe fallback (untrusted boundary)", async () => {
+  for (const answer of [{ nope: true }, { answer: "" }, "raw string", null]) {
+    const { service } = build({ answer });
+    await service.open(WORKTREE);
+    const result = await service.ask(CTX, 0, "q");
+    assert.match(result.answer, /couldn't answer/);
+  }
+});
+
+test("ask changes no review state (ephemeral, ADR-0009)", async () => {
+  const { service, store } = build();
+  await service.open(WORKTREE);
+  await service.ask(CTX, 0, "q");
+  assert.equal((await store.load(CTX)).length, 0); // no event appended
+});
+
+test("ask rejects an out-of-range Chapter index", async () => {
+  const { service } = build();
+  await service.open(WORKTREE);
+  await assert.rejects(() => service.ask(CTX, 99, "q"), /No Chapter at index 99/);
+});
+
+test("ask on an unopened context throws", async () => {
+  const { service } = build();
+  await assert.rejects(() => service.ask(reviewContext("never"), 0, "q"), /No open review/);
 });
 
 // --- reviewContext smart-constructor ----------------------------------------

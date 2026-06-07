@@ -7,13 +7,14 @@
 
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { AnnotatingAgent } from "./annotating-agent.ts";
+import { AnsweringAgent } from "./answering-agent.ts";
 import {
   makeEmptyFixture,
   makeReviewFixture,
   makeSpecialPathsFixture,
   type ReviewFixture,
 } from "./fixture-repo.ts";
-import { bootReal, bootWithAgent, type BootedServer } from "./server.ts";
+import { bootReal, bootWithAgent, bootWithChat, type BootedServer } from "./server.ts";
 
 type Boot = (fixture: ReviewFixture) => Promise<BootedServer>;
 
@@ -56,6 +57,11 @@ export function serveSpecialPaths(): () => string {
 /** The review fixture booted with the summary-emitting agent. */
 export function serveAnnotated(): () => string {
   return serve(makeReviewFixture, (f) => bootWithAgent(f.dir, f.range, new AnnotatingAgent()));
+}
+
+/** The review fixture booted with the Q&A answering agent (ADR-0009). */
+export function serveChat(): () => string {
+  return serve(makeReviewFixture, (f) => bootWithChat(f.dir, f.range, new AnsweringAgent()));
 }
 
 /** Navigate to a review and wait until the nav tree has rendered. */

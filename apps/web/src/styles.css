@@ -506,15 +506,73 @@ kbd {
 .chat__messages {
   flex: 1;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+/* Ephemeral Q&A bubbles (ADR-0009). Agent answers are untrusted text — rendered via
+   textContent (never markup). cd--namespaced per the Monaco-collision convention. */
+.cd-chat-msg {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-lg);
+  max-width: 90%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.cd-chat-msg--user {
+  align-self: flex-end;
+  background: var(--accent);
+  color: var(--bg-main);
+}
+
+.cd-chat-msg--agent {
+  align-self: flex-start;
+  background: var(--bg-main);
+  border: var(--hairline) solid var(--border);
+}
+
+.cd-chat-msg--pending {
+  opacity: 0.6;
+}
+
+.cd-chat-msg--error {
+  border-color: var(--danger, #c0392b);
+  color: var(--danger, #c0392b);
 }
 
 .chat__composer {
   padding: var(--space-3);
   border-top: var(--hairline) solid var(--border);
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-end;
+}
+
+.cd-chat-send {
+  flex: none;
+  font: inherit;
+  padding: var(--space-2) var(--space-3);
+  color: var(--bg-main);
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+}
+
+.cd-chat-send:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .chat__input {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   resize: none;
   font: inherit;
   color: inherit;

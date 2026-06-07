@@ -22,7 +22,7 @@ export function createView(root: HTMLElement, store: AppStore): View {
   const headerHost = el("div", { class: "header-host" });
 
   const diffPane = createDiffPane();
-  const chatPane = createChatPane();
+  const chatPane = createChatPane(store);
   const navEl = el("nav", { class: "nav" });
   const grid = el("div", { class: "grid" }, [navEl, diffPane.node, chatPane.node]);
   installLayout(grid);

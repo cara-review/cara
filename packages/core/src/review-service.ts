@@ -13,6 +13,7 @@
 
 import type { Atom, AtomHash, Disposition, Review, ReviewContext } from "./model.ts";
 import type {
+  AgentChat,
   AgentPort,
   ClockPort,
   CommentRecord,
@@ -34,6 +35,7 @@ export interface ReviewServiceDeps {
   readonly diffSource: DiffSource;
   readonly store: ReviewStore;
   readonly agent: AgentPort;
+  readonly chat: AgentChat;
   readonly instructions: InstructionsSource;
   readonly editor: EditorPort;
   readonly clock: ClockPort;
@@ -121,10 +123,36 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
       return deps.sink.dispatch(context, { comments: records });
     },
 
+    async ask(context: ReviewContext, chapterIndex: number, question: string) {
+      const review = cachedReview(context);
+      const chapter = review.chapters[chapterIndex];
+      if (chapter === undefined) throw new Error(`No Chapter at index ${chapterIndex}.`);
+      const atoms = chapter.sections.flatMap((section) => section.atoms);
+      const result = await deps.chat.answer({
+        atoms,
+        question,
+        instructions: await deps.instructions.load(),
+      });
+      return { answer: coerceAnswer(result) };
+    },
+
     async openInEditor(path: string, line: number) {
       await deps.editor.open(path, line);
     },
   };
+}
+
+/**
+ * Validate the agent's `unknown` answer at the boundary (ADR-0009): a non-empty
+ * `answer` string, else a safe fallback. The agent is untrusted, so a malformed or
+ * empty response degrades to a message rather than throwing or surfacing raw shape.
+ */
+function coerceAnswer(result: unknown): string {
+  if (typeof result === "object" && result !== null) {
+    const answer = (result as Record<string, unknown>)["answer"];
+    if (typeof answer === "string" && answer.trim() !== "") return answer;
+  }
+  return "I couldn't answer that — try rephrasing the question.";
 }
 
 /** An atom's location on the side it lives: head for an edit/add, base for a deletion. */

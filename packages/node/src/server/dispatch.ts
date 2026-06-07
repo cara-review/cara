@@ -52,6 +52,8 @@ async function dispatch(deps: RpcDeps, request: ClientRequest): Promise<ResultMa
       return deps.service.comment(request.params.context, request.params.atomHash, request.params.body);
     case "dispatch":
       return deps.service.dispatch(request.params.context);
+    case "ask":
+      return deps.service.ask(request.params.context, request.params.chapterIndex, request.params.question);
     case "openInEditor":
       await deps.service.openInEditor(request.params.path, request.params.line);
       return null;
@@ -76,6 +78,16 @@ function parseRequest(raw: unknown): ClientRequest {
       return { id, method, params: { ...contextAndHash(params), body: str(params, "body") } };
     case "dispatch":
       return { id, method, params: { context: reviewContext(str(params, "context")) } };
+    case "ask":
+      return {
+        id,
+        method,
+        params: {
+          context: reviewContext(str(params, "context")),
+          chapterIndex: chapterIndex(params),
+          question: nonEmptyStr(params, "question"),
+        },
+      };
     case "openInEditor":
       return { id, method, params: { path: editorPath(params), line: line(params) } };
     case "readFile":
@@ -101,6 +113,21 @@ function asRecord(value: unknown, what: string): Record<string, unknown> {
 function str(record: Record<string, unknown>, key: string): string {
   const value = record[key];
   if (typeof value !== "string") throw new RpcError(`"${key}" must be a string.`);
+  return value;
+}
+
+function nonEmptyStr(record: Record<string, unknown>, key: string): string {
+  const value = str(record, key);
+  if (value.trim() === "") throw new RpcError(`"${key}" must not be empty.`);
+  return value;
+}
+
+/** A Chapter index into the live review: a non-negative integer. Range is checked in the service. */
+function chapterIndex(params: Record<string, unknown>): number {
+  const value = params["chapterIndex"];
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    throw new RpcError(`"chapterIndex" must be a non-negative integer.`);
+  }
   return value;
 }
 

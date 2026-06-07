@@ -7,13 +7,13 @@
 
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { AgentPort, ConfigPort, DiffSpec } from "@clear-diff/core";
+import type { AgentChat, AgentPort, ConfigPort, DiffSpec } from "@clear-diff/core";
 import { createReviewService } from "@clear-diff/core";
-import { AnthropicAgent } from "../anthropic-agent.ts";
+import { AnthropicAgent, AnthropicAgentChat } from "../anthropic-agent.ts";
 import { SystemClock } from "../clock.ts";
 import { EnvConfig } from "../config.ts";
 import { SpawnEditor } from "../editor.ts";
-import { FakeAgent } from "../fake-agent.ts";
+import { FakeAgent, FakeAgentChat } from "../fake-agent.ts";
 import { GitDiffSource } from "../git/diff-source.ts";
 import { refsForSpec } from "../git/refs.ts";
 import { GitWorkspaceReader } from "../git/workspace-reader.ts";
@@ -33,11 +33,18 @@ export interface CompositionConfig {
   readonly config?: ConfigPort;
   /** AgentPort override for tests; defaults to the FakeAgent. */
   readonly agent?: AgentPort;
+  /** AgentChat override for tests; defaults to the FakeAgentChat (ADR-0009). */
+  readonly chat?: AgentChat;
 }
 
 /** Real Claude adapter when an API key is present (env), else the offline FakeAgent. */
 export function selectAgent(): AgentPort {
   return process.env["ANTHROPIC_API_KEY"] ? new AnthropicAgent() : new FakeAgent();
+}
+
+/** Real Claude Q&A adapter when an API key is present (env), else the offline FakeAgentChat. */
+export function selectChat(): AgentChat {
+  return process.env["ANTHROPIC_API_KEY"] ? new AnthropicAgentChat() : new FakeAgentChat();
 }
 
 /** Construct and wire every adapter, returning the backend the server drives. */
@@ -47,6 +54,7 @@ export async function compose(config: CompositionConfig): Promise<RpcDeps> {
     diffSource: new GitDiffSource(config.cwd),
     store: new JsonlReviewStore(config.stateDir),
     agent: config.agent ?? selectAgent(),
+    chat: config.chat ?? selectChat(),
     instructions: new FileInstructions(homedir(), config.cwd),
     editor: new SpawnEditor(editorCommand ?? "code"),
     clock: new SystemClock(),

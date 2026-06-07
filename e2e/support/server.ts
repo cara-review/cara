@@ -11,8 +11,9 @@
 
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AgentPort } from "@clear-diff/core";
+import type { AgentChat, AgentPort } from "@clear-diff/core";
 import { parseArgs, runCli } from "../../packages/node/src/cli.ts";
+import { FakeAgent } from "../../packages/node/src/fake-agent.ts";
 import { compose } from "../../packages/node/src/server/compose.ts";
 import { startServer } from "../../packages/node/src/server/server.ts";
 
@@ -43,6 +44,27 @@ export async function bootWithAgent(
     spec,
     stateDir: join(repoDir, ".agent-state", "reviews"),
     agent,
+  });
+  return startServer(backend, { webRoot: webRoot() });
+}
+
+/**
+ * As bootReal, but with an injected Q&A adapter (ADR-0009 composition seam). The
+ * grouping agent is the deterministic FakeAgent so nav and chat both stay offline and
+ * stable regardless of any ANTHROPIC_API_KEY in the environment.
+ */
+export async function bootWithChat(
+  repoDir: string,
+  range: string,
+  chat: AgentChat,
+): Promise<BootedServer> {
+  const { spec } = parseArgs([range]);
+  const backend = await compose({
+    cwd: repoDir,
+    spec,
+    stateDir: join(repoDir, ".agent-state", "reviews"),
+    agent: new FakeAgent(),
+    chat,
   });
   return startServer(backend, { webRoot: webRoot() });
 }
