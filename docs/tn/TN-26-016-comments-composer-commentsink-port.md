@@ -2,14 +2,14 @@
 number: 26-016
 title: Comments, composer, CommentSink port, and Go dispatch
 kind: proposal
-status: draft
+status: active
 issue: "#14"
 tags: [comments, composer, ports, dispatch, hexagonal]
 ---
 
 # TN-26-016: Comments, composer, CommentSink port, and Go dispatch
 
-Line commenting end-to-end plus the dispatch target. Proposes a 9th driven port (`CommentSink`) and the composer UI. Background for **ADR-0007** (status: proposed); both await owner approval before implementation (CLAUDE.md › Architecture policy).
+Line commenting end-to-end plus the dispatch target. Proposes a 9th driven port (`CommentSink`) and the composer UI. Background for **ADR-0007** (status: accepted) — approved by owner 2026-06-06 (delegated to coordinator).
 
 ## Context
 
