@@ -56,7 +56,10 @@ export class AppStore {
   bindTransport(transport: Transport): void {
     transport.on("open", () => {
       this.patch({ connection: "open" });
-      void this.open();
+      // open() records its own failure in `error` state; a drop mid-fetch now
+      // rejects it (a stranded request), so swallow here to avoid an unhandled
+      // rejection — the next `open` event refetches.
+      void this.open().catch(() => {});
     });
     transport.on("reconnecting", () => this.patch({ connection: "reconnecting" }));
     transport.on("close", () => this.patch({ connection: "closed" }));

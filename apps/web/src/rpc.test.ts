@@ -48,6 +48,37 @@ test("responses for unknown or already-settled ids are ignored", async () => {
   assert.deepEqual(await pending, { text: "right" });
 });
 
+test("a pending request rejects when the socket drops", async () => {
+  const transport = new FakeTransport();
+  const rpc = new RpcClient(transport);
+
+  const pending = rpc.request("readFile", { path: "f.ts", side: "head" });
+  transport.fire("reconnecting");
+  await assert.rejects(pending, /Connection lost\./);
+});
+
+test("a pending request rejects when the connection closes terminally", async () => {
+  const transport = new FakeTransport();
+  const rpc = new RpcClient(transport);
+
+  const pending = rpc.request("readFile", { path: "f.ts", side: "head" });
+  transport.fire("close");
+  await assert.rejects(pending, /Connection lost\./);
+});
+
+test("requests issued after a drop settle normally", async () => {
+  const transport = new FakeTransport();
+  const rpc = new RpcClient(transport);
+
+  const stranded = rpc.request("readFile", { path: "a", side: "head" });
+  transport.fire("reconnecting");
+  await assert.rejects(stranded, /Connection lost\./);
+
+  const fresh = rpc.request("readFile", { path: "b", side: "head" });
+  transport.deliver(JSON.stringify({ id: transport.lastId(), ok: true, result: { text: "B" } }));
+  assert.deepEqual(await fresh, { text: "B" });
+});
+
 test("out-of-order responses resolve their own requests", async () => {
   const transport = new FakeTransport();
   const rpc = new RpcClient(transport);

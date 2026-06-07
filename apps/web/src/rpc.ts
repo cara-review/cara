@@ -111,6 +111,17 @@ export class RpcClient {
   constructor(transport: Transport) {
     this.transport = transport;
     transport.onMessage((data) => this.receive(data));
+    // A lost socket strands every in-flight request: its frame never reached the
+    // backend, or the reply died with the socket. Fail them fast so callers can
+    // react (and retry after reconnect) instead of awaiting a promise forever.
+    transport.on("reconnecting", () => this.failAll());
+    transport.on("close", () => this.failAll());
+  }
+
+  private failAll(): void {
+    const stranded = [...this.pending.values()];
+    this.pending.clear();
+    for (const pending of stranded) pending.reject(new Error("Connection lost."));
   }
 
   request<M extends Method>(method: M, params: RequestParams[M]): Promise<ResultMap[M]> {
