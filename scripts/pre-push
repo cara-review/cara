@@ -9,21 +9,21 @@ cd "$(git rev-parse --show-toplevel)"
 
 if [[ -f package.json ]]; then
   if grep -q '"lint"' package.json; then
-    echo "clear-diff pre-push: npm run lint..."
-    npm run lint
+    echo "clear-diff pre-push: bun run lint..."
+    bun run lint
   fi
-  echo "clear-diff pre-push: npm test..."
-  npm test --if-present
+  echo "clear-diff pre-push: bun test..."
+  bun run test
 
   # End-to-end Playwright suite. Runs only when the Chromium browser is already
-  # installed — a fresh clone that has not run `npx playwright install chromium`
+  # installed — a fresh clone that has not run `bunx playwright install chromium`
   # gets a clear notice instead of a silent pass or a surprise download.
   if grep -q '"test:e2e"' package.json; then
-    if node -e "require('node:fs').accessSync(require('@playwright/test').chromium.executablePath())" >/dev/null 2>&1; then
-      echo "clear-diff pre-push: npm run test:e2e..."
-      npm run test:e2e
+    if bun -e "require('node:fs').accessSync(require('@playwright/test').chromium.executablePath())" >/dev/null 2>&1; then
+      echo "clear-diff pre-push: bun run test:e2e..."
+      bun run test:e2e
     else
-      echo "clear-diff pre-push: e2e SKIPPED — Chromium not installed. Run: npx playwright install chromium"
+      echo "clear-diff pre-push: e2e SKIPPED — Chromium not installed. Run: bunx playwright install chromium"
     fi
   fi
 fi

@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { atomPayload, hashAtom } from "./identity.ts";
 import type { DiffLine, RawHunk } from "./model.ts";

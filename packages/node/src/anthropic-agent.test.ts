@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "bun:test";
 import assert from "node:assert/strict";
 import Anthropic from "@anthropic-ai/sdk";
 import type AnthropicSdk from "@anthropic-ai/sdk";

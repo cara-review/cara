@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "bun:test";
 import assert from "node:assert/strict";
 import type { ReviewSnapshot, Section } from "../protocol.ts";
 import { AppStore, type AppState } from "../store.ts";

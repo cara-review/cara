@@ -11,19 +11,18 @@
   "bin": {
     "clear-diff": "./index.js"
   },
-  "engines": {
-    "node": ">=23.6.0"
-  },
   "scripts": {
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "bun run --filter='*' typecheck",
     "typecheck:e2e": "tsc -p e2e/tsconfig.json",
     "lint": "eslint .",
-    "test": "npm run typecheck && node --test \"packages/*/src/**/*.test.ts\" \"apps/*/src/**/*.test.ts\"",
-    "test:e2e": "npm run typecheck:e2e && npm run build -w @clear-diff/web && playwright test -c e2e/playwright.config.ts"
+    "test": "bun run typecheck && bun test",
+    "build": "bun run --filter='@clear-diff/web' build",
+    "test:e2e": "bun run typecheck:e2e && bun run build && playwright test -c e2e/playwright.config.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
     "@playwright/test": "^1.60.0",
+    "@types/bun": "^1.3.14",
     "@types/node": "^22.10.0",
     "eslint": "^9.17.0",
     "globals": "^15.14.0",

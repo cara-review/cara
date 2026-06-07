@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "bun:test";
 import assert from "node:assert/strict";
 import type { DiffSpec } from "@clear-diff/core";
 import { GitDiffSource } from "./diff-source.ts";

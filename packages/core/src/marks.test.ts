@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { project, isSectionComplete, reviewProgress, type MarkEvent } from "./marks.ts";
 import { buildMasterList } from "./master-list.ts";

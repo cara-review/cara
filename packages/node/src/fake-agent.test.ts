@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { buildMasterList, repairGrouping, type RawHunk } from "@clear-diff/core";
 import { FakeAgent, FakeAgentChat } from "./fake-agent.ts";

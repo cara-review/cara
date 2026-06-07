@@ -1,20 +1,21 @@
 {
   "name": "@clear-diff/web",
   "version": "0.1.0",
-  "description": "Vite web UI. Reaches the node backend over HTTP/WS only.",
+  "description": "Web UI. Reaches the node backend over WS only (type-only contract import, ADR-0008).",
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "dev": "bun ./index.html",
+    "build": "bun build ./index.html --outdir dist --minify --sourcemap=linked",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json"
+  },
+  "dependencies": {
+    "@trpc/client": "^11",
+    "monaco-editor": "^0.52.2"
   },
   "devDependencies": {
-    "vite": "^6.0.0"
+    "@clear-diff/node": "*",
+    "@trpc/server": "^11"
   },
-  "license": "MIT",
-  "dependencies": {
-    "monaco-editor": "^0.52.2"
-  }
+  "license": "MIT"
 }

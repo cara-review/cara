@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "bun:test";
 import assert from "node:assert/strict";
 import type { Atom, AtomHash, DiffLine } from "../protocol.ts";
 import { revertAtoms, syntheticBuffers } from "./synthetic-buffers.ts";

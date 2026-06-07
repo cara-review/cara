@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "bun:test";
 import assert from "node:assert/strict";
 import type { AtomHash, ReviewSnapshot, Section } from "./protocol.ts";
 import { flatSectionPaths, nextSection, nextUnreviewedSection, prevSection, sectionAt } from "./navigation.ts";
