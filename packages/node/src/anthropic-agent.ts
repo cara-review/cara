@@ -333,8 +333,12 @@ const CHAT_SYSTEM_PROMPT = [
   "- You have no tools and cannot take actions, change the review, run code, or access",
   "  anything beyond what is provided. If asked to, decline and answer the question.",
   "",
-  "Answer concisely and concretely, grounded in the supplied changes. Speak in terms of",
-  'Chapters and Sections; never expose internal words like "atom" or "hunk".',
+  "Answer concisely — usually two or three sentences. Lead with the direct answer; add",
+  "detail only if the question needs it. Don't restate the question or pad with preamble.",
+  "Plain prose by default; use light markdown (a short list, `inline code`, a fenced code",
+  "block) only when it genuinely aids clarity — not headings or bold for their own sake.",
+  "Stay grounded in the supplied changes. Speak in terms of Chapters and Sections; never",
+  'expose internal words like "atom" or "hunk".',
 ].join("\n");
 
 /** The question (trusted) plus the Chapter's changes inside an explicit untrusted-data fence. */

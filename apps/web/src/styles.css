@@ -546,6 +546,65 @@ kbd {
   color: var(--danger, #c0392b);
 }
 
+/* Rendered markdown answer (ADR-0010): compact block elements, normal whitespace. */
+.chat__message--md {
+  white-space: normal;
+}
+.chat__message--md > :first-child {
+  margin-top: 0;
+}
+.chat__message--md > :last-child {
+  margin-bottom: 0;
+}
+.chat__message--md p {
+  margin: var(--space-2) 0;
+}
+.chat__message--md h1,
+.chat__message--md h2,
+.chat__message--md h3,
+.chat__message--md h4,
+.chat__message--md h5,
+.chat__message--md h6 {
+  margin: var(--space-2) 0 var(--space-1);
+  font-size: 13px;
+  font-weight: 600;
+}
+.chat__message--md ul,
+.chat__message--md ol {
+  margin: var(--space-2) 0;
+  padding-left: var(--space-4);
+}
+.chat__message--md li {
+  margin: 2px 0;
+}
+.chat__message--md code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--bg-hover);
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
+}
+.chat__message--md pre {
+  margin: var(--space-2) 0;
+  padding: var(--space-2);
+  background: var(--bg-hover);
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+}
+.chat__message--md pre code {
+  padding: 0;
+  background: none;
+}
+.chat__message--md blockquote {
+  margin: var(--space-2) 0;
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--border);
+  color: var(--text-muted);
+}
+.chat__message--md a {
+  color: var(--accent);
+}
+
 .chat__composer {
   padding: var(--space-3);
   border-top: var(--hairline) solid var(--border);

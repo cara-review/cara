@@ -6,8 +6,10 @@
 // scoped to the focused Chapter — it clears when focus moves to another Chapter. The
 // composer is built once (stable) so re-renders never discard in-progress text.
 //
-// The agent's answer is UNTRUSTED text (ADR-0004): rendered via textContent (the `el`
-// factory), never innerHTML, never interpreted as markup or allowed to drive an action.
+// The agent's answer is UNTRUSTED markdown (ADR-0009/0010): the agent emits markdown,
+// never HTML; renderMarkdown turns it into a sanitized HTML subset (raw HTML escaped,
+// links scheme-restricted, no images/scripts). Question, error, and pending text stay
+// on textContent — only a successful answer goes through the renderer.
 //
 // Classes extend the pane's existing `chat__` block. (The `cd-` namespacing convention
 // applies to DOM rendered inside Monaco's view zones, where generic class names collide
@@ -15,6 +17,7 @@
 
 import { el } from "../dom.ts";
 import type { AppState, AppStore } from "../store.ts";
+import { renderMarkdown } from "./markdown.ts";
 
 export interface ChatPane {
   readonly node: HTMLElement;
@@ -47,7 +50,8 @@ export function createChatPane(store: AppStore): ChatPane {
   }
 
   function addMessage(role: "user" | "agent" | "error", text: string): HTMLElement {
-    const message = el("p", { class: `chat__message chat__message--${role}`, text });
+    // A div, not a p: a rendered markdown answer nests block elements (lists, code, …).
+    const message = el("div", { class: `chat__message chat__message--${role}`, text });
     messages.append(message);
     messages.scrollTop = messages.scrollHeight;
     return message;
@@ -68,7 +72,9 @@ export function createChatPane(store: AppStore): ChatPane {
     store
       .ask(askedAbout, question)
       .then((result) => {
-        reply.textContent = result.answer; // untrusted (ADR-0004): textContent, never markup
+        // Untrusted markdown → sanitized HTML subset (ADR-0010): the agent never emits HTML.
+        reply.innerHTML = renderMarkdown(result.answer);
+        reply.classList.add("chat__message--md");
       })
       .catch((error: unknown) => {
         reply.textContent = error instanceof Error ? error.message : "Something went wrong.";

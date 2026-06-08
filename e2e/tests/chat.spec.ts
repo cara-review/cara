@@ -34,13 +34,29 @@ test("Enter sends the question (Shift+Enter would not)", async ({ page }) => {
   await expect(page.locator(".chat__message--user")).toHaveText("how many changes?");
 });
 
-test("the agent's answer is rendered as inert text, never executed (ADR-0004)", async ({ page }) => {
+test("raw HTML in the answer is escaped to text, never executed (ADR-0010)", async ({ page }) => {
   await page.locator(".chat__input").fill("anything");
   await page.locator(".chat__send").click();
 
-  // The probe in the answer is shown as literal text (textContent)…
+  // The raw-HTML probe is shown as literal text (markdown-it html:false escapes it)…
   await expect(page.locator(".chat__message--agent")).toContainText("<img");
   // …no element is injected into the pane, and its onerror never runs.
   await expect(page.locator(".chat img")).toHaveCount(0);
   expect(await page.evaluate(() => Reflect.get(window, "__chatXss"))).toBeFalsy();
+});
+
+test("the answer renders markdown and a scheme-restricted link (ADR-0010)", async ({ page }) => {
+  await page.locator(".chat__input").fill("anything");
+  await page.locator(".chat__send").click();
+
+  const agent = page.locator(".chat__message--agent");
+  // Markdown is interpreted: **bold** becomes a real element.
+  await expect(agent.locator("strong")).toHaveText("Bold note.");
+  // The safe link is clickable and opens with rel=noopener in a new tab…
+  const safe = agent.locator('a[href^="https://example.com"]');
+  await expect(safe).toHaveText("safe");
+  await expect(safe).toHaveAttribute("rel", /noopener/);
+  await expect(safe).toHaveAttribute("target", "_blank");
+  // …and the javascript: link is neutralized — no anchor carries a dangerous scheme.
+  await expect(agent.locator('a[href^="javascript"]')).toHaveCount(0);
 });

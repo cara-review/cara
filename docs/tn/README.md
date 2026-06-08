@@ -27,3 +27,4 @@ Read the `status` field before treating any TN as authoritative: `active` → au
 | [26-020](TN-26-020-pane-resize-collapse-persisted-layout.md) | Pane resize / collapse + persisted layout | plan | active | #17 |
 | [26-021](TN-26-021-edge-state-polish.md) | Edge-state polish — connection lifecycle, empty, all-done | plan | active | #19 |
 | [26-022](TN-26-022-chat-pane-chapter-qa.md) | Chat pane — chapter-level Q&A with the agent | proposal | active | #15 |
+| [26-023](TN-26-023-chat-answer-markdown-rendering.md) | Chat answers rendered as a sanitized markdown subset | proposal | active | #37 |
