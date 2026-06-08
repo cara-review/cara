@@ -7,6 +7,26 @@ const execFileAsync = promisify(execFile);
 // git diffs can be large; allow plenty of headroom over the default 1MB.
 const MAX_BUFFER = 256 * 1024 * 1024;
 
+// git reads these from the environment and lets them OVERRIDE cwd (GIT_DIR
+// especially). If a clone inherits them — a git hook, an interrupted rebase, a
+// leaked shell export — every review would target that pinned repo instead of the
+// directory it was launched in. Strip them so cwd always governs; PATH, config,
+// and identity stay intact.
+const REPO_PINNING_GIT_VARS = [
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_INDEX_FILE",
+  "GIT_COMMON_DIR",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_PREFIX",
+] as const;
+
+function hermeticEnv(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  for (const key of REPO_PINNING_GIT_VARS) delete env[key];
+  return env;
+}
+
 /** A git invocation that failed. `code` is git's exit code, or null if git never ran. */
 export class GitError extends Error {
   readonly code: number | null;
@@ -44,6 +64,7 @@ export async function runGit(args: readonly string[], cwd: string): Promise<stri
   try {
     const { stdout } = await execFileAsync("git", [...args], {
       cwd,
+      env: hermeticEnv(),
       encoding: "utf8",
       maxBuffer: MAX_BUFFER,
     });
