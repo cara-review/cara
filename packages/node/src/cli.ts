@@ -80,11 +80,13 @@ function describe(spec: DiffSpec): string {
   return spec.kind === "range" ? `${spec.base}..${spec.head}` : "the worktree against origin/main";
 }
 
-/** Locate the built UI assets shipped beside the package, or undefined if not built. */
+/** Locate the built UI assets, or undefined if not built. */
 function resolveWebRoot(): string | undefined {
   const here = dirname(fileURLToPath(import.meta.url));
-  const dist = resolve(here, "../../../apps/web/dist");
-  return existsSync(dist) ? dist : undefined;
+  // Published: the bundled dist/cli.js sits beside dist/web. Dev: cli.ts lives in
+  // packages/node/src, with the assets under apps/web/dist at the repo root.
+  const candidates = [resolve(here, "web"), resolve(here, "../../../apps/web/dist")];
+  return candidates.find((path) => existsSync(path));
 }
 
 /** Open the URL in a chromium `--app` window (macOS-first), falling back to the OS opener. */

@@ -40,7 +40,7 @@
 
 **clear-diff** — a local-first, diff-first conversational code reviewer. The agent reads a whole diff, reorganises it into a navigable structure, and surfaces the right part at the right time. You direct; it writes the comments (voice-first). Bun CLI.
 
-- `index.js` — bin entry (`clear-diff`). Currently a stub.
+- `index.js` — dev entry (`bun index.js`). The published `clear-diff` bin is the bundled `dist/index.js` (built by `scripts/pack-dist.ts`); both run the same `cli.ts`.
 - Invocation: `clear-diff` (worktree vs `origin/main`), `clear-diff <base>..<head>`, `clear-diff --pr N` (later).
 
 See [`docs/concept.md`](docs/concept.md) for the full product model. Treat it as the source of intent. Architecture: [`docs/adr/`](docs/adr/) — hexagonal core (0003), agent/master-list security invariant (0004), atom identity (0002), marks persistence (0005).
