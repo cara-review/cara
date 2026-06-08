@@ -41,7 +41,15 @@ const body = (await readFile(cli, "utf8"))
   .join("\n");
 await writeFile(cli, `${SHEBANG}\n${body}`);
 
-await cp(webDist, resolve(root, "dist/web"), { recursive: true });
+const packedWeb = resolve(root, "dist/web");
+await cp(webDist, packedWeb, { recursive: true });
+
+// Drop sourcemaps from the packaged web bundle — no runtime benefit, and the
+// Monaco map alone is ~13.9 MB. The source apps/web/dist keeps its maps so dev
+// and e2e builds are unaffected.
+const maps = new Bun.Glob("**/*.map").scanSync({ cwd: packedWeb, absolute: true });
+for (const map of maps) await rm(map);
+
 await chmod(cli, 0o755);
 
 console.log("packed dist/index.js + dist/web");
