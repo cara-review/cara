@@ -18,19 +18,24 @@ export interface CliArgs {
   readonly spec: DiffSpec;
   /** Whether to open the UI window. `--no-open` suppresses it (tests, headless). */
   readonly open: boolean;
+  /** Permit the offline FakeAgent when no credentials are set (`--fake`). */
+  readonly fake: boolean;
 }
 
 /**
  * Parse argv (without node/script) into a spec + flags.
  *   clear-diff               → worktree vs origin/main
  *   clear-diff <base>..<head> → a ref range
+ *   clear-diff --fake        → use the offline demo agent (no credentials needed)
  *   clear-diff --pr N        → rejected (not yet supported)
  */
 export function parseArgs(argv: readonly string[]): CliArgs {
   let open = true;
+  let fake = false;
   const positional: string[] = [];
   for (const arg of argv) {
     if (arg === "--no-open") open = false;
+    else if (arg === "--fake") fake = true;
     else if (arg === "--pr") throw new CliError("clear-diff --pr is not yet supported.");
     else if (arg.startsWith("--")) throw new CliError(`Unknown option: ${arg}`);
     else positional.push(arg);
@@ -38,8 +43,8 @@ export function parseArgs(argv: readonly string[]): CliArgs {
 
   const [target, ...rest] = positional;
   if (rest.length > 0) throw new CliError("Expected a single <base>..<head> argument.");
-  if (target === undefined) return { spec: { kind: "worktree" }, open };
-  return { spec: parseRange(target), open };
+  if (target === undefined) return { spec: { kind: "worktree" }, open, fake };
+  return { spec: parseRange(target), open, fake };
 }
 
 function parseRange(arg: string): DiffSpec {
@@ -62,11 +67,11 @@ export interface CliDeps {
 
 /** Boot the server and (unless suppressed) open the UI. Returns the running server. */
 export async function runCli(argv: readonly string[], deps: CliDeps = {}): Promise<RunningServer> {
-  const { spec, open } = parseArgs(argv);
+  const { spec, open, fake } = parseArgs(argv);
   const cwd = deps.cwd ?? process.cwd();
   const log = deps.log ?? ((message) => console.log(message));
 
-  const backend = await compose({ cwd, spec, stateDir: join(cwd, ".agent-state", "reviews") });
+  const backend = await compose({ cwd, spec, stateDir: join(cwd, ".agent-state", "reviews"), allowFake: fake });
 
   const webRoot = resolveWebRoot();
   const server = await startServer(backend, webRoot !== undefined ? { webRoot } : {});

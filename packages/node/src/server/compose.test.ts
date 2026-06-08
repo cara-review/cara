@@ -5,34 +5,62 @@ import type { DiffSpec } from "@clear-diff/core";
 import { AnthropicAgent, AnthropicAgentChat } from "../anthropic-agent.ts";
 import { FakeAgent, FakeAgentChat } from "../fake-agent.ts";
 import { makeTestRepo } from "../git/test-repo.ts";
+import { UserFacingError } from "../user-facing-error.ts";
 import { compose, selectAgent, selectChat } from "./compose.ts";
 
-test("selectAgent picks the real Claude adapter when ANTHROPIC_API_KEY is set, else FakeAgent", () => {
-  const original = process.env["ANTHROPIC_API_KEY"];
+const MODEL = "claude-haiku-4-5-20251001";
+
+/** Run `body` with the two credential env vars cleared, restoring them after. */
+function withoutCredentials(body: () => void): void {
+  const apiKey = process.env["ANTHROPIC_API_KEY"];
+  const authToken = process.env["ANTHROPIC_AUTH_TOKEN"];
+  delete process.env["ANTHROPIC_API_KEY"];
+  delete process.env["ANTHROPIC_AUTH_TOKEN"];
   try {
+    body();
+  } finally {
+    if (apiKey === undefined) delete process.env["ANTHROPIC_API_KEY"];
+    else process.env["ANTHROPIC_API_KEY"] = apiKey;
+    if (authToken === undefined) delete process.env["ANTHROPIC_AUTH_TOKEN"];
+    else process.env["ANTHROPIC_AUTH_TOKEN"] = authToken;
+  }
+}
+
+test("selectAgent uses the real Claude adapter for either credential env var", () => {
+  withoutCredentials(() => {
     process.env["ANTHROPIC_API_KEY"] = "sk-ant-test-not-a-real-key";
-    assert.ok(selectAgent("claude-haiku-4-5-20251001") instanceof AnthropicAgent);
+    assert.ok(selectAgent(MODEL) instanceof AnthropicAgent);
 
     delete process.env["ANTHROPIC_API_KEY"];
-    assert.ok(selectAgent("claude-haiku-4-5-20251001") instanceof FakeAgent);
-  } finally {
-    if (original === undefined) delete process.env["ANTHROPIC_API_KEY"];
-    else process.env["ANTHROPIC_API_KEY"] = original;
-  }
+    process.env["ANTHROPIC_AUTH_TOKEN"] = "oauth-token-not-real";
+    assert.ok(selectAgent(MODEL) instanceof AnthropicAgent);
+  });
 });
 
-test("selectChat picks the real Claude Q&A adapter when ANTHROPIC_API_KEY is set, else FakeAgentChat", () => {
-  const original = process.env["ANTHROPIC_API_KEY"];
-  try {
+test("selectAgent without credentials: FakeAgent only when allowed, else throws", () => {
+  withoutCredentials(() => {
+    assert.ok(selectAgent(MODEL, true) instanceof FakeAgent);
+    assert.throws(() => selectAgent(MODEL), UserFacingError);
+    assert.throws(() => selectAgent(MODEL, false), UserFacingError);
+  });
+});
+
+test("selectChat uses the real Q&A adapter for either credential env var", () => {
+  withoutCredentials(() => {
     process.env["ANTHROPIC_API_KEY"] = "sk-ant-test-not-a-real-key";
     assert.ok(selectChat() instanceof AnthropicAgentChat);
 
     delete process.env["ANTHROPIC_API_KEY"];
-    assert.ok(selectChat() instanceof FakeAgentChat);
-  } finally {
-    if (original === undefined) delete process.env["ANTHROPIC_API_KEY"];
-    else process.env["ANTHROPIC_API_KEY"] = original;
-  }
+    process.env["ANTHROPIC_AUTH_TOKEN"] = "oauth-token-not-real";
+    assert.ok(selectChat() instanceof AnthropicAgentChat);
+  });
+});
+
+test("selectChat without credentials: FakeAgentChat only when allowed, else throws", () => {
+  withoutCredentials(() => {
+    assert.ok(selectChat(true) instanceof FakeAgentChat);
+    assert.throws(() => selectChat(), UserFacingError);
+  });
 });
 
 test("composition root wires a working ReviewService and WorkspaceReader", async () => {
@@ -49,6 +77,7 @@ test("composition root wires a working ReviewService and WorkspaceReader", async
       spec,
       stateDir: join(repo.dir, ".state"),
       config: { load: () => Promise.resolve({ editorCommand: "true", groupingModel: "claude-haiku-4-5-20251001" }) },
+      allowFake: true,
     });
 
     const snapshot = await backend.service.open(spec);

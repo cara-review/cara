@@ -29,7 +29,8 @@ function webRoot(): string {
 
 /** The real CLI boot: parses the range, composes the real backend, starts the server. */
 export function bootReal(repoDir: string, range: string): Promise<BootedServer> {
-  return runCli([range, "--no-open"], { cwd: repoDir, log: () => {} });
+  // `--fake` selects the offline demo agent — the test env has no Anthropic credentials.
+  return runCli([range, "--no-open", "--fake"], { cwd: repoDir, log: () => {} });
 }
 
 /** As bootReal, but with an injected agent (composition-root seam). */
@@ -44,6 +45,7 @@ export async function bootWithAgent(
     spec,
     stateDir: join(repoDir, ".agent-state", "reviews"),
     agent,
+    allowFake: true, // the un-injected chat adapter falls back offline (no creds in tests)
   });
   return startServer(backend, { webRoot: webRoot() });
 }

@@ -6,17 +6,22 @@ import { makeTestRepo } from "./git/test-repo.ts";
 import type { AppRouter } from "./server/router.ts";
 
 test("no arguments review the worktree", () => {
-  assert.deepEqual(parseArgs([]), { spec: { kind: "worktree" }, open: true });
+  assert.deepEqual(parseArgs([]), { spec: { kind: "worktree" }, open: true, fake: false });
 });
 
 test("--no-open suppresses the browser launch", () => {
-  assert.deepEqual(parseArgs(["--no-open"]), { spec: { kind: "worktree" }, open: false });
+  assert.deepEqual(parseArgs(["--no-open"]), { spec: { kind: "worktree" }, open: false, fake: false });
+});
+
+test("--fake opts into the offline demo agent", () => {
+  assert.deepEqual(parseArgs(["--fake"]), { spec: { kind: "worktree" }, open: true, fake: true });
 });
 
 test("a <base>..<head> argument is a range spec", () => {
   assert.deepEqual(parseArgs(["main..feature"]), {
     spec: { kind: "range", base: "main", head: "feature" },
     open: true,
+    fake: false,
   });
 });
 
@@ -51,7 +56,7 @@ test("runCli boots a server that serves a snapshot over WS", async () => {
   await repo.write("a.ts", "one\ntwo\n");
   const head = await repo.commit("add line");
 
-  const server = await runCli([`${base}..${head}`, "--no-open"], {
+  const server = await runCli([`${base}..${head}`, "--no-open", "--fake"], {
     cwd: repo.dir,
     openApp: () => {},
     log: () => {},
