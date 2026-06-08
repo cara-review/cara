@@ -3,7 +3,7 @@
 // these *type-only* — runtime-erased, so no node/server code enters the web bundle;
 // the enforced boundary is the runtime one (no node runtime in the prod bundle), not
 // "no import at all" (ADR-0003 as amended). This subpath stays free of server runtime
-// code so importing it never drags Bun.serve / node builtins into the web program.
+// code so importing it never drags the server / node builtins into the web program.
 
 export type { AppRouter, OpenEvent } from "./server/router.ts";
 

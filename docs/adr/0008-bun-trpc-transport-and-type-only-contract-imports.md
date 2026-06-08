@@ -57,3 +57,16 @@ The Bun toolchain (runtime, `bun test`, `bun install`, Bun bundler/dev server re
 - **Runtime-shared contract package** — a third package web imports at runtime; reintroduces a runtime web→node coupling the amendment is careful to avoid.
 - **Keep Vite alongside Bun** — owner chose full-Bun; two bundlers is needless surface.
 - **Hand-rolled validation** — zod at the tRPC boundary subsumes #10's manual checks with less code.
+
+## Amendment (2026-06-08): cross-runtime server runtime
+
+Background: TN-26-024, issue #42. Owner-approved 2026-06-08.
+
+§1 chose tRPC over **`Bun.serve`**. That tied the published runtime to Bun (`Bun.serve` has no Node equivalent), so `npx clear-diff` only ran where Bun was installed — blocking the distribution goal. The Bun-specific runtime surface turned out to be a single file (`server.ts`). This amendment narrows the **runtime-API** choice without touching the transport decision:
+
+- **`Bun.serve` → `node:http`**, **`trpc-bun-adapter` → `@trpc/server`'s ws adapter** (`applyWSSHandler` + the `ws` library on the HTTP upgrade), **`Bun.file` → `node:fs`**. The published bundle targets Node (`#!/usr/bin/env node`); `bun index.js` stays the dev entry.
+- **Result:** the published CLI runs under plain Node (`npx clear-diff`, `node dist/index.js`) on any machine, and still under Bun. No compiled binaries, no platform packages.
+- **Unchanged:** the tRPC transport, the type-only `AppRouter` import (§2), subscriptions, structured-data-only, the loopback **Origin/Host hardening** + path containment (re-ported to the node:http request + upgrade handlers, re-reviewed), and the Bun toolchain for dev/build/test (§3 / CDR-0001).
+- **CDR-0001 note:** `ws` returns as a *runtime* dependency (reversing that one "drop ws" bullet); the rest of the Bun toolchain convention stands. Bun is no longer a *runtime* requirement for end users, only a dev/build toolchain.
+
+This makes the per-platform-binary / Node-shim approach (a #38 sibling) unnecessary.

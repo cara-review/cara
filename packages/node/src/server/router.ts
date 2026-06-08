@@ -4,7 +4,7 @@
 // is reachable by any page), so path containment lives here too. Transport-free: no
 // sockets, no Bun, no node builtins — so this module's *type* can be imported across
 // the web↔node seam (type-only, runtime-erased) without dragging server code into
-// the web bundle. The Bun.serve wiring that carries this router lives in server.ts.
+// the web bundle. The node:http + ws wiring that carries this router lives in server.ts.
 
 import { initTRPC } from "@trpc/server";
 import { z } from "zod";

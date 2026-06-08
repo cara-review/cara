@@ -7,7 +7,9 @@ import { cp, chmod, rm, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-const SHEBANG = "#!/usr/bin/env bun";
+// The published bin targets Node so `npx clear-diff` runs on any Node machine
+// (ADR-0008 amendment); dev still uses `bun index.js`.
+const SHEBANG = "#!/usr/bin/env node";
 
 const root = resolve(import.meta.dir, "..");
 const webDist = resolve(root, "apps/web/dist");
@@ -22,7 +24,7 @@ await rm(resolve(root, "dist"), { recursive: true, force: true });
 const result = await Bun.build({
   entrypoints: [resolve(root, "index.js")],
   outdir: resolve(root, "dist"),
-  target: "bun",
+  target: "node",
   minify: true,
 });
 
@@ -31,13 +33,13 @@ if (!result.success) {
   process.exit(1);
 }
 
-// Bun keeps the entry's own shebang inside the bundle body (after its `// @bun`
-// marker), which is a syntax error anywhere but line 1. Strip every shebang line,
-// then prepend exactly one so the bin stays executable.
+// Bun keeps the entry's own shebang (`#!/usr/bin/env bun`) inside the bundle body,
+// which is a syntax error anywhere but line 1. Strip every shebang line, then prepend
+// exactly one Node shebang so the bin stays executable under plain Node.
 const cli = resolve(root, "dist/index.js");
 const body = (await readFile(cli, "utf8"))
   .split("\n")
-  .filter((line) => line.trimStart() !== SHEBANG)
+  .filter((line) => !line.trimStart().startsWith("#!"))
   .join("\n");
 await writeFile(cli, `${SHEBANG}\n${body}`);
 
