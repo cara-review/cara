@@ -1,6 +1,6 @@
 {
   "name": "clear-diff",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Clearance for your code. A Diff 2.0 reviewer.",
   "type": "module",
   "workspaces": [
