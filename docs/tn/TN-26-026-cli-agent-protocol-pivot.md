@@ -112,6 +112,7 @@ Subsumes `AppConfig.groupingModel`; becomes the `ConfigPort` source. Instruction
 - **Diff-blind clause narrowed:** the external caller has the repo and can read any diff itself, so grouping-path diff-blindness is unenforceable theatre. `atoms` therefore includes diff lines (one-shot convenience; the caller shouldn't replicate `-U0 --histogram`). The surviving invariant (the only ever structural one): grouping output is ids + titles + summaries; rendered evidence always comes from git verbatim; the agent cannot add, remove, hide, or edit an atom.
 - Channel-inferred tier with no override is the provenance analogue of the bijection: impersonation is structurally impossible, not policed.
 - Summaries and answers remain untrusted overlay: sanitized markdown subset, escape on render, never drive an action.
+- **Accepted (owner ruling, 2026-06-10):** project `CLEAR_DIFF.md` flows into the porcelain's LLM system prompt via the merged methodology. In the local-first model this is operator-vouched content (the operator chose to review this checkout — same trust class as the repo content any calling agent reads). Blast radius is bounded by the structural backstops: bijection (can't hide an atom), channel-inferred tier (can't forge human), no tool/key access from prompts. **ADR trigger:** the moment clear-diff reviews untrusted sources (`--pr`, CI over external contributions), trusted/untrusted methodology segmentation becomes ADR-gated work — do not ship those features without it.
 
 ## ADR fallout (each human-gated)
 
