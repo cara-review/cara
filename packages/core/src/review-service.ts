@@ -1,158 +1,254 @@
 // The application layer (ADR-0003): the single inbound port. Orchestrates the
 // driven ports into the use-cases and holds no domain logic of its own — it
-// composes the pure domain (master list, repair, marks fold) over the ports.
+// composes the pure domain (master list, repair, marks fold, methodology) over
+// the ports.
 //
 // Adapter-neutral: speaks only port interfaces and domain types. No git, fs,
-// HTTP, or LLM specifics ever appear here.
+// HTTP, or LLM specifics ever appear here. The core is LLM-free (ADR-0011): the
+// agent is a driving actor over a CLI, grouping arrives inbound as `unknown`.
 //
 // State: marks live in the ReviewStore (durable, ADR-0005); the computed Review
 // (master list + disposable grouping, ADR-0004) is cached per context in memory
-// for the session, so mark/unmark/comment re-fold marks without re-diffing or
-// re-calling the agent. A fresh snapshot is rebuilt from the live event log on
-// every mutation.
+// for the browser session, so mark/unmark/comment/answer re-fold marks without
+// re-diffing. The stateless agent verbs (`getAtoms`/`submit`/`dispatch`) recompute
+// the master list from git each call — deterministic across processes (ADR-0002).
 
-import type { Atom, AtomHash, Disposition, Review, ReviewContext } from "./model.ts";
+import type { Atom, AtomHash, Comment, Review, ReviewContext } from "./model.ts";
 import type {
-  AgentChat,
-  AgentPort,
   ClockPort,
-  CommentRecord,
-  CommentSink,
+  CommentView,
   DiffSource,
   EditorPort,
+  GapReport,
   InstructionsSource,
   LineRange,
+  OpenItem,
   ReviewService,
   ReviewSnapshot,
   ReviewStore,
 } from "./ports.ts";
 import { buildMasterList } from "./master-list.ts";
 import { repairGrouping } from "./grouping.ts";
-import { project, reviewProgress } from "./marks.ts";
+import { buildMethodology, METHODOLOGY_VERSION } from "./methodology.ts";
+import { deriveCommentStatus, project, reviewProgress, type ReviewState } from "./marks.ts";
 
 /** The driven ports the service orchestrates. Manual constructor injection, no DI framework. */
 export interface ReviewServiceDeps {
   readonly diffSource: DiffSource;
   readonly store: ReviewStore;
-  readonly agent: AgentPort;
-  readonly chat: AgentChat;
   readonly instructions: InstructionsSource;
   readonly editor: EditorPort;
   readonly clock: ClockPort;
-  readonly sink: CommentSink;
 }
 
 export function createReviewService(deps: ReviewServiceDeps): ReviewService {
-  // Disposable computed reviews (ADR-0004), cached so mutations skip re-grouping.
+  // Disposable computed reviews (ADR-0004), cached so browser mutations skip re-grouping.
   const reviews = new Map<ReviewContext, Review>();
 
-  /** Rebuild the snapshot from the cached review and the live event log. */
+  /** Rebuild the snapshot from a cached review and the live event log. */
   async function buildSnapshot(context: ReviewContext, review: Review): Promise<ReviewSnapshot> {
-    const { marks, comments } = project(await deps.store.load(context));
+    const state = project(await deps.store.load(context));
+    const masterHashes = hashSet(review.masterList);
     return {
       context,
       review,
-      marks: [...marks].map(([atomHash, disposition]) => ({ atomHash, disposition })),
-      comments,
-      progress: reviewProgress(review.masterList, marks),
+      marks: [...state.marks].map(([atomHash, record]) => ({
+        atomHash,
+        disposition: record.disposition,
+        author: record.author,
+      })),
+      comments: state.comments.map((comment) => ({
+        ...comment,
+        status: deriveCommentStatus(comment, masterHashes),
+      })),
+      progress: reviewProgress(review.masterList, state.marks),
+      completed: state.completed,
     };
   }
 
   function cachedReview(context: ReviewContext): Review {
     const review = reviews.get(context);
-    if (!review) throw new Error(`No open review for context "${context}" — call open first.`);
+    if (!review) throw new Error(`No open review for context "${context}" — call present first.`);
     return review;
   }
 
-  return {
-    async open(spec) {
-      const masterList = buildMasterList(await deps.diffSource.diff(spec));
-      const proposal = await deps.agent.proposeGrouping({
-        atoms: masterList,
-        instructions: await deps.instructions.load(),
-      });
-      const review = repairGrouping(masterList, proposal);
+  /** Append a mutating event to the live log and return the refreshed browser snapshot. */
+  async function appendToReview(
+    context: ReviewContext,
+    event: Parameters<ReviewStore["append"]>[1],
+  ): Promise<ReviewSnapshot> {
+    const review = cachedReview(context);
+    await deps.store.append(context, event);
+    return buildSnapshot(context, review);
+  }
 
+  return {
+    async getAtoms(spec) {
+      const masterList = buildMasterList(await deps.diffSource.diff(spec));
       const context = await deps.diffSource.resolveContext(spec);
+      const methodology = buildMethodology(await deps.instructions.load());
+      const state = project(await deps.store.load(context));
+
+      const masterHashes = hashSet(masterList);
+      const byHash = atomsByHash(masterList);
+      const openItems: OpenItem[] = [];
+      for (const comment of state.comments) {
+        if (deriveCommentStatus(comment, masterHashes) !== "open") continue; // addressed → not carried
+        const atom = byHash.get(comment.atomHash);
+        if (atom === undefined) continue; // unreachable for "open" (present ⇒ has atom), defensive
+        openItems.push(toOpenItem(comment, atom, "open"));
+      }
+
+      return { context, methodology, methodologyVersion: METHODOLOGY_VERSION, atoms: masterList, openItems };
+    },
+
+    async presentGrouping(spec, grouping) {
+      const masterList = buildMasterList(await deps.diffSource.diff(spec));
+      const context = await deps.diffSource.resolveContext(spec);
+      const review = repairGrouping(masterList, grouping);
       reviews.set(context, review);
       return buildSnapshot(context, review);
     },
 
-    async mark(context: ReviewContext, atomHash: AtomHash, disposition: Disposition) {
-      const review = cachedReview(context);
-      await deps.store.append(context, {
+    async snapshot(context) {
+      return buildSnapshot(context, cachedReview(context));
+    },
+
+    async mark(context, atomHash, disposition, author) {
+      return appendToReview(context, {
         type: "marked",
         ts: deps.clock.now(),
         atomHash,
         disposition,
+        author,
       });
-      return buildSnapshot(context, review);
     },
 
-    async unmark(context: ReviewContext, atomHash: AtomHash) {
-      const review = cachedReview(context);
-      await deps.store.append(context, { type: "unmarked", ts: deps.clock.now(), atomHash });
-      return buildSnapshot(context, review);
+    async unmark(context, atomHash, author) {
+      return appendToReview(context, { type: "unmarked", ts: deps.clock.now(), atomHash, author });
     },
 
-    async comment(context: ReviewContext, atomHash: AtomHash, body: string) {
-      const review = cachedReview(context);
-      await deps.store.append(context, {
+    async comment(context, atomHash, body, author) {
+      return appendToReview(context, {
         type: "commented",
         ts: deps.clock.now(),
         atomHash,
         body,
+        author,
       });
-      return buildSnapshot(context, review);
     },
 
-    async dispatch(context: ReviewContext) {
-      const review = cachedReview(context);
-      const byHash = new Map(review.masterList.map((atom) => [atom.hash, atom]));
-      const { comments } = project(await deps.store.load(context));
+    async answer(context, commentId, body, author) {
+      return appendToReview(context, {
+        type: "answered",
+        ts: deps.clock.now(),
+        commentId,
+        body,
+        author,
+      });
+    },
 
-      // A comment whose atom is no longer in the master list (the reviewed lines
-      // were edited away) has no current location to point a downstream actor at,
-      // so it is left out of the dispatch — its mark survives in the log regardless.
-      const records: CommentRecord[] = [];
-      for (const comment of comments) {
+    async submit(spec, batch, author) {
+      const masterList = buildMasterList(await deps.diffSource.diff(spec));
+      const context = await deps.diffSource.resolveContext(spec);
+
+      for (const m of batch.marks ?? []) {
+        await deps.store.append(context, {
+          type: "marked",
+          ts: deps.clock.now(),
+          atomHash: m.atomHash,
+          disposition: m.disposition,
+          author,
+        });
+      }
+      for (const c of batch.comments ?? []) {
+        await deps.store.append(context, {
+          type: "commented",
+          ts: deps.clock.now(),
+          atomHash: c.atomHash,
+          body: c.body,
+          author,
+        });
+      }
+      for (const a of batch.answers ?? []) {
+        await deps.store.append(context, {
+          type: "answered",
+          ts: deps.clock.now(),
+          commentId: a.commentId,
+          body: a.answer,
+          author,
+        });
+      }
+
+      const state = project(await deps.store.load(context));
+      return { gap: buildGapReport(masterList, state), progress: reviewProgress(masterList, state.marks) };
+    },
+
+    async dispatch(context, spec) {
+      const masterList = buildMasterList(await deps.diffSource.diff(spec));
+      const state = project(await deps.store.load(context));
+      const masterHashes = hashSet(masterList);
+      const byHash = atomsByHash(masterList);
+
+      // A comment whose atom is gone (the reviewed lines were edited away) is
+      // addressed-by-edit with no current location to point the agent at, so it is
+      // left out — its mark survives in the log regardless (ADR-0002).
+      const comments: CommentView[] = [];
+      for (const comment of state.comments) {
         const atom = byHash.get(comment.atomHash);
         if (atom === undefined) continue;
-        records.push({ atomHash: comment.atomHash, path: atom.path, lineRange: locate(atom), body: comment.body });
+        comments.push({
+          ...toOpenItem(comment, atom, deriveCommentStatus(comment, masterHashes)),
+          tier: comment.author.tier,
+          reviewer: comment.author.reviewer,
+        });
       }
-      return deps.sink.dispatch(context, { comments: records });
+
+      return { context, comments, progress: reviewProgress(masterList, state.marks) };
     },
 
-    async ask(context: ReviewContext, chapterIndex: number, question: string) {
-      const review = cachedReview(context);
-      const chapter = review.chapters[chapterIndex];
-      if (chapter === undefined) throw new Error(`No Chapter at index ${chapterIndex}.`);
-      const atoms = chapter.sections.flatMap((section) => section.atoms);
-      const result = await deps.chat.answer({
-        atoms,
-        question,
-        instructions: await deps.instructions.load(),
-      });
-      return { answer: coerceAnswer(result) };
+    async markComplete(context) {
+      await deps.store.append(context, { type: "completed", ts: deps.clock.now() });
     },
 
-    async openInEditor(path: string, line: number) {
+    async openInEditor(path, line) {
       await deps.editor.open(path, line);
     },
   };
 }
 
-/**
- * Validate the agent's `unknown` answer at the boundary (ADR-0009): a non-empty
- * `answer` string, else a safe fallback. The agent is untrusted, so a malformed or
- * empty response degrades to a message rather than throwing or surfacing raw shape.
- */
-function coerceAnswer(result: unknown): string {
-  if (typeof result === "object" && result !== null) {
-    const answer = (result as Record<string, unknown>)["answer"];
-    if (typeof answer === "string" && answer.trim() !== "") return answer;
+/** The canonical hashes of a master list, for membership and status checks. */
+function hashSet(masterList: readonly Atom[]): ReadonlySet<AtomHash> {
+  return new Set(masterList.map((atom) => atom.hash));
+}
+
+function atomsByHash(masterList: readonly Atom[]): ReadonlyMap<AtomHash, Atom> {
+  return new Map(masterList.map((atom) => [atom.hash, atom]));
+}
+
+/** Project a folded comment onto its live atom as a located OpenItem. */
+function toOpenItem(comment: Comment, atom: Atom, status: "open" | "addressed"): OpenItem {
+  return {
+    id: comment.id,
+    atomHash: comment.atomHash,
+    path: atom.path,
+    lineRange: locate(atom),
+    body: comment.body,
+    answer: comment.answer,
+    status,
+  };
+}
+
+/** Completeness over the master list (ADR-0011): an atom is accounted by a disposition or a comment. */
+function buildGapReport(masterList: readonly Atom[], state: ReviewState): GapReport {
+  const commented = new Set<AtomHash>(state.comments.map((comment) => comment.atomHash));
+  const missing: GapReport["missing"][number][] = [];
+  let accounted = 0;
+  for (const atom of masterList) {
+    if (state.marks.has(atom.hash) || commented.has(atom.hash)) accounted++;
+    else missing.push({ atomHash: atom.hash, path: atom.path, lineRange: locate(atom) });
   }
-  return "I couldn't answer that — try rephrasing the question.";
+  return { total: masterList.length, accounted, missing };
 }
 
 /** An atom's location on the side it lives: head for an edit/add, base for a deletion. */

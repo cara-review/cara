@@ -7,6 +7,7 @@ import type {
   AtomHash,
   Comment,
   Disposition,
+  MarkAuthor,
   RawHunk,
   Review,
   ReviewContext,
@@ -42,44 +43,10 @@ export interface WorkspaceReader {
   readFile(path: string, side: FileSide): Promise<string | null>;
 }
 
-/** Personal (`~/.clear-diff.md`) and project (`clear-diff.md`) instructions. */
+/** Personal (`~/.clear-diff/CLEAR_DIFF.md`) and project (`CLEAR_DIFF.md`) instructions. */
 export interface ReviewInstructions {
   readonly personal: string | null;
   readonly project: string | null;
-}
-
-export interface GroupingRequest {
-  readonly atoms: readonly Atom[];
-  readonly instructions: ReviewInstructions;
-}
-
-/**
- * Propose a grouping (structure only) over the atoms — the only untrusted port
- * (ADR-0004). It returns ids + titles + summaries, never the diff. Output is
- * `unknown` and reaches the UI only after repairGrouping. Anthropic, Fake for tests.
- */
-export interface AgentPort {
-  proposeGrouping(request: GroupingRequest): Promise<unknown>;
-}
-
-export interface ChatRequest {
-  /** The focused Chapter's atoms, carrying their git-verbatim diff `lines`. */
-  readonly atoms: readonly Atom[];
-  readonly question: string;
-  readonly instructions: ReviewInstructions;
-}
-
-/**
- * Answer a Chapter-scoped reviewer question (ADR-0009). The sibling of `AgentPort`
- * and the one capability that *reads* diff content — a ratified, narrow relaxation
- * of ADR-0004's diff-blind invariant. It only reads to answer: it never defines or
- * changes the review. Output is `unknown`, validated at the boundary to a string and
- * treated as untrusted overlay text (escape on render, never drives an action).
- * The diff content it receives is attacker-influenced (git content) — a
- * prompt-injection surface the adapter must delimit and never expose tools/secrets to.
- */
-export interface AgentChat {
-  answer(request: ChatRequest): Promise<unknown>;
 }
 
 /**
@@ -102,52 +69,75 @@ export interface LineRange {
   readonly count: number;
 }
 
-/**
- * One comment positioned for a downstream actor (ADR-0007): stable identity
- * (atom hash, ADR-0002), current location, and the user-authored body. Built
- * from the master list + comment events — domain-neutral, no sink format in it.
- */
-export interface CommentRecord {
+// --- Agent verb contract types (ADR-0011) -----------------------------------
+//
+// What crosses the CLI boundary. The agent is a driving actor: it pulls `atoms`,
+// pushes a grouping via `present`, pulls `dispatch`, and pushes a `submit` batch.
+// These are plain data (JSON-friendly); no LLM/transport concept appears in them.
+
+/** The `atoms` response (core → agent): everything needed to group and review a round. */
+export interface AtomsView {
+  readonly context: ReviewContext;
+  readonly methodology: string;
+  readonly methodologyVersion: number;
+  /** The canonical master list, atoms carrying their git-verbatim diff lines (ADR-0004 amended). */
+  readonly atoms: readonly Atom[];
+  /** Open comments carried from prior rounds, located against the fresh master list. */
+  readonly openItems: readonly OpenItem[];
+}
+
+/** An open comment positioned in the current change: stable id + identity + live location. */
+export interface OpenItem {
+  readonly id: string;
   readonly atomHash: AtomHash;
   readonly path: string;
   readonly lineRange: LineRange;
   readonly body: string;
+  readonly answer: string | null;
+  readonly status: "open" | "addressed";
 }
 
-/** The payload `Go` pushes out: the accumulated comments, sink-format-agnostic. */
-export interface ReviewDispatch {
-  readonly comments: readonly CommentRecord[];
+/** The `dispatch` response (core → agent): every located comment with its lifecycle + author. */
+export interface DispatchView {
+  readonly context: ReviewContext;
+  readonly comments: readonly CommentView[];
+  readonly progress: ReviewProgress;
 }
 
-/**
- * Confirmation of a dispatch. `location` is an opaque locator of what the sink
- * wrote — a file path for MarkdownFile, a URL for a later GitHubPR — the domain
- * never interprets it, only relays it to the UI.
- */
-export interface DispatchReceipt {
-  readonly count: number;
-  readonly location: string;
+/** An OpenItem with its author tier + reviewer label, for the agent to triage by lens. */
+export interface CommentView extends OpenItem {
+  readonly tier: "human" | "agent";
+  readonly reviewer: string | null;
 }
 
-/**
- * Driven egress port (ADR-0007): push the accumulated comments out of the review
- * (the `Go` use-case). MarkdownFile first; GitHubPR later, same port. The domain
- * never knows which sink, nor its output format. Distinct from ReviewStore: that
- * is persistence, this is export.
- */
-export interface CommentSink {
-  dispatch(context: ReviewContext, payload: ReviewDispatch): Promise<DispatchReceipt>;
+/** The `submit` payload (agent → core): dispositions and/or comments and/or answers, batched. */
+export interface SubmitBatch {
+  readonly marks?: readonly { readonly atomHash: AtomHash; readonly disposition: Disposition }[];
+  readonly comments?: readonly { readonly atomHash: AtomHash; readonly body: string }[];
+  readonly answers?: readonly { readonly commentId: string; readonly answer: string }[];
+}
+
+/** Completeness accounting over the master list: every atom must carry a disposition or a comment. */
+export interface GapReport {
+  readonly total: number;
+  /** Atoms with a disposition OR a comment. */
+  readonly accounted: number;
+  readonly missing: readonly {
+    readonly atomHash: AtomHash;
+    readonly path: string;
+    readonly lineRange: LineRange;
+  }[];
+}
+
+/** The `submit` response (core → agent): the gap report + full progress. */
+export interface SubmitResult {
+  readonly gap: GapReport;
+  readonly progress: ReviewProgress;
 }
 
 export interface AppConfig {
   /** Command used to open files, e.g. "code" or "zed". Null when unset. */
   readonly editorCommand: string | null;
-  /**
-   * Model id for the grouping agent. Grouping is structural, so it defaults to a
-   * fast tier; chat keeps a stronger model. The domain never interprets the value —
-   * it is an opaque adapter detail threaded to the AgentPort adapter (ADR-0004).
-   */
-  readonly groupingModel: string;
 }
 
 export interface ConfigPort {
@@ -174,31 +164,54 @@ export interface ClockPort {
 export interface ReviewSnapshot {
   readonly context: ReviewContext;
   readonly review: Review;
-  readonly marks: ReadonlyArray<{ readonly atomHash: AtomHash; readonly disposition: Disposition }>;
+  readonly marks: ReadonlyArray<{
+    readonly atomHash: AtomHash;
+    readonly disposition: Disposition;
+    readonly author: MarkAuthor;
+  }>;
   readonly comments: readonly Comment[];
   readonly progress: ReviewProgress;
+  /** The human has signalled "done reviewing" (ADR-0011 §4). */
+  readonly completed: boolean;
 }
 
 /**
  * The single inbound port (ADR-0003): orchestrates the driven ports and holds
- * the use-cases. Mutations return a fresh snapshot for the UI to re-render.
+ * the use-cases. The agent is a driving actor over a CLI (ADR-0011); grouping
+ * arrives inbound. Mutations return a fresh snapshot for the browser to re-render;
+ * the agent verbs (`getAtoms`/`dispatch`/`submit`) return their own view shapes.
  */
 export interface ReviewService {
-  open(spec: DiffSpec): Promise<ReviewSnapshot>;
-  mark(context: ReviewContext, atomHash: AtomHash, disposition: Disposition): Promise<ReviewSnapshot>;
-  unmark(context: ReviewContext, atomHash: AtomHash): Promise<ReviewSnapshot>;
-  comment(context: ReviewContext, atomHash: AtomHash, body: string): Promise<ReviewSnapshot>;
-  /** `Go` (ADR-0007): gather the commented atoms into a ReviewDispatch and push it out the sink. */
-  dispatch(context: ReviewContext): Promise<DispatchReceipt>;
-  /**
-   * Chapter-scoped Q&A (ADR-0009): resolve the Chapter's atoms from the live review,
-   * have the agent read them to answer the question. Ephemeral — mutates no review state.
-   */
-  ask(context: ReviewContext, chapterIndex: number, question: string): Promise<ChatAnswer>;
+  /** `atoms` (ADR-0011): master list + merged methodology + carried-over open items. No grouping. */
+  getAtoms(spec: DiffSpec): Promise<AtomsView>;
+  /** `present` (ADR-0011): repair the untrusted inbound grouping into the review, return its snapshot. */
+  presentGrouping(spec: DiffSpec, grouping: unknown): Promise<ReviewSnapshot>;
+  /** The current snapshot for an in-process (browser) review — boot load and re-poll read. */
+  snapshot(context: ReviewContext): Promise<ReviewSnapshot>;
+  mark(
+    context: ReviewContext,
+    atomHash: AtomHash,
+    disposition: Disposition,
+    author: MarkAuthor,
+  ): Promise<ReviewSnapshot>;
+  unmark(context: ReviewContext, atomHash: AtomHash, author: MarkAuthor): Promise<ReviewSnapshot>;
+  comment(
+    context: ReviewContext,
+    atomHash: AtomHash,
+    body: string,
+    author: MarkAuthor,
+  ): Promise<ReviewSnapshot>;
+  answer(
+    context: ReviewContext,
+    commentId: string,
+    body: string,
+    author: MarkAuthor,
+  ): Promise<ReviewSnapshot>;
+  /** `submit` (ADR-0011): apply a batch of marks/comments/answers, return the gap report. */
+  submit(spec: DiffSpec, batch: SubmitBatch, author: MarkAuthor): Promise<SubmitResult>;
+  /** `dispatch` (ADR-0011): every located comment with lifecycle + author, recomputed from spec. */
+  dispatch(context: ReviewContext, spec: DiffSpec): Promise<DispatchView>;
+  /** The human "done reviewing" signal (ADR-0011 §4) — flips `dispatch --wait` to done. */
+  markComplete(context: ReviewContext): Promise<void>;
   openInEditor(path: string, line: number): Promise<void>;
-}
-
-/** A Q&A answer (ADR-0009): untrusted overlay prose, escape on render. */
-export interface ChatAnswer {
-  readonly answer: string;
 }

@@ -1,6 +1,7 @@
 // @clear-diff/core — pure domain + application core (ADR-0003).
 // Two layers, never mixed (ADR-0002): mechanical (git, identity) and semantic
 // (agent grouping, untrusted per ADR-0004). The agent arranges; git owns truth.
+// LLM-free (ADR-0011): the agent is a driving actor over a CLI, not a driven port.
 
 export type {
   AtomHash,
@@ -13,6 +14,7 @@ export type {
   Chapter,
   Review,
   Disposition,
+  MarkAuthor,
   Comment,
   ReviewProgress,
 } from "./model.ts";
@@ -23,32 +25,39 @@ export { buildMasterList } from "./master-list.ts";
 export { repairGrouping } from "./grouping.ts";
 export {
   project,
+  deriveCommentStatus,
   isSectionComplete,
   reviewProgress,
   type MarkedEvent,
   type UnmarkedEvent,
   type CommentedEvent,
+  type AnsweredEvent,
+  type CompletedEvent,
   type MarkEvent,
+  type MarkRecord,
   type ReviewState,
 } from "./marks.ts";
+export {
+  METHODOLOGY_VERSION,
+  SYSTEM_METHODOLOGY,
+  buildMethodology,
+} from "./methodology.ts";
 export type {
   DiffSpec,
   DiffSource,
   FileSide,
   WorkspaceReader,
   ReviewInstructions,
-  GroupingRequest,
-  AgentPort,
-  ChatRequest,
-  AgentChat,
-  ChatAnswer,
   ReviewStore,
   EditorPort,
   LineRange,
-  CommentRecord,
-  ReviewDispatch,
-  DispatchReceipt,
-  CommentSink,
+  AtomsView,
+  OpenItem,
+  DispatchView,
+  CommentView,
+  SubmitBatch,
+  GapReport,
+  SubmitResult,
   AppConfig,
   ConfigPort,
   InstructionsSource,

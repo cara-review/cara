@@ -3,21 +3,16 @@ import assert from "node:assert/strict";
 import { createReviewService } from "./review-service.ts";
 import { hashAtom } from "./identity.ts";
 import { reviewContext } from "./model.ts";
-import type { AtomHash, RawHunk } from "./model.ts";
+import type { AtomHash, MarkAuthor, RawHunk } from "./model.ts";
+import { SYSTEM_METHODOLOGY, METHODOLOGY_VERSION } from "./methodology.ts";
 import type {
-  AgentChat,
-  AgentPort,
-  ChatRequest,
   ClockPort,
-  CommentSink,
   DiffSource,
   DiffSpec,
   EditorPort,
-  GroupingRequest,
   InstructionsSource,
   MarkEvent,
   ReviewContext,
-  ReviewDispatch,
   ReviewInstructions,
   ReviewStore,
 } from "./index.ts";
@@ -40,14 +35,13 @@ function hunk(path: string, text: string): RawHunk {
 const HUNKS: readonly RawHunk[] = [hunk("a.ts", "0"), hunk("b.ts", "1"), hunk("c.ts", "2")];
 const HASH = (i: number): AtomHash => hashAtom(HUNKS[i]!);
 
+const HUMAN: MarkAuthor = { tier: "human", reviewer: null };
+const AGENT: MarkAuthor = { tier: "agent", reviewer: null };
+const SECURITY: MarkAuthor = { tier: "agent", reviewer: "security" };
+
 // --- in-memory fakes for every port (no git / fs / LLM) ---------------------
 
-// The adapter owns context resolution (ADR-0005); the fake stands in for GitCli
-// and resolves a fixed context by default, or per-spec via a supplied resolver.
-function fakeDiff(opts: {
-  hunks?: readonly RawHunk[];
-  resolve?: (spec: DiffSpec) => string;
-} = {}): DiffSource {
+function fakeDiff(opts: { hunks?: readonly RawHunk[]; resolve?: (spec: DiffSpec) => string } = {}): DiffSource {
   const hunks = opts.hunks ?? HUNKS;
   const resolve = opts.resolve ?? (() => "ctx");
   return {
@@ -68,32 +62,6 @@ class FakeStore implements ReviewStore {
   }
 }
 
-class FakeAgent implements AgentPort {
-  lastRequest: GroupingRequest | null = null;
-  readonly proposal: unknown;
-  constructor(proposal: unknown) {
-    this.proposal = proposal;
-  }
-  async proposeGrouping(request: GroupingRequest): Promise<unknown> {
-    this.lastRequest = request;
-    return this.proposal;
-  }
-}
-
-// Records the request and returns a configurable answer (or `unknown` garbage), to
-// exercise the ADR-0009 Q&A path and the boundary coercion of the agent's output.
-class FakeAgentChat implements AgentChat {
-  lastRequest: ChatRequest | null = null;
-  readonly result: unknown;
-  constructor(result: unknown = { answer: "an answer" }) {
-    this.result = result;
-  }
-  async answer(request: ChatRequest): Promise<unknown> {
-    this.lastRequest = request;
-    return this.result;
-  }
-}
-
 function fakeInstructions(value: ReviewInstructions = { personal: null, project: null }): InstructionsSource {
   return { load: async () => value };
 }
@@ -106,316 +74,387 @@ class FakeEditor implements EditorPort {
 }
 
 class FakeClock implements ClockPort {
-  private t = 1000; // tests below assert against this seed
+  private t = 1000;
   now(): number {
     return this.t++;
   }
 }
 
-class FakeSink implements CommentSink {
-  dispatched: Array<{ context: ReviewContext; dispatch: ReviewDispatch }> = [];
-  async dispatch(context: ReviewContext, dispatch: ReviewDispatch) {
-    this.dispatched.push({ context, dispatch });
-    return { count: dispatch.comments.length, location: `sink://${context}` };
-  }
-}
-
 function build(opts: {
   hunks?: readonly RawHunk[];
-  proposal?: unknown;
   instructions?: ReviewInstructions;
   resolve?: (spec: DiffSpec) => string;
-  answer?: unknown;
 } = {}) {
   const store = new FakeStore();
-  const agent = new FakeAgent(opts.proposal ?? {});
-  const chat = new FakeAgentChat("answer" in opts ? opts.answer : { answer: "an answer" });
   const editor = new FakeEditor();
   const clock = new FakeClock();
-  const sink = new FakeSink();
   const service = createReviewService({
-    diffSource: fakeDiff({ ...(opts.hunks ? { hunks: opts.hunks } : {}), ...(opts.resolve ? { resolve: opts.resolve } : {}) }),
+    diffSource: fakeDiff({
+      ...(opts.hunks ? { hunks: opts.hunks } : {}),
+      ...(opts.resolve ? { resolve: opts.resolve } : {}),
+    }),
     store,
-    agent,
-    chat,
     instructions: fakeInstructions(opts.instructions),
     editor,
     clock,
-    sink,
   });
-  return { service, store, agent, chat, editor, clock, sink };
+  return { service, store, editor, clock };
 }
 
 const WORKTREE: DiffSpec = { kind: "worktree" };
+const GOOD_GROUPING = {
+  chapters: [{ title: "Core", sections: [{ title: "First two", atomHashes: [HASH(0), HASH(1)] }] }],
+};
 
-// --- open -------------------------------------------------------------------
+// --- getAtoms ---------------------------------------------------------------
 
-test("open returns zero progress over the canonical master list on a fresh review", async () => {
-  const { service } = build();
-  const snap = await service.open(WORKTREE);
-  assert.equal(snap.review.masterList.length, 3);
-  assert.deepEqual(snap.progress, { total: 3, addressed: 0, unaddressed: 3 });
-  assert.equal(snap.marks.length, 0);
-  assert.equal(snap.comments.length, 0);
+test("getAtoms returns the master list, merged methodology, and version stamp", async () => {
+  const { service } = build({ instructions: { personal: null, project: "focus on api" } });
+  const view = await service.getAtoms(WORKTREE);
+  assert.equal(view.atoms.length, 3);
+  assert.equal(view.methodologyVersion, METHODOLOGY_VERSION);
+  assert.ok(view.methodology.startsWith(SYSTEM_METHODOLOGY));
+  assert.match(view.methodology, /focus on api/);
+  assert.equal(view.atoms[0]?.lines.length, 1); // atoms carry git-verbatim diff lines
 });
 
-test("open takes its context from the DiffSource adapter (ADR-0005)", async () => {
+test("getAtoms takes its context from the DiffSource adapter (ADR-0005)", async () => {
   const { service } = build({ resolve: () => "feature/x" });
-  const snap = await service.open(WORKTREE);
-  assert.equal(snap.context, "feature/x");
+  assert.equal((await service.getAtoms(WORKTREE)).context, "feature/x");
 });
 
-test("open on an empty diff degrades gracefully", async () => {
+test("getAtoms on an empty diff returns no atoms and no open items", async () => {
   const { service } = build({ hunks: [] });
-  const snap = await service.open(WORKTREE);
-  assert.deepEqual(snap.progress, { total: 0, addressed: 0, unaddressed: 0 });
-  assert.deepEqual(snap.review.chapters, []);
-  assert.deepEqual(snap.review.masterList, []);
+  const view = await service.getAtoms(WORKTREE);
+  assert.deepEqual(view.atoms, []);
+  assert.deepEqual(view.openItems, []);
 });
 
-test("open repairs a good proposal into chapters/sections (bijection holds)", async () => {
-  const { service } = build({
-    proposal: {
-      chapters: [
-        {
-          title: "Core",
-          sections: [{ title: "First two", atomHashes: [HASH(0), HASH(1)] }],
-        },
-      ],
-    },
+test("getAtoms carries forward open comments from prior rounds, located on the live atom", async () => {
+  const { service, store } = build();
+  await store.append(reviewContext("ctx"), {
+    type: "commented",
+    ts: 1,
+    atomHash: HASH(1),
+    body: "carry me",
+    author: HUMAN,
   });
-  const snap = await service.open(WORKTREE);
-  const placed = snap.review.chapters.flatMap((c) => c.sections).flatMap((s) => s.atoms);
-  assert.equal(placed.length, 3); // every master atom placed exactly once
-  assert.equal(snap.review.chapters[0]?.title, "Core");
+  const view = await service.getAtoms(WORKTREE);
+  assert.deepEqual(view.openItems, [
+    {
+      id: "c0",
+      atomHash: HASH(1),
+      path: "b.ts",
+      lineRange: { start: 1, count: 1 },
+      body: "carry me",
+      answer: null,
+      status: "open",
+    },
+  ]);
 });
 
-test("open repairs garbage into the 'Other changes' floor without losing atoms", async () => {
-  const { service } = build({ proposal: { nonsense: true } });
-  const snap = await service.open(WORKTREE);
+test("getAtoms drops answered comments from open items (addressed-by-answer)", async () => {
+  const { service, store } = build();
+  const ctx = reviewContext("ctx");
+  await store.append(ctx, { type: "commented", ts: 1, atomHash: HASH(0), body: "q", author: HUMAN });
+  await store.append(ctx, { type: "answered", ts: 2, commentId: "c0", body: "a", author: AGENT });
+  assert.deepEqual((await service.getAtoms(WORKTREE)).openItems, []);
+});
+
+test("getAtoms drops comments whose atom was edited away (addressed-by-edit)", async () => {
+  const { service, store } = build();
+  await store.append(reviewContext("ctx"), {
+    type: "commented",
+    ts: 1,
+    atomHash: "gone" as AtomHash,
+    body: "stale",
+    author: HUMAN,
+  });
+  assert.deepEqual((await service.getAtoms(WORKTREE)).openItems, []);
+});
+
+// --- presentGrouping --------------------------------------------------------
+
+test("presentGrouping repairs a good grouping into chapters and returns the snapshot", async () => {
+  const { service } = build();
+  const snap = await service.presentGrouping(WORKTREE, GOOD_GROUPING);
+  const placed = snap.review.chapters.flatMap((c) => c.sections).flatMap((s) => s.atoms);
+  assert.equal(placed.length, 3); // bijection holds — every atom placed exactly once
+  assert.equal(snap.review.chapters[0]?.title, "Core");
+  assert.deepEqual(snap.progress, { total: 3, addressed: 0, unaddressed: 3 });
+  assert.equal(snap.completed, false);
+});
+
+test("presentGrouping repairs garbage into the 'Other changes' floor without losing atoms", async () => {
+  const { service } = build();
+  const snap = await service.presentGrouping(WORKTREE, { nonsense: true });
   assert.equal(snap.review.chapters.length, 1);
   assert.equal(snap.review.chapters[0]?.title, "Other changes");
   const placed = snap.review.chapters.flatMap((c) => c.sections).flatMap((s) => s.atoms);
   assert.equal(placed.length, 3);
 });
 
-test("open passes the loaded instructions to the agent with the master atoms", async () => {
-  const instructions: ReviewInstructions = { personal: "be terse", project: "focus on api" };
-  const { service, agent } = build({ instructions });
-  await service.open(WORKTREE);
-  assert.deepEqual(agent.lastRequest?.instructions, instructions);
-  assert.equal(agent.lastRequest?.atoms.length, 3);
+test("presentGrouping on an empty diff degrades gracefully", async () => {
+  const { service } = build({ hunks: [] });
+  const snap = await service.presentGrouping(WORKTREE, {});
+  assert.deepEqual(snap.review.chapters, []);
+  assert.deepEqual(snap.progress, { total: 0, addressed: 0, unaddressed: 0 });
 });
 
-test("open folds previously persisted marks (resume across sessions)", async () => {
+test("presentGrouping folds previously persisted marks (resume across sessions)", async () => {
   const { service, store } = build();
   await store.append(reviewContext("ctx"), {
     type: "marked",
     ts: 1,
     atomHash: HASH(0),
     disposition: "done",
+    author: HUMAN,
   });
-  const snap = await service.open(WORKTREE);
+  const snap = await service.presentGrouping(WORKTREE, GOOD_GROUPING);
   assert.equal(snap.progress.addressed, 1);
-  assert.deepEqual(
-    snap.marks.find((m) => m.atomHash === HASH(0)),
-    { atomHash: HASH(0), disposition: "done" },
-  );
+  assert.deepEqual(snap.marks.find((m) => m.atomHash === HASH(0)), {
+    atomHash: HASH(0),
+    disposition: "done",
+    author: HUMAN,
+  });
 });
 
-// --- mark / unmark / comment ------------------------------------------------
+// --- snapshot (browser read) ------------------------------------------------
 
-test("mark appends a marked event and returns a fresh snapshot", async () => {
-  const { service, store } = build();
-  const ctx = (await service.open(WORKTREE)).context;
-  const snap = await service.mark(ctx, HASH(1), "done");
-  assert.equal(snap.progress.addressed, 1);
-  assert.equal(snap.marks.find((m) => m.atomHash === HASH(1))?.disposition, "done");
-  assert.equal((await store.load(ctx)).length, 1);
-});
-
-test("skipped counts as addressed in progress", async () => {
+test("snapshot returns the current state for an opened context", async () => {
   const { service } = build();
-  const ctx = (await service.open(WORKTREE)).context;
-  const snap = await service.mark(ctx, HASH(2), "skipped");
-  assert.deepEqual(snap.progress, { total: 3, addressed: 1, unaddressed: 2 });
+  await service.presentGrouping(WORKTREE, GOOD_GROUPING);
+  const snap = await service.snapshot(reviewContext("ctx"));
+  assert.equal(snap.review.masterList.length, 3);
+});
+
+test("snapshot reflects events appended out of band (cross-process submit re-poll)", async () => {
+  const { service, store } = build();
+  await service.presentGrouping(WORKTREE, GOOD_GROUPING);
+  await store.append(reviewContext("ctx"), {
+    type: "marked",
+    ts: 1,
+    atomHash: HASH(0),
+    disposition: "done",
+    author: AGENT,
+  });
+  assert.equal((await service.snapshot(reviewContext("ctx"))).progress.addressed, 1);
+});
+
+test("snapshot on an unopened context throws (no silent no-op)", async () => {
+  const { service } = build();
+  await assert.rejects(() => service.snapshot(reviewContext("never")), /No open review/);
+});
+
+// --- mark / unmark / comment / answer (browser, human-tier) -----------------
+
+test("mark appends a marked event with its author and returns a fresh snapshot", async () => {
+  const { service, store } = build();
+  const ctx = (await service.presentGrouping(WORKTREE, GOOD_GROUPING)).context;
+  const snap = await service.mark(ctx, HASH(1), "done", HUMAN);
+  assert.equal(snap.progress.addressed, 1);
+  assert.deepEqual(snap.marks.find((m) => m.atomHash === HASH(1)), {
+    atomHash: HASH(1),
+    disposition: "done",
+    author: HUMAN,
+  });
+  assert.equal((await store.load(ctx)).length, 1);
 });
 
 test("unmark removes a prior mark", async () => {
   const { service } = build();
-  const ctx = (await service.open(WORKTREE)).context;
-  await service.mark(ctx, HASH(0), "done");
-  const snap = await service.unmark(ctx, HASH(0));
+  const ctx = (await service.presentGrouping(WORKTREE, GOOD_GROUPING)).context;
+  await service.mark(ctx, HASH(0), "done", HUMAN);
+  const snap = await service.unmark(ctx, HASH(0), HUMAN);
   assert.equal(snap.progress.addressed, 0);
   assert.equal(snap.marks.length, 0);
 });
 
-test("comment appends a commented event and surfaces it in the snapshot", async () => {
+test("comment surfaces in the snapshot with a stable id and open status; progress untouched", async () => {
   const { service } = build();
-  const ctx = (await service.open(WORKTREE)).context;
-  const snap = await service.comment(ctx, HASH(0), "use the retry util");
+  const ctx = (await service.presentGrouping(WORKTREE, GOOD_GROUPING)).context;
+  const snap = await service.comment(ctx, HASH(0), "use the retry util", HUMAN);
   assert.equal(snap.comments.length, 1);
+  assert.equal(snap.comments[0]?.id, "c0");
   assert.equal(snap.comments[0]?.body, "use the retry util");
-  assert.equal(snap.comments[0]?.atomHash, HASH(0));
-  // a comment is not a disposition — progress is untouched
+  assert.equal(snap.comments[0]?.status, "open");
   assert.equal(snap.progress.addressed, 0);
 });
 
-test("the clock stamps event timestamps", async () => {
+test("answer attaches to a comment by id and flips it addressed", async () => {
+  const { service } = build();
+  const ctx = (await service.presentGrouping(WORKTREE, GOOD_GROUPING)).context;
+  await service.comment(ctx, HASH(0), "q", HUMAN);
+  const snap = await service.answer(ctx, "c0", "the answer", AGENT);
+  assert.equal(snap.comments[0]?.answer, "the answer");
+  assert.equal(snap.comments[0]?.status, "addressed");
+});
+
+test("the clock stamps event timestamps in order", async () => {
   const { service, store } = build();
-  const ctx = (await service.open(WORKTREE)).context;
-  await service.mark(ctx, HASH(0), "done");
-  await service.comment(ctx, HASH(1), "hi");
+  const ctx = (await service.presentGrouping(WORKTREE, GOOD_GROUPING)).context;
+  await service.mark(ctx, HASH(0), "done", HUMAN);
+  await service.comment(ctx, HASH(1), "hi", HUMAN);
   const events = await store.load(ctx);
-  assert.equal(events[0]?.ts, 1000); // FakeClock seed
+  assert.equal(events[0]?.ts, 1000);
   assert.equal(events[1]?.ts, 1001);
 });
 
-test("mutations reuse the cached grouping — the agent is called once per open", async () => {
-  const { service, agent } = build();
-  let calls = 0;
-  const inner = agent.proposeGrouping.bind(agent);
-  agent.proposeGrouping = async (req) => {
-    calls++;
-    return inner(req);
-  };
-  const ctx = (await service.open(WORKTREE)).context;
-  await service.mark(ctx, HASH(0), "done");
-  await service.unmark(ctx, HASH(0));
-  await service.comment(ctx, HASH(1), "x");
-  assert.equal(calls, 1);
-});
-
-test("re-opening the same context refreshes the cached review and preserves marks", async () => {
+test("mutating an unopened context throws", async () => {
   const { service } = build();
-  const ctx = (await service.open(WORKTREE)).context;
-  await service.mark(ctx, HASH(0), "done");
-  const snap = await service.open(WORKTREE); // marks live in the store, not the cache
-  assert.equal(snap.progress.addressed, 1);
-  // mutations after re-open still work against the refreshed cache entry
-  const after = await service.mark(ctx, HASH(1), "done");
-  assert.equal(after.progress.addressed, 2);
+  await assert.rejects(() => service.mark(reviewContext("never"), HASH(0), "done", HUMAN), /No open review/);
 });
 
-// --- dispatch (Go, ADR-0007) ------------------------------------------------
+// --- markComplete -----------------------------------------------------------
 
-test("dispatch gathers commented atoms into records with current location and body", async () => {
-  const { service, sink } = build();
-  const ctx = (await service.open(WORKTREE)).context;
-  await service.comment(ctx, HASH(0), "use the retry util");
-  const receipt = await service.dispatch(ctx);
-
-  assert.equal(receipt.count, 1);
-  assert.equal(sink.dispatched.length, 1);
-  const record = sink.dispatched[0]?.dispatch.comments[0];
-  assert.equal(record?.atomHash, HASH(0));
-  assert.equal(record?.path, "a.ts");
-  assert.deepEqual(record?.lineRange, { start: 1, count: 1 });
-  assert.equal(record?.body, "use the retry util");
+test("markComplete persists a completed event surfaced in the snapshot", async () => {
+  const { service } = build();
+  const ctx = (await service.presentGrouping(WORKTREE, GOOD_GROUPING)).context;
+  assert.equal((await service.snapshot(ctx)).completed, false);
+  await service.markComplete(ctx);
+  assert.equal((await service.snapshot(ctx)).completed, true);
 });
 
-test("dispatch drops a comment whose atom is no longer in the master list", async () => {
-  const { service, store, sink } = build();
-  const ctx = (await service.open(WORKTREE)).context;
-  await store.append(ctx, { type: "commented", ts: 1, atomHash: "gone" as AtomHash, body: "stale" });
-  await service.comment(ctx, HASH(1), "live");
-  const receipt = await service.dispatch(ctx);
+// --- submit (agent, CLI) ----------------------------------------------------
 
-  assert.equal(receipt.count, 1);
-  assert.deepEqual(
-    sink.dispatched[0]?.dispatch.comments.map((c) => c.body),
-    ["live"],
+test("submit applies marks/comments/answers and returns the gap report", async () => {
+  const { service } = build();
+  const result = await service.submit(
+    WORKTREE,
+    {
+      marks: [{ atomHash: HASH(0), disposition: "done" }],
+      comments: [{ atomHash: HASH(1), body: "look here" }],
+    },
+    AGENT,
   );
+  // h(0) accounted by a disposition, h(1) by a comment, h(2) missing
+  assert.equal(result.gap.total, 3);
+  assert.equal(result.gap.accounted, 2);
+  assert.deepEqual(result.gap.missing, [
+    { atomHash: HASH(2), path: "c.ts", lineRange: { start: 1, count: 1 } },
+  ]);
+  assert.equal(result.progress.addressed, 1); // a comment is not a disposition
 });
 
-test("dispatch on an unopened context throws", async () => {
+test("submit reports a clean gap when every atom is accounted", async () => {
   const { service } = build();
-  await assert.rejects(() => service.dispatch(reviewContext("never-opened")), /No open review/);
+  const result = await service.submit(
+    WORKTREE,
+    {
+      marks: [
+        { atomHash: HASH(0), disposition: "done" },
+        { atomHash: HASH(1), disposition: "skipped" },
+        { atomHash: HASH(2), disposition: "done" },
+      ],
+    },
+    AGENT,
+  );
+  assert.equal(result.gap.accounted, 3);
+  assert.deepEqual(result.gap.missing, []);
 });
 
-// --- context isolation ------------------------------------------------------
+test("submit on an empty diff reports an empty, clean gap", async () => {
+  const { service } = build({ hunks: [] });
+  const result = await service.submit(WORKTREE, {}, AGENT);
+  assert.deepEqual(result.gap, { total: 0, accounted: 0, missing: [] });
+});
+
+test("submit is idempotent — resubmitting identical marks does not double-count", async () => {
+  const { service, store } = build();
+  const batch = { marks: [{ atomHash: HASH(0), disposition: "done" as const }] };
+  await service.submit(WORKTREE, batch, AGENT);
+  const second = await service.submit(WORKTREE, batch, AGENT);
+  assert.equal(second.gap.accounted, 1);
+  assert.equal(second.progress.addressed, 1);
+  // both events persist (append-only) but the fold is last-write-wins
+  assert.equal((await store.load(reviewContext("ctx"))).length, 2);
+});
+
+test("submit answers attach to comments made earlier in the same batch", async () => {
+  const { service } = build();
+  await service.submit(
+    WORKTREE,
+    {
+      comments: [{ atomHash: HASH(0), body: "q" }],
+      answers: [{ commentId: "c0", answer: "a" }],
+    },
+    AGENT,
+  );
+  const view = await service.dispatch(reviewContext("ctx"), WORKTREE);
+  assert.equal(view.comments[0]?.answer, "a");
+  assert.equal(view.comments[0]?.status, "addressed");
+});
+
+test("submit ignores an answer to an unknown comment id (no crash)", async () => {
+  const { service } = build();
+  const result = await service.submit(WORKTREE, { answers: [{ commentId: "c99", answer: "x" }] }, AGENT);
+  assert.equal(result.gap.accounted, 0);
+});
+
+test("submit carries the reviewer label into per-reviewer progress", async () => {
+  const { service } = build();
+  const result = await service.submit(WORKTREE, { marks: [{ atomHash: HASH(0), disposition: "done" }] }, SECURITY);
+  assert.deepEqual(result.progress.byReviewer, [{ reviewer: "security", addressed: 1 }]);
+});
+
+test("label-less agent marks produce no per-reviewer breakdown", async () => {
+  const { service } = build();
+  const result = await service.submit(WORKTREE, { marks: [{ atomHash: HASH(0), disposition: "done" }] }, AGENT);
+  assert.equal("byReviewer" in result.progress, false);
+});
+
+// --- dispatch (agent read) --------------------------------------------------
+
+test("dispatch returns located comments with lifecycle, tier and reviewer label", async () => {
+  const { service } = build();
+  await service.submit(WORKTREE, { comments: [{ atomHash: HASH(0), body: "tighten this" }] }, SECURITY);
+  const view = await service.dispatch(reviewContext("ctx"), WORKTREE);
+  assert.deepEqual(view.comments, [
+    {
+      id: "c0",
+      atomHash: HASH(0),
+      path: "a.ts",
+      lineRange: { start: 1, count: 1 },
+      body: "tighten this",
+      answer: null,
+      status: "open",
+      tier: "agent",
+      reviewer: "security",
+    },
+  ]);
+});
+
+test("dispatch drops a comment whose atom is gone (addressed-by-edit, no live location)", async () => {
+  const { service, store } = build();
+  const ctx = reviewContext("ctx");
+  await store.append(ctx, { type: "commented", ts: 1, atomHash: "gone" as AtomHash, body: "stale", author: HUMAN });
+  await service.submit(WORKTREE, { comments: [{ atomHash: HASH(1), body: "live" }] }, HUMAN);
+  const view = await service.dispatch(ctx, WORKTREE);
+  assert.deepEqual(view.comments.map((c) => c.body), ["live"]);
+});
+
+test("dispatch reports full progress over the master list", async () => {
+  const { service } = build();
+  await service.submit(WORKTREE, { marks: [{ atomHash: HASH(0), disposition: "done" }] }, AGENT);
+  const view = await service.dispatch(reviewContext("ctx"), WORKTREE);
+  assert.deepEqual(view.progress, { total: 3, addressed: 1, unaddressed: 2 });
+});
+
+// --- context isolation + editor ---------------------------------------------
 
 test("distinct adapter-resolved contexts keep their marks isolated", async () => {
   const { service, store } = build({
     resolve: (spec) => (spec.kind === "worktree" ? "branch-a" : "branch-b"),
   });
-  const a = (await service.open({ kind: "worktree" })).context;
-  const b = (await service.open({ kind: "range", base: "main", head: "HEAD" })).context;
-  assert.equal(a, "branch-a");
-  assert.equal(b, "branch-b");
-
-  await service.mark(a, HASH(0), "done");
-  assert.equal((await store.load(a)).length, 1);
-  assert.equal((await store.load(b)).length, 0); // isolated
+  await service.submit({ kind: "worktree" }, { marks: [{ atomHash: HASH(0), disposition: "done" }] }, AGENT);
+  assert.equal((await store.load(reviewContext("branch-a"))).length, 1);
+  assert.equal((await store.load(reviewContext("branch-b"))).length, 0);
 });
-
-// --- editor + guard ---------------------------------------------------------
 
 test("openInEditor delegates to the editor port", async () => {
   const { service, editor } = build();
   await service.openInEditor("src/a.ts", 42);
   assert.deepEqual(editor.opened, [{ path: "src/a.ts", line: 42 }]);
-});
-
-test("mutating an unopened context throws (no silent no-op)", async () => {
-  const { service } = build();
-  await assert.rejects(
-    () => service.mark(reviewContext("never-opened"), HASH(0), "done"),
-    /No open review/,
-  );
-});
-
-// --- ask: Chapter Q&A (ADR-0009) --------------------------------------------
-
-const CTX = reviewContext("ctx");
-
-test("ask hands the agent the focused Chapter's atoms (with diff lines) + instructions", async () => {
-  const instructions: ReviewInstructions = { personal: "be terse", project: null };
-  const { service, chat } = build({
-    instructions,
-    proposal: { chapters: [{ title: "Core", sections: [{ title: "s", atomHashes: [HASH(0), HASH(1)] }] }] },
-  });
-  await service.open(WORKTREE);
-
-  await service.ask(CTX, 0, "is this backwards compatible?");
-  assert.equal(chat.lastRequest?.question, "is this backwards compatible?");
-  assert.deepEqual(chat.lastRequest?.instructions, instructions);
-  assert.equal(chat.lastRequest?.atoms.length, 2);
-  assert.ok(chat.lastRequest?.atoms[0]?.lines !== undefined); // atoms carry git-verbatim lines
-});
-
-test("ask returns the agent's answer prose", async () => {
-  const { service } = build({ answer: { answer: "Yes — the export is additive." } });
-  await service.open(WORKTREE);
-  const result = await service.ask(CTX, 0, "compatible?");
-  assert.deepEqual(result, { answer: "Yes — the export is additive." });
-});
-
-test("ask coerces a malformed/empty agent answer to a safe fallback (untrusted boundary)", async () => {
-  for (const answer of [{ nope: true }, { answer: "" }, "raw string", null]) {
-    const { service } = build({ answer });
-    await service.open(WORKTREE);
-    const result = await service.ask(CTX, 0, "q");
-    assert.match(result.answer, /couldn't answer/);
-  }
-});
-
-test("ask changes no review state (ephemeral, ADR-0009)", async () => {
-  const { service, store } = build();
-  await service.open(WORKTREE);
-  await service.ask(CTX, 0, "q");
-  assert.equal((await store.load(CTX)).length, 0); // no event appended
-});
-
-test("ask rejects an out-of-range Chapter index", async () => {
-  const { service } = build();
-  await service.open(WORKTREE);
-  await assert.rejects(() => service.ask(CTX, 99, "q"), /No Chapter at index 99/);
-});
-
-test("ask on an unopened context throws", async () => {
-  const { service } = build();
-  await assert.rejects(() => service.ask(reviewContext("never"), 0, "q"), /No open review/);
 });
 
 // --- reviewContext smart-constructor ----------------------------------------

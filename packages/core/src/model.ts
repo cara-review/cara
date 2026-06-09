@@ -80,15 +80,40 @@ export interface Review {
 /** A reviewer's disposition of an atom. Skip is not delete (ADR-0004). */
 export type Disposition = "done" | "skipped";
 
+/**
+ * Who authored a mutating event, inferred from the channel it arrived on (ADR-0011 §5):
+ * a browser session is `human`, a CLI invocation is `agent`. There is no override — an
+ * agent cannot stamp a mark `human`. `reviewer` (ADR-0011 §6) is an optional descriptive
+ * label within the `agent` tier (e.g. "security") so several headless reviewers stay
+ * distinguishable; it is always null for `human`.
+ */
+export interface MarkAuthor {
+  readonly tier: "human" | "agent";
+  readonly reviewer: string | null;
+}
+
 /** A comment drafted against an atom (you direct, the agent writes). */
 export interface Comment {
+  /** Stable id: "c" + ordinal among the context's commented events. Re-derived on each fold. */
+  readonly id: string;
   readonly atomHash: AtomHash;
   readonly body: string;
   readonly ts: number;
+  readonly author: MarkAuthor;
+  /** Latest answer body for this comment, else null. Untrusted overlay (escape on render). */
+  readonly answer: string | null;
+  /** Addressed when the reviewed lines were edited away (hash gone) or an answer is attached. */
+  readonly status: "open" | "addressed";
 }
 
 export interface ReviewProgress {
   readonly total: number;
   readonly addressed: number;
   readonly unaddressed: number;
+  /**
+   * Addressed-atom count per agent reviewer label (ADR-0011 §6), present only when at
+   * least one mark carries a label. Descriptive metadata within the `agent` tier — it
+   * never affects `total`/`addressed`/`unaddressed`.
+   */
+  readonly byReviewer?: ReadonlyArray<{ readonly reviewer: string; readonly addressed: number }>;
 }
