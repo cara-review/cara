@@ -1,5 +1,5 @@
-// Header: brand · review context · headline progress · ⌘K + Go. Progress and the
-// Go state read from `snapshot.progress` (canonical master list, ADR-0004). The
+// Header: brand · review context · headline progress · ⌘K + Done. Progress and the
+// Done state read from `snapshot.progress` (canonical master list, ADR-0004). The
 // context string is shown verbatim — the UI never parses or reformats refs (the
 // backend owns that; reformatting here would leak adapter concepts into the UI).
 
@@ -25,7 +25,7 @@ export function header(state: AppState, store: AppStore): HTMLElement {
     el("kbd", { text: "⌘" }),
     el("kbd", { text: "K" }),
   ]);
-  const right = el("div", { class: "header__right" }, [palette, goButton(state, store)]);
+  const right = el("div", { class: "header__right" }, [palette, doneButton(state, store)]);
 
   return el("header", { class: "header" }, [left, right]);
 }
@@ -54,26 +54,42 @@ function progress(progress: ReviewProgress): HTMLElement {
   ]);
 }
 
-/** `Go` (ADR-0007): enabled once every change is accounted for; dispatches comments out the sink. */
-function goButton(state: AppState, store: AppStore): HTMLElement {
-  const ready = state.snapshot !== null && state.snapshot.progress.unaddressed === 0;
+/**
+ * "Done reviewing" button (ADR-0011 §4): enabled once every change is accounted for;
+ * signals the server that the human has finished — flips `dispatch --wait` to done.
+ * The egress (comment-file export) lives in the porcelain, not the UI.
+ */
+function doneButton(state: AppState, store: AppStore): HTMLElement {
+  const snap = state.snapshot;
+  const ready = snap !== null && snap.progress.unaddressed === 0 && !snap.completed;
+  const alreadyDone = snap?.completed === true;
+
+  if (alreadyDone) {
+    return el("button", {
+      class: "go go--done",
+      text: "✓ Done",
+      title: "Review marked complete",
+      attrs: { disabled: "" },
+    });
+  }
+
   const button = el("button", {
     class: ready ? "go go--ready" : "go",
-    text: ready ? "Go" : "Review incomplete",
-    title: ready ? "Dispatch comments" : "Account for every Section first",
+    text: ready ? "Done reviewing" : "Review incomplete",
+    title: ready ? "Mark review complete" : "Account for every Section first",
     attrs: ready ? {} : { disabled: "" },
   });
   if (!ready) return button;
   button.addEventListener("click", () => {
     button.disabled = true;
     void store
-      .dispatch()
-      .then((receipt) => {
-        button.textContent = `✓ Sent ${receipt.count}`;
-        button.title = receipt.location; // the opaque sink locator, for the user's reference
+      .markComplete()
+      .then(() => {
+        button.textContent = "✓ Done";
+        button.classList.add("go--done");
       })
       .catch(() => {
-        button.textContent = "Go (failed)";
+        button.textContent = "Done reviewing (failed)";
         button.disabled = false;
       });
   });

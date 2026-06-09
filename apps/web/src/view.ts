@@ -1,5 +1,5 @@
-// View orchestrator: builds the 3-pane shell skeleton once and updates regions on
-// each store change. The diff and chat panes keep stable nodes (the diff mount is
+// View orchestrator: builds the 2-pane shell skeleton once and updates regions on
+// each store change. The diff pane keeps a stable node (the diff mount is
 // #12's surface); the header, nav, and status bar re-render from state. A whole-window
 // overlay (loading / empty / disconnected / error) replaces the grid when there is no
 // review to show.
@@ -8,7 +8,6 @@ import { el, fill } from "./dom.ts";
 import { header } from "./ui/header.ts";
 import { renderNav } from "./ui/nav.ts";
 import { createDiffPane } from "./ui/diff-pane.ts";
-import { createChatPane } from "./ui/chat-pane.ts";
 import { overlay } from "./ui/states.ts";
 import { installLayout } from "./ui/layout.ts";
 import type { AppState, AppStore } from "./store.ts";
@@ -22,9 +21,8 @@ export function createView(root: HTMLElement, store: AppStore): View {
   const headerHost = el("div", { class: "header-host" });
 
   const diffPane = createDiffPane();
-  const chatPane = createChatPane(store);
   const navEl = el("nav", { class: "nav" });
-  const grid = el("div", { class: "grid" }, [navEl, diffPane.node, chatPane.node]);
+  const grid = el("div", { class: "grid" }, [navEl, diffPane.node]);
   installLayout(grid);
 
   const overlayHost = el("div", { class: "overlay-host" });
@@ -45,7 +43,6 @@ export function createView(root: HTMLElement, store: AppStore): View {
       if (screen === null) {
         renderNav(navEl, state, store);
         diffPane.update(state);
-        chatPane.update(state);
       }
 
       fill(statusHost, statusBar(state));

@@ -1,48 +1,34 @@
 // Shared test fixtures (imported only by *.test.ts; never by the app bundle).
-import type { Backend, ConnectionStatus, OpenHandlers } from "./backend.ts";
-import type { Atom, AtomHash, ChatAnswer, DispatchReceipt, ReviewSnapshot, Section } from "./protocol.ts";
+import type { Backend, ConnectionStatus } from "./backend.ts";
+import type { Atom, AtomHash, FileSide, ReviewContext, ReviewSnapshot, Section } from "./protocol.ts";
 
 /**
- * An in-memory Backend: record the actions issued, and drive the open subscription +
- * connection lifecycle from the test. Mutations resolve with `reply` (the snapshot the
- * test stages); dispatch/ask/readFile resolve with their own staged replies.
+ * An in-memory Backend: record the actions issued, and drive the connection lifecycle
+ * from the test. `reply` is the snapshot every mutation or loadSnapshot resolves with;
+ * stage it in the test before the call.
  */
 export class FakeBackend implements Backend {
   readonly calls: string[] = [];
-  /** Snapshot the next mutation resolves with — the test stages it before acting. */
+  /** Snapshot the next loadSnapshot or mutation resolves with — the test stages it before acting. */
   reply: ReviewSnapshot | null = null;
-  dispatchReply: DispatchReceipt = { count: 0, location: "sink://ctx" };
-  askReply: ChatAnswer = { answer: "ok" };
   fileReply: { readonly text: string | null } = { text: "body" };
 
   private connectionHandler: ((status: ConnectionStatus) => void) | null = null;
-  private handlers: OpenHandlers | null = null;
 
   onConnection(handler: (status: ConnectionStatus) => void): void {
     this.connectionHandler = handler;
-  }
-  openReview(handlers: OpenHandlers): void {
-    this.handlers = handlers;
   }
 
   // --- test drivers ---------------------------------------------------------
   fireConnection(status: ConnectionStatus): void {
     this.connectionHandler?.(status);
   }
-  emitProgress(elapsedMs: number): void {
-    this.handlers?.onProgress(elapsedMs);
-  }
-  emitSection(title: string): void {
-    this.handlers?.onSection(title);
-  }
-  deliver(snapshot: ReviewSnapshot): void {
-    this.handlers?.onSnapshot(snapshot);
-  }
-  failOpen(message: string): void {
-    this.handlers?.onError(message);
-  }
 
   // --- Backend mutations / queries -----------------------------------------
+  loadSnapshot(context: ReviewContext): Promise<ReviewSnapshot> {
+    this.calls.push(`loadSnapshot:${context}`);
+    return Promise.resolve(this.requireReply());
+  }
   mark(context: string, atomHash: string, disposition: string): Promise<ReviewSnapshot> {
     this.calls.push(`mark:${context}:${atomHash}:${disposition}`);
     return Promise.resolve(this.requireReply());
@@ -55,25 +41,21 @@ export class FakeBackend implements Backend {
     this.calls.push(`comment:${context}:${atomHash}:${body}`);
     return Promise.resolve(this.requireReply());
   }
-  dispatch(context: string): Promise<DispatchReceipt> {
-    this.calls.push(`dispatch:${context}`);
-    return Promise.resolve(this.dispatchReply);
-  }
-  ask(context: string, chapterIndex: number, question: string): Promise<ChatAnswer> {
-    this.calls.push(`ask:${context}:${chapterIndex}:${question}`);
-    return Promise.resolve(this.askReply);
+  markComplete(context: string): Promise<void> {
+    this.calls.push(`markComplete:${context}`);
+    return Promise.resolve();
   }
   openInEditor(path: string, line: number): Promise<void> {
     this.calls.push(`editor:${path}:${line}`);
     return Promise.resolve();
   }
-  readFile(path: string, side: string): Promise<{ readonly text: string | null }> {
+  readFile(path: string, side: FileSide): Promise<{ readonly text: string | null }> {
     this.calls.push(`readFile:${path}:${side}`);
     return Promise.resolve(this.fileReply);
   }
 
   private requireReply(): ReviewSnapshot {
-    if (this.reply === null) throw new Error("FakeBackend.reply not staged for this mutation");
+    if (this.reply === null) throw new Error("FakeBackend.reply not staged for this call");
     return this.reply;
   }
 }

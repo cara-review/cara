@@ -5,15 +5,44 @@
 // repair the grouping partitions the master list, so section counts roll up to the
 // canonical total (the headline progress still reads from `snapshot.progress`).
 
-import type { AtomHash, Disposition, ReviewSnapshot, Section } from "./protocol.ts";
+import type { AtomHash, Disposition, MarkAuthor, ReviewSnapshot, Section } from "./protocol.ts";
 
 export type SectionState = "unreviewed" | "done" | "skipped";
 
-/** The snapshot's marks array as a hash→disposition map. */
+/** The snapshot's marks array as a hash→disposition map. Used by the diff surface. */
 export function marksMap(snapshot: ReviewSnapshot): Map<AtomHash, Disposition> {
   const marks = new Map<AtomHash, Disposition>();
   for (const mark of snapshot.marks) marks.set(mark.atomHash, mark.disposition);
   return marks;
+}
+
+interface MarkRecord {
+  readonly disposition: Disposition;
+  readonly author: MarkAuthor;
+}
+
+/** The snapshot's marks array as a hash→{disposition,author} map. Single source for badge derivations. */
+function marksWithAuthors(snapshot: ReviewSnapshot): Map<AtomHash, MarkRecord> {
+  const map = new Map<AtomHash, MarkRecord>();
+  for (const mark of snapshot.marks) map.set(mark.atomHash, { disposition: mark.disposition, author: mark.author });
+  return map;
+}
+
+/**
+ * Derive the agent-badge for a section's marks. Returns non-null only when every marked
+ * atom is agent-tier; any human mark (or no marks) yields null. Single-pass over the
+ * section's atoms using the combined marks map, so tier and reviewer always come from
+ * the same record and cannot desync.
+ */
+function sectionAgentBadge(
+  section: Section,
+  marks: ReadonlyMap<AtomHash, MarkRecord>,
+): { readonly reviewer: string | null } | null {
+  const markedRecords = section.atoms.map((atom) => marks.get(atom.hash)).filter((r) => r !== undefined);
+  if (markedRecords.length === 0) return null;
+  if (markedRecords.some((r) => r.author.tier !== "agent")) return null;
+  const labels = new Set(markedRecords.map((r) => r.author.reviewer));
+  return { reviewer: labels.size === 1 ? ([...labels][0] ?? null) : null };
 }
 
 export interface SectionRollup {
@@ -51,6 +80,8 @@ export function sectionRollup(
 export interface SectionNode extends SectionRollup {
   readonly title: string;
   readonly summary: string | null;
+  /** Non-null when every marked atom is agent-tier; null for human marks, mixed, or unmarked. */
+  readonly agentBadge: { readonly reviewer: string | null } | null;
 }
 
 export interface ChapterNode {
@@ -59,15 +90,17 @@ export interface ChapterNode {
   readonly sections: readonly SectionNode[];
 }
 
-/** The nav tree model: chapters → sections with rolled-up state + counts. */
+/** The nav tree model: chapters → sections with rolled-up state + counts + tier badge. */
 export function navTree(snapshot: ReviewSnapshot): readonly ChapterNode[] {
   const marks = marksMap(snapshot);
+  const withAuthors = marksWithAuthors(snapshot);
   return snapshot.review.chapters.map((chapter) => ({
     title: chapter.title,
     summary: chapter.summary,
     sections: chapter.sections.map((section) => ({
       title: section.title,
       summary: section.summary,
+      agentBadge: sectionAgentBadge(section, withAuthors),
       ...sectionRollup(section, marks),
     })),
   }));

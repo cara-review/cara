@@ -18,6 +18,7 @@ function snapshot(chapters: ReviewSnapshot["review"]["chapters"]): ReviewSnapsho
     marks: [],
     comments: [],
     progress: { total: masterList.length, addressed: 0, unaddressed: masterList.length },
+    completed: false,
   };
 }
 
@@ -31,7 +32,6 @@ function stateWith(snap: ReviewSnapshot | null): AppState {
     error: null,
     activeSection: null,
     expandedChapters: new Set<number>(),
-    grouping: null,
   };
 }
 

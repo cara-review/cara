@@ -17,14 +17,14 @@ function overlayKind(state: AppState): OverlayKind | null {
     return state.snapshot.review.masterList.length === 0 ? "empty" : null;
   }
   // No snapshot yet — the whole window reports connection/loading status.
-  if (state.error !== null) return "error"; // open() rejected — surface it, don't spin
+  if (state.error !== null) return "error"; // snapshot query rejected — surface it, don't spin
   switch (state.connection) {
     case "reconnecting":
       return "reconnecting";
     case "closed":
       return "disconnected";
     case "open":
-      return "loading"; // socket up, awaiting the review
+      return "loading"; // socket up, awaiting the snapshot query
     case "connecting":
       return "connecting";
   }
@@ -33,12 +33,12 @@ function overlayKind(state: AppState): OverlayKind | null {
 export function overlay(state: AppState): HTMLElement | null {
   const kind = overlayKind(state);
   if (kind === null) return null;
-  if (kind === "loading") return loadingOverlay(state);
 
-  const content: Record<Exclude<OverlayKind, "loading">, { title: string; detail: string }> = {
+  const content: Record<OverlayKind, { title: string; detail: string }> = {
     connecting: { title: "Connecting…", detail: "Reaching the clear-diff backend." },
+    loading: { title: "Loading review…", detail: "Fetching the review snapshot from the backend." },
     reconnecting: { title: "Reconnecting…", detail: "Lost the backend — trying to restore the connection." },
-    disconnected: { title: "Disconnected", detail: "Couldn’t reach the backend. Restart clear-diff to continue." },
+    disconnected: { title: "Disconnected", detail: "Couldn't reach the backend. Restart clear-diff to continue." },
     error: { title: "Something went wrong", detail: state.error ?? "Could not reach the backend." },
     empty: { title: "Nothing to review", detail: "There are no changes in this diff." },
   };
@@ -49,33 +49,4 @@ export function overlay(state: AppState): HTMLElement | null {
     el("h1", { class: "overlay__title", text: title }),
     el("p", { class: "overlay__detail", text: detail }),
   ]);
-}
-
-/**
- * The grouping screen, streamed live over the tRPC subscription (ADR-0008): an elapsed
- * counter while the agent works and the resolved Section titles revealed one by one as
- * a scrolling reveal of the structure taking shape.
- */
-function loadingOverlay(state: AppState): HTMLElement {
-  const grouping = state.grouping;
-  const children: Array<HTMLElement | false> = [
-    el("div", { class: "spinner", attrs: { "aria-hidden": "true" } }),
-    el("h1", { class: "overlay__title", text: "Grouping with AI…" }),
-    el("p", {
-      class: "overlay__detail",
-      text: "Organising this diff into a navigable structure. Large diffs take longer.",
-    }),
-  ];
-  if (grouping !== null) {
-    children.push(
-      el("p", { class: "overlay__elapsed", text: `${(grouping.elapsedMs / 1000).toFixed(1)}s` }),
-      grouping.sections.length > 0 &&
-        el(
-          "ul",
-          { class: "grouping-stream", attrs: { "aria-hidden": "true" } },
-          grouping.sections.map((title) => el("li", { class: "grouping-stream__item", text: title })),
-        ),
-    );
-  }
-  return el("div", { class: "overlay overlay--loading" }, children);
 }

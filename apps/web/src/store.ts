@@ -1,13 +1,15 @@
 // The app state store: the shared foundation the diff surface (#12) builds on. Holds
-// the current snapshot + UI focus + live grouping progress, exposes subscribe/notify
-// and the action set, and maps the backend's socket lifecycle to a connection status.
+// the current snapshot + UI focus, exposes subscribe/notify and the action set, and
+// maps the backend's socket lifecycle to a connection status.
 // DOM-free — unit-tested under `bun test` against a fake Backend.
 //
+// Post-pivot (ADR-0011): grouping is pre-supplied by the CLI before the browser boots.
+// The browser loads the review snapshot at boot via a one-shot query (no streaming).
 // Chapters/Sections have no domain id; focus is an index path within the current
-// snapshot (the grouping is regenerated on every open).
+// snapshot (the grouping is fixed for the session by `present`).
 
 import type { Backend, ConnectionStatus } from "./backend.ts";
-import type { AtomHash, ChatAnswer, DispatchReceipt, Disposition, FileSide, ReviewSnapshot } from "./protocol.ts";
+import type { AtomHash, Disposition, FileSide, ReviewContext, ReviewSnapshot } from "./protocol.ts";
 
 export type Connection = "connecting" | "open" | "reconnecting" | "closed";
 
@@ -16,21 +18,12 @@ export interface SectionPath {
   readonly section: number;
 }
 
-/** Live grouping progress while the agent organises the diff (before the snapshot lands). */
-export interface GroupingProgress {
-  readonly elapsedMs: number;
-  /** Section titles revealed so far — the scrolling reveal of the resolved structure. */
-  readonly sections: readonly string[];
-}
-
 export interface AppState {
   readonly connection: Connection;
   readonly snapshot: ReviewSnapshot | null;
   readonly error: string | null;
   readonly activeSection: SectionPath | null;
   readonly expandedChapters: ReadonlySet<number>;
-  /** Non-null while grouping is in flight (socket open, no snapshot yet); null once it lands. */
-  readonly grouping: GroupingProgress | null;
 }
 
 const INITIAL: AppState = {
@@ -39,13 +32,13 @@ const INITIAL: AppState = {
   error: null,
   activeSection: null,
   expandedChapters: new Set(),
-  grouping: null,
 };
 
 export class AppStore {
   private readonly backend: Backend;
   private state: AppState = INITIAL;
   private readonly listeners = new Set<() => void>();
+  private context: ReviewContext | null = null;
 
   constructor(backend: Backend) {
     this.backend = backend;
@@ -62,37 +55,34 @@ export class AppStore {
     };
   }
 
-  /** Map socket lifecycle to a connection status and open the streaming review. */
-  connect(): void {
+  /** Connect the socket and load the review snapshot (one-shot query at boot). */
+  connect(context: ReviewContext | null): void {
+    this.context = context;
     this.backend.onConnection((status) => this.onConnection(status));
-    this.backend.openReview({
-      onProgress: (elapsedMs) => this.patch({ grouping: { elapsedMs, sections: this.groupingSections() } }),
-      onSection: (title) =>
-        this.patch({ grouping: { elapsedMs: this.groupingElapsed(), sections: [...this.groupingSections(), title] } }),
-      onSnapshot: (snapshot) => this.patch({ snapshot, grouping: null, error: null, ...initialFocus(snapshot) }),
-      onError: (message) => this.patch({ error: message, grouping: null }),
-    });
+    if (context !== null) {
+      void this.loadReview(context);
+    }
   }
 
   private onConnection(status: ConnectionStatus): void {
     if (status === "open") {
-      // Socket up; if no review yet, begin showing grouping progress.
-      this.patch({ connection: "open", grouping: this.state.snapshot === null ? this.beginGrouping() : null });
+      this.patch({ connection: "open" });
+      // Re-load snapshot on reconnect only if we have no snapshot yet (first connect).
+      if (this.state.snapshot === null && this.context !== null) {
+        void this.loadReview(this.context);
+      }
     } else {
       this.patch({ connection: "reconnecting" });
     }
   }
 
-  private beginGrouping(): GroupingProgress {
-    return this.state.grouping ?? { elapsedMs: 0, sections: [] };
-  }
-
-  private groupingElapsed(): number {
-    return this.state.grouping?.elapsedMs ?? 0;
-  }
-
-  private groupingSections(): readonly string[] {
-    return this.state.grouping?.sections ?? [];
+  private async loadReview(context: ReviewContext): Promise<void> {
+    try {
+      const snapshot = await this.backend.loadSnapshot(context);
+      this.patch({ snapshot, error: null, ...initialFocus(snapshot) });
+    } catch (error: unknown) {
+      this.patch({ error: error instanceof Error ? error.message : "Failed to load review.", snapshot: null });
+    }
   }
 
   async mark(atomHash: AtomHash, disposition: Disposition): Promise<ReviewSnapshot> {
@@ -113,14 +103,9 @@ export class AppStore {
     return snapshot;
   }
 
-  /** `Go` (ADR-0007): push the accumulated comments out the sink; returns the receipt. */
-  async dispatch(): Promise<DispatchReceipt> {
-    return this.backend.dispatch(this.requireContext());
-  }
-
-  /** Chapter Q&A (ADR-0009): ask the agent about a Chapter; returns its untrusted answer. */
-  async ask(chapterIndex: number, question: string): Promise<ChatAnswer> {
-    return this.backend.ask(this.requireContext(), chapterIndex, question);
+  /** Signal "done reviewing" — the human synchroniser for `dispatch --wait`. */
+  async markComplete(): Promise<void> {
+    await this.backend.markComplete(this.requireContext());
   }
 
   openInEditor(path: string, line: number): Promise<void> {
@@ -142,10 +127,10 @@ export class AppStore {
     this.patch({ expandedChapters });
   }
 
-  private requireContext(): ReviewSnapshot["context"] {
-    const snapshot = this.state.snapshot;
-    if (snapshot === null) throw new Error("No active review.");
-    return snapshot.context;
+  private requireContext(): ReviewContext {
+    const ctx = this.context;
+    if (ctx === null) throw new Error("No active review.");
+    return ctx;
   }
 
   private patch(patch: Partial<AppState>): void {

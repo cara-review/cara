@@ -1,15 +1,17 @@
-// Inline comment threads on the diff surface (ADR-0006, ADR-0007). Each atom in a
-// file card gets a Monaco *view zone* anchored to its head line, holding the
-// existing thread plus a voice-first composer (OS dictation types into the
-// textarea). View zones are a Monaco/adapter concern — the domain never names them.
+// Inline comment threads on the diff surface (ADR-0006). Each atom in a file card gets
+// a Monaco *view zone* anchored to its head line, holding the existing thread plus a
+// voice-first composer (OS dictation types into the textarea). View zones are a
+// Monaco/adapter concern — the domain never names them.
 //
-// Comments anchor to atoms by hash (ADR-0002), never to raw line numbers. Bodies
-// are user text rendered via textContent (the `el` factory) — escaped by
-// construction, never interpreted as markup (ADR-0004). (The ADR-0007 agent-drafting
-// seam is an open question, deliberately unwired: the composer takes dictation direct.)
+// Comments anchor to atoms by hash (ADR-0002), never to raw line numbers. Bodies are
+// user text rendered via textContent (the `el` factory) — escaped by construction.
+// Answers are agent-supplied (untrusted overlay, ADR-0004): rendered via renderMarkdown
+// (markdown-it + DOMPurify; see markdown.ts) and injected as innerHTML — the two
+// independent guards there provide defence-in-depth against injection.
 
 import * as monaco from "monaco-editor";
 import { el } from "../dom.ts";
+import { renderMarkdown } from "./markdown.ts";
 import type { Atom, Comment } from "../protocol.ts";
 import type { AppStore } from "../store.ts";
 
@@ -79,12 +81,12 @@ function headLine(atom: Atom): number {
   return atom.newLines > 0 ? atom.newStart + atom.newLines - 1 : Math.max(atom.newStart, 0);
 }
 
-/** A change to either the atom set or its comments invalidates the painted zones. */
+/** A change to atoms, comments, answers, or status invalidates the painted zones. */
 function signatureOf(atoms: readonly Atom[], comments: readonly Comment[]): string {
   const hashes = new Set(atoms.map((atom) => atom.hash));
   const relevant = comments
     .filter((comment) => hashes.has(comment.atomHash))
-    .map((comment) => `${comment.atomHash}@${comment.ts}`)
+    .map((comment) => `${comment.id}@${comment.ts}:${comment.status}:${comment.answer !== null ? "answered" : "open"}`)
     .join(",");
   return `${atoms.map((atom) => atom.hash).join(",")}|${relevant}`;
 }
@@ -93,11 +95,31 @@ function signatureOf(atoms: readonly Atom[], comments: readonly Comment[]): stri
 // whose own elements use generic classes (gutter, margin, view-line…) — a generic
 // class here would bleed into / collide with Monaco's styles.
 function threadNode(atom: Atom, thread: readonly Comment[], store: AppStore): HTMLElement {
-  const items = thread.map((comment) => el("p", { class: "cd-comment__body", text: comment.body }));
+  const items = thread.map((comment) => commentItem(comment));
   return el("div", { class: "cd-comment-thread" }, [
     items.length > 0 ? el("div", { class: "cd-comment-thread__list" }, items) : null,
     composer(atom, store),
   ]);
+}
+
+function commentItem(comment: Comment): HTMLElement {
+  const status = el("span", {
+    class: `cd-comment__status cd-comment__status--${comment.status}`,
+    text: comment.status,
+    attrs: { "aria-label": comment.status === "addressed" ? "Addressed" : "Open" },
+  });
+  // Body is human-authored text — escaped by el() via textContent.
+  const body = el("p", { class: "cd-comment__body", text: comment.body });
+  const item = el("div", { class: "cd-comment" }, [status, body]);
+
+  if (comment.answer !== null) {
+    // Answer is untrusted agent overlay (ADR-0004): rendered via renderMarkdown.
+    const answerEl = el("div", { class: "cd-comment__answer" });
+    answerEl.innerHTML = renderMarkdown(comment.answer);
+    item.append(answerEl);
+  }
+
+  return item;
 }
 
 /** Voice-first composer: collapsed to a button until opened; the textarea takes OS dictation. */

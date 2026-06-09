@@ -3,13 +3,14 @@
 // STABLE `[data-diff-surface]` mount is created once and never touched by the shell
 // again (re-rendering it would wipe #12's surface).
 //
-// The summary is the agent's untrusted overlay (ADR-0004): rendered via textContent
-// (escaped), visually secondary, explicitly labelled — never authoritative.
+// The summary is the agent's untrusted overlay (ADR-0004): rendered via renderMarkdown
+// (markdown-it + DOMPurify), visually secondary, explicitly labelled — never authoritative.
 
 import { el } from "../dom.ts";
 import { marksMap, sectionRollup } from "../selectors.ts";
 import type { AppState } from "../store.ts";
 import { markGlyph } from "./glyph.ts";
+import { renderMarkdown } from "./markdown.ts";
 
 export interface DiffPane {
   readonly node: HTMLElement;
@@ -73,8 +74,8 @@ function renderSummary(container: HTMLElement, state: AppState): void {
     return;
   }
   container.hidden = false;
-  container.replaceChildren(
-    el("span", { class: "summary__label", text: "AI summary" }),
-    el("p", { class: "summary__body", text: current.summary }),
-  );
+  const body = el("div", { class: "summary__body" });
+  // Summary is untrusted agent overlay (ADR-0004): rendered via renderMarkdown.
+  body.innerHTML = renderMarkdown(current.summary);
+  container.replaceChildren(el("span", { class: "summary__label", text: "AI summary" }), body);
 }

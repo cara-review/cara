@@ -17,11 +17,12 @@ const stored = (page: Page) =>
 
 test("restores a seeded width on load, then resizes/collapses and persists", async ({ page }) => {
   // Seed a non-default nav width so the first paint must restore it.
+  // (Old pre-pivot state with chatWidth/chatCollapsed keys is silently ignored — see layout.test.ts.)
   await page.addInitScript(
     ([key]) =>
       localStorage.setItem(
         key as string,
-        JSON.stringify({ navWidth: 320, chatWidth: 320, navCollapsed: false, chatCollapsed: false }),
+        JSON.stringify({ navWidth: 320, navCollapsed: false }),
       ),
     [KEY],
   );
@@ -31,8 +32,8 @@ test("restores a seeded width on load, then resizes/collapses and persists", asy
   const navDivider = page.locator(".pane-divider").nth(0);
   const navWidth = () => nav.evaluate((el) => el.getBoundingClientRect().width);
 
-  // Exactly two dividers (not Monaco's own .gutter), and the seeded width was restored.
-  await expect(page.locator(".pane-divider")).toHaveCount(2);
+  // Exactly one divider (2-pane layout: nav + diff; no chat pane), and seeded width restored.
+  await expect(page.locator(".pane-divider")).toHaveCount(1);
   await expect(nav).toBeVisible();
   expect(await navWidth()).toBeCloseTo(320, 0);
 

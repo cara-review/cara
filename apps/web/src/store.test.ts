@@ -1,16 +1,19 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import type { AtomHash, ReviewSnapshot, Section } from "./protocol.ts";
+import type { AtomHash, ReviewContext, ReviewSnapshot, Section } from "./protocol.ts";
 import { AppStore } from "./store.ts";
 import { FakeBackend, section } from "./test-support.ts";
+
+const CTX = "ctx" as ReviewContext;
 
 function snapshot(chapters: ReviewSnapshot["review"]["chapters"], addressed = 0): ReviewSnapshot {
   const masterList = chapters.flatMap((c) => c.sections.flatMap((s) => s.atoms));
   return {
-    context: "ctx" as ReviewSnapshot["context"],
+    context: CTX,
     review: { chapters, masterList },
     marks: [],
     comments: [],
+    completed: false,
     progress: { total: masterList.length, addressed, unaddressed: masterList.length - addressed },
   };
 }
@@ -22,65 +25,59 @@ function chapter(title: string, sections: readonly Section[]): ReviewSnapshot["r
 function harness(): { store: AppStore; backend: FakeBackend } {
   const backend = new FakeBackend();
   const store = new AppStore(backend);
-  store.connect();
   return { store, backend };
 }
 
 const SECTION: Section = section("S", ["a"]);
 
-test("a delivered snapshot expands the first chapter and focuses its first section", () => {
+test("a loaded snapshot expands the first chapter and focuses its first section", async () => {
   const { store, backend } = harness();
-  backend.deliver(snapshot([chapter("C", [SECTION])]));
+  backend.reply = snapshot([chapter("C", [SECTION])]);
+  store.connect(CTX);
+  await Promise.resolve();
 
   const state = store.getState();
   assert.deepEqual(state.activeSection, { chapter: 0, section: 0 });
   assert.ok(state.expandedChapters.has(0));
   assert.equal(state.snapshot?.review.masterList.length, 1);
-  assert.equal(state.grouping, null);
 });
 
-test("open skips a leading empty chapter to focus the first one with sections", () => {
+test("load skips a leading empty chapter to focus the first one with sections", async () => {
   const { store, backend } = harness();
-  backend.deliver(snapshot([chapter("Empty", []), chapter("Has content", [section("S", ["a"])])]));
+  backend.reply = snapshot([chapter("Empty", []), chapter("Has content", [section("S", ["a"])])]);
+  store.connect(CTX);
+  await Promise.resolve();
 
   const state = store.getState();
   assert.deepEqual(state.activeSection, { chapter: 1, section: 0 });
   assert.ok(state.expandedChapters.has(1));
 });
 
-test("an empty diff leaves no active section", () => {
+test("an empty diff leaves no active section", async () => {
   const { store, backend } = harness();
-  backend.deliver(snapshot([]));
+  backend.reply = snapshot([]);
+  store.connect(CTX);
+  await Promise.resolve();
+
   assert.equal(store.getState().activeSection, null);
 });
 
-test("a failed open surfaces the error instead of leaving state blank", () => {
-  const { store, backend } = harness();
-  backend.failOpen("boom");
+test("a failed load surfaces the error and leaves snapshot null", async () => {
+  const { store } = harness();
+  // No reply staged → requireReply throws
+  store.connect(CTX);
+  await Promise.resolve();
+
   const state = store.getState();
-  assert.equal(state.error, "boom");
+  assert.ok(state.error !== null);
   assert.equal(state.snapshot, null);
-  assert.equal(state.grouping, null);
-});
-
-test("grouping progress streams elapsed time and revealed section titles before the snapshot", () => {
-  const { store, backend } = harness();
-  backend.fireConnection("open");
-  assert.equal(store.getState().connection, "open");
-  assert.deepEqual(store.getState().grouping, { elapsedMs: 0, sections: [] });
-
-  backend.emitProgress(1200);
-  backend.emitSection("Auth");
-  backend.emitSection("Storage");
-  assert.deepEqual(store.getState().grouping, { elapsedMs: 1200, sections: ["Auth", "Storage"] });
-
-  backend.deliver(snapshot([chapter("C", [SECTION])]));
-  assert.equal(store.getState().grouping, null);
 });
 
 test("mark updates the snapshot, returns it, and notifies subscribers", async () => {
   const { store, backend } = harness();
-  backend.deliver(snapshot([chapter("C", [SECTION])]));
+  backend.reply = snapshot([chapter("C", [SECTION])]);
+  store.connect(CTX);
+  await Promise.resolve();
 
   let notified = 0;
   store.subscribe(() => (notified += 1));
@@ -96,7 +93,9 @@ test("mark updates the snapshot, returns it, and notifies subscribers", async ()
 
 test("mark preserves the active section (a mark does not regroup)", async () => {
   const { store, backend } = harness();
-  backend.deliver(snapshot([chapter("C", [SECTION])]));
+  backend.reply = snapshot([chapter("C", [SECTION])]);
+  store.connect(CTX);
+  await Promise.resolve();
   store.setActiveSection({ chapter: 0, section: 0 });
 
   backend.reply = snapshot([chapter("C", [SECTION])], 1);
@@ -105,37 +104,52 @@ test("mark preserves the active section (a mark does not regroup)", async () => 
   assert.deepEqual(store.getState().activeSection, { chapter: 0, section: 0 });
 });
 
-test("unmark and comment send the context and patch the snapshot", async () => {
+test("unmark sends the context and patches the snapshot", async () => {
   const { store, backend } = harness();
-  backend.deliver(snapshot([chapter("C", [SECTION])]));
+  backend.reply = snapshot([chapter("C", [SECTION])]);
+  store.connect(CTX);
+  await Promise.resolve();
 
   backend.reply = snapshot([chapter("C", [SECTION])]);
   await store.unmark("a" as AtomHash);
   assert.deepEqual(backend.calls.at(-1), "unmark:ctx:a");
+});
 
+test("comment sends the context and patches the snapshot", async () => {
+  const { store, backend } = harness();
+  backend.reply = snapshot([chapter("C", [SECTION])]);
+  store.connect(CTX);
+  await Promise.resolve();
+
+  backend.reply = snapshot([chapter("C", [SECTION])]);
   await store.comment("a" as AtomHash, "looks good");
   assert.deepEqual(backend.calls.at(-1), "comment:ctx:a:looks good");
 });
 
-test("dispatch sends the active context and returns the receipt", async () => {
+test("markComplete sends the active context", async () => {
   const { store, backend } = harness();
-  backend.deliver(snapshot([chapter("C", [SECTION])]));
+  backend.reply = snapshot([chapter("C", [SECTION])]);
+  store.connect(CTX);
+  await Promise.resolve();
 
-  backend.dispatchReply = { count: 2, location: "sink://ctx" };
-  assert.deepEqual(await store.dispatch(), { count: 2, location: "sink://ctx" });
-  assert.deepEqual(backend.calls.at(-1), "dispatch:ctx");
+  await store.markComplete();
+  assert.deepEqual(backend.calls.at(-1), "markComplete:ctx");
 });
 
 test("mutating before a review is open rejects", async () => {
   const { store } = harness();
+  store.connect(null); // no context → no load
   await assert.rejects(store.mark("a" as AtomHash, "done"), /No active review/);
   await assert.rejects(store.unmark("a" as AtomHash), /No active review/);
   await assert.rejects(store.comment("a" as AtomHash, "x"), /No active review/);
-  await assert.rejects(store.dispatch(), /No active review/);
+  await assert.rejects(store.markComplete(), /No active review/);
 });
 
 test("openInEditor and readFile pass through to the backend", async () => {
   const { store, backend } = harness();
+  backend.reply = snapshot([chapter("C", [SECTION])]);
+  store.connect(CTX);
+  await Promise.resolve();
 
   await store.openInEditor("f.ts", 12);
   assert.deepEqual(backend.calls.at(-1), "editor:f.ts:12");
@@ -147,6 +161,7 @@ test("openInEditor and readFile pass through to the backend", async () => {
 
 test("connection lifecycle drives the connection status", () => {
   const { store, backend } = harness();
+  store.connect(null); // null = no snapshot load
   assert.equal(store.getState().connection, "connecting");
 
   backend.fireConnection("open");

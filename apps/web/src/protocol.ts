@@ -17,8 +17,7 @@ export type {
   Chapter,
   Review,
   Comment,
+  MarkAuthor,
   ReviewProgress,
-  DispatchReceipt,
-  ChatAnswer,
   ReviewSnapshot,
 } from "@clear-diff/node/contract";

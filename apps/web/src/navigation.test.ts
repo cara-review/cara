@@ -16,9 +16,14 @@ function snapshot(
   return {
     context: "ctx" as ReviewSnapshot["context"],
     review: { chapters, masterList },
-    marks: marks.map((m) => ({ atomHash: m.atomHash as AtomHash, disposition: m.disposition })),
+    marks: marks.map((m) => ({
+      atomHash: m.atomHash as AtomHash,
+      disposition: m.disposition,
+      author: { tier: "human" as const, reviewer: null },
+    })),
     comments: [],
     progress: { total: masterList.length, addressed: marks.length, unaddressed: masterList.length - marks.length },
+    completed: false,
   };
 }
 

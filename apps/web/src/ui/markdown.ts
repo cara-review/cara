@@ -1,8 +1,6 @@
-// Safe markdown rendering for the chat pane (ADR-0010, amends ADR-0009 §2).
-//
-// The agent emits markdown (untrusted); this trusted client code turns it into a
-// sanitized HTML subset. Two independent guards:
-//   1. markdown-it with `html: false` — any literal HTML in the answer is escaped to
+// Safe markdown rendering for untrusted agent content (ADR-0004): comment answers,
+// Chapter/Section AI summaries. Two independent guards:
+//   1. markdown-it with `html: false` — any literal HTML in the content is escaped to
 //      text, never parsed. Only markdown *syntax* is interpreted.
 //   2. DOMPurify over the result — defence-in-depth: an allowlisted tag/attr subset,
 //      links restricted to http(s)/mailto. No images, no raw HTML, no script.

@@ -6,7 +6,7 @@
 import { el, fill } from "../dom.ts";
 import { navTree, type ChapterNode, type SectionNode } from "../selectors.ts";
 import type { AppState, AppStore } from "../store.ts";
-import { markGlyph } from "./glyph.ts";
+import { agentBadge, markGlyph } from "./glyph.ts";
 
 /** Render the nav tree into a stable host element (rebuilds its children each call). */
 export function renderNav(host: HTMLElement, state: AppState, store: AppStore): void {
@@ -39,7 +39,7 @@ function chapterRow(
     "button",
     {
       class: `chapter${complete ? " chapter--done" : ""}`,
-      title: chapter.summary ?? chapter.title,
+      title: chapter.title,
       attrs: { role: "treeitem", "aria-expanded": String(expanded) },
       onClick: () => store.toggleChapter(index),
     },
@@ -69,6 +69,7 @@ function sectionRow(
     [
       markGlyph(section.state),
       el("span", { class: "section__title", text: section.title }),
+      section.agentBadge !== null ? agentBadge(section.agentBadge) : null,
       el("span", { class: "section__count", text: String(section.total) }),
     ],
   );

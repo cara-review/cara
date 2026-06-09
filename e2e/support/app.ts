@@ -7,14 +7,13 @@
 
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { AnnotatingAgent } from "./annotating-agent.ts";
-import { AnsweringAgent } from "./answering-agent.ts";
 import {
   makeEmptyFixture,
   makeReviewFixture,
   makeSpecialPathsFixture,
   type ReviewFixture,
 } from "./fixture-repo.ts";
-import { bootReal, bootWithAgent, bootWithChat, type BootedServer } from "./server.ts";
+import { bootReal, bootWithAgent, bootWithAnsweredComment, bootWithAgentMarks, type BootedServer } from "./server.ts";
 
 type Boot = (fixture: ReviewFixture) => Promise<BootedServer>;
 
@@ -39,17 +38,17 @@ function serve(makeFixture: () => Promise<ReviewFixture>, boot: Boot): () => str
   return () => url;
 }
 
-/** The standard review fixture, booted via the real CLI. */
+/** The standard review fixture, booted via the real backend. */
 export function serveReview(): () => string {
   return serve(makeReviewFixture, (f) => bootReal(f.dir, f.range));
 }
 
-/** The empty-diff fixture, booted via the real CLI. */
+/** The empty-diff fixture, booted via the real backend. */
 export function serveEmpty(): () => string {
   return serve(makeEmptyFixture, (f) => bootReal(f.dir, f.range));
 }
 
-/** A review whose file paths contain a space and a non-ASCII character, via the real CLI. */
+/** A review whose file paths contain a space and a non-ASCII character, via the real backend. */
 export function serveSpecialPaths(): () => string {
   return serve(makeSpecialPathsFixture, (f) => bootReal(f.dir, f.range));
 }
@@ -59,9 +58,14 @@ export function serveAnnotated(): () => string {
   return serve(makeReviewFixture, (f) => bootWithAgent(f.dir, f.range, new AnnotatingAgent()));
 }
 
-/** The review fixture booted with the Q&A answering agent (ADR-0009). */
-export function serveChat(): () => string {
-  return serve(makeReviewFixture, (f) => bootWithChat(f.dir, f.range, new AnsweringAgent()));
+/** The review fixture with a pre-seeded comment + answer (for inline-answer rendering tests). */
+export function serveWithAnswer(): () => string {
+  return serve(makeReviewFixture, (f) => bootWithAnsweredComment(f.dir, f.range));
+}
+
+/** The review fixture with pre-seeded agent-tier marks on the first section. */
+export function serveAgentMarked(): () => string {
+  return serve(makeReviewFixture, (f) => bootWithAgentMarks(f.dir, f.range));
 }
 
 /** Navigate to a review and wait until the nav tree has rendered. */
