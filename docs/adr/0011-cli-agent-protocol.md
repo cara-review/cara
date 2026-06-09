@@ -2,6 +2,7 @@
 status: accepted
 amends: [0003, 0004]
 supersedes: 0009
+supersedes-in-part: 0007
 ---
 
 # CLI agent protocol: four verbs, self-narrating, dual-mode, channel-inferred mark tiers
@@ -90,6 +91,12 @@ No LLM/transport concept enters domain types or names. The core cannot tell whic
 - One LLM in the system, outside the boundary, wearing every hat (grouper, answerer, fixer). The core is fully LLM-free — the trusted-accounting property every downstream vision rests on (TN-26-025).
 - `AgentPort` and `AgentChat` leave the driven-port table; the agent becomes a driving adapter (ADR-0003 amendment).
 - One bin. The LLM porcelain (`clear-diff review`) is an isolated module; API keys resolve lazily at the first LLM call only. Plumbing verbs have zero key awareness.
+- **`dispatch` is the sole egress** (supersedes ADR-0007 in part). The `CommentSink`
+  driven port and `ReviewDispatch`/`CommentRecord`/`DispatchReceipt` leave the core;
+  comments flow back to the caller as structured data, not out through a sink. The UI `Go`
+  control becomes `markComplete` (no push); standalone comment-file export moves to the LLM
+  porcelain, composed from `dispatch` output. Comment authoring, the composer, and atom-hash
+  anchoring (ADR-0007) survive unchanged.
 - Autonomous deliverable = the persisted event log (ADR-0005) + verb returns. Prose reports are the caller's job. Gate semantics deferred to a follow-up TN.
 
 ## Rejected
