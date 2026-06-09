@@ -194,3 +194,25 @@ test("a malformed submit batch fails loudly with paste-ready guidance", async ()
     await repo.cleanup();
   }
 });
+
+test("an unbounded or unsafe batch.reviewer label is rejected before it reaches the store", async () => {
+  const { repo, range } = await oneAtomRepo();
+  try {
+    await assert.rejects(
+      runCli(["submit", "-", "--range", range], {
+        ...deps(repo),
+        io: capture(JSON.stringify({ reviewer: "a".repeat(41), marks: [] })).io,
+      }),
+      /at most 40 characters/,
+    );
+    await assert.rejects(
+      runCli(["submit", "-", "--range", range], {
+        ...deps(repo),
+        io: capture(JSON.stringify({ reviewer: "Bad Label", marks: [] })).io,
+      }),
+      /lowercase slug/,
+    );
+  } finally {
+    await repo.cleanup();
+  }
+});

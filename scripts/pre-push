@@ -15,6 +15,11 @@ if [[ -f package.json ]]; then
   echo "clear-diff pre-push: bun test..."
   bun run test
 
+  # CLI end-to-end (the three-axis agent-protocol suite). Spawns the real bin against
+  # throwaway git fixtures — no browser, no network — so it always runs in the gate.
+  echo "clear-diff pre-push: bun run test:e2e:cli..."
+  bun run test:e2e:cli
+
   # End-to-end Playwright suite. Runs only when the Chromium browser is already
   # installed — a fresh clone that has not run `bunx playwright install chromium`
   # gets a clear notice instead of a silent pass or a surprise download.

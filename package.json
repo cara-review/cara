@@ -44,6 +44,7 @@
     "build": "bun run --filter='@clear-diff/web' build",
     "build:dist": "bun run build && bun scripts/pack-dist.ts",
     "prepublishOnly": "bun run build:dist",
+    "test:e2e:cli": "bun run typecheck:e2e && bun test e2e/cli",
     "test:e2e": "bun run typecheck:e2e && bun run build && bun --bun playwright test -c e2e/playwright.config.ts"
   },
   "devDependencies": {

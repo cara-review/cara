@@ -19,7 +19,7 @@ import { buildMethodology } from "@clear-diff/core";
 import { FileInstructions } from "../instructions.ts";
 import { composeCore, composeOverrides } from "../server/compose.ts";
 import { emit, NEXT, parseJson, readPayload, VERB_REFERENCE, type CliIo } from "./output.ts";
-import { CliError, type DispatchCommand, type PresentCommand, type SubmitCommand } from "./parse.ts";
+import { CliError, reviewerSlug, type DispatchCommand, type PresentCommand, type SubmitCommand } from "./parse.ts";
 import { groupingPath, isAlive, readDiscovery } from "./discovery.ts";
 import { spawnDetachedServer } from "./serve.ts";
 import { callWait } from "./wait.ts";
@@ -108,7 +108,7 @@ export async function runSubmit(cmd: SubmitCommand, ctx: VerbContext): Promise<v
   const { service, diffSource } = await composeCore(coreConfig(ctx, cmd.spec));
   const parsed = parseJson(await readPayload(cmd.batch, ctx.io));
   const record = asObject(parsed, "batch");
-  const reviewer = cmd.reviewer ?? (typeof record["reviewer"] === "string" ? (record["reviewer"] as string) : null);
+  const reviewer = cmd.reviewer ?? (typeof record["reviewer"] === "string" ? reviewerSlug(record["reviewer"]) : null);
 
   const result = await service.submit(cmd.spec, coerceBatch(record), { tier: "agent", reviewer });
   const context = await diffSource.resolveContext(cmd.spec);

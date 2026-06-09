@@ -142,6 +142,20 @@ function positiveSeconds(raw: string | undefined, flag: string): number | null {
   return n;
 }
 
+/** Bound on a reviewer label — caps the JSONL store entry and the UI tier badge. */
+export const MAX_REVIEWER_LEN = 40;
+
+/**
+ * A reviewer label: a short lowercase slug. Constrained so a porcelain label can never
+ * escape the lens directory (`~/.clear-diff/reviewers/<label>.md`), and bounded so a
+ * submitted label can't bloat the store or the tier badge it renders into.
+ */
+export function reviewerSlug(value: string): string {
+  if (!/^[a-z0-9-]+$/.test(value)) throw new CliError("--reviewer must be a lowercase slug (a-z, 0-9, -).");
+  if (value.length > MAX_REVIEWER_LEN) throw new CliError(`--reviewer must be at most ${MAX_REVIEWER_LEN} characters.`);
+  return value;
+}
+
 /**
  * argv (without node/script) → a Command. The first token is the verb; a bare
  * invocation (or a leading range) is the `review` porcelain. `--pr` is rejected.
@@ -186,11 +200,12 @@ export function parseCommand(argv: readonly string[]): Command {
       const flags = splitFlags(args, new Set(["range", "reviewer"]));
       rejectUnknownBool(flags.bool, new Set());
       if (flags.positional.length > 1) throw new CliError("submit takes at most one batch argument.");
+      const submitReviewer = flags.value.get("reviewer");
       return {
         verb: "submit",
         spec: specFromRange(flags),
         batch: payloadFromPositional(flags.positional[0]),
-        reviewer: flags.value.get("reviewer") ?? null,
+        reviewer: submitReviewer === undefined ? null : reviewerSlug(submitReviewer),
       };
     }
     case "instructions": {
@@ -240,12 +255,10 @@ function parseReview(argv: readonly string[]): ReviewCommand {
     else if (name === "reviewer" || name === "range") {
       const value = argv[++i];
       if (value === undefined) throw new CliError(`Option --${name} needs a value.`);
-      if (name === "reviewer") {
-        // The label names a lens file (`~/.clear-diff/reviewers/<label>.md`); keep it to a
-        // safe slug so it can never escape that directory.
-        if (!/^[a-z0-9-]+$/.test(value)) throw new CliError("--reviewer must be a lowercase slug (a-z, 0-9, -).");
-        reviewers.push(value);
-      } else range = value;
+      // The label names a lens file (`~/.clear-diff/reviewers/<label>.md`); keep it a
+      // bounded, safe slug so it can never escape that directory.
+      if (name === "reviewer") reviewers.push(reviewerSlug(value));
+      else range = value;
     } else throw new CliError(`Unknown option: --${name}`);
   }
   if (positional.length > 1) throw new CliError("Expected a single <base>..<head> argument.");

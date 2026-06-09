@@ -42,6 +42,18 @@ test("review rejects a non-slug --reviewer (no path traversal into the lens dire
   assert.throws(() => parseCommand(["--reviewer", "Security"]), /lowercase slug/);
 });
 
+test("a reviewer label is bounded — an over-long slug is rejected on both review and submit", () => {
+  const long = "a".repeat(41);
+  assert.throws(() => parseCommand(["--reviewer", long]), /at most 40 characters/);
+  assert.throws(() => parseCommand(["submit", "{}", "--reviewer", long]), /at most 40 characters/);
+});
+
+test("submit's --reviewer is a bounded slug too (it renders into the tier badge)", () => {
+  assert.throws(() => parseCommand(["submit", "{}", "--reviewer", "Security"]), /lowercase slug/);
+  const ok = parseCommand(["submit", "{}", "--reviewer", "security"]);
+  assert.equal(ok.verb === "submit" ? ok.reviewer : null, "security");
+});
+
 test("atoms defaults to the worktree and accepts a range positional", () => {
   assert.deepEqual(parseCommand(["atoms"]), { verb: "atoms", spec: { kind: "worktree" } });
   assert.deepEqual(parseCommand(["atoms", "a..b"]), { verb: "atoms", spec: { kind: "range", base: "a", head: "b" } });
