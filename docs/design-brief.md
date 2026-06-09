@@ -4,7 +4,7 @@ category: personal
 tags: [design, brief, ui, ux, clear-diff, desktop, keyboard-native]
 status: active
 date_created: 2026-06-05
-last_updated: 2026-06-06
+last_updated: 2026-06-10
 ---
 
 # clear-diff — Design Brief
@@ -65,41 +65,42 @@ The product has an exact vocabulary. Use it in all labels and copy:
 
 ---
 
-## Window anatomy — 3-pane persistent
+## Window anatomy — 2-pane persistent
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │  Header: review context · progress · global actions          ⌘K       │
-├────────────────┬─────────────────────────────────────┬────────────────┤
-│  NAV           │  DIFF SURFACE                        │  CHAT          │
-│  (Chapters &   │  (the evidence — atom/gap/atom)      │  (chapter-level│
-│   Sections)    │                                      │   Q&A)         │
-│                │  ▸ Section heading                   │                │
-│  ▾ Chapter     │    file.ts                           │  ┌──────────┐  │
-│    • Section   │    ─ removed line                    │  │ messages │  │
-│    • Section   │    + added line                      │  │          │  │
-│  ▸ Chapter     │    … gap …                           │  └──────────┘  │
-│    • Section   │    + added line                      │  ask…          │
-│                │                                      │                │
-├────────────────┴─────────────────────────────────────┴────────────────┤
+├────────────────┬───────────────────────────────────────────────────────┤
+│  NAV           │  DIFF SURFACE                                          │
+│  (Chapters &   │  (the evidence — atom/gap/atom)                        │
+│   Sections)    │                                                        │
+│                │  ▸ Section heading                                     │
+│  ▾ Chapter     │    file.ts                                             │
+│    • Section   │    ─ removed line                                      │
+│    • Section   │    + added line          💬 comment / inline answer    │
+│  ▸ Chapter     │    … gap …                                             │
+│    • Section   │    + added line                                        │
+│                │                                                        │
+├────────────────┴───────────────────────────────────────────────────────┤
 │  Footer / status bar: counts · current focus · key hints (optional)    │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-Three persistent panes, each independently **resizable and collapsible**:
-- **Resize** — drag the divider between any two panes to rebalance widths; also adjustable by keyboard. Design sensible min/max widths per pane and a clear divider/drag-handle affordance (hover + focus states).
-- **Collapse** — nav and chat each collapse fully (by key and by handle), giving the center diff the full width. Collapsed panes leave a clear way to summon them back.
+**The comment is the only interface — there is no chat pane.** Questions and remarks are both comments on a line; an answer renders **inline at that line**, in the diff (see Commenting). Two persistent panes:
+- **Resize** — drag the divider between the panes to rebalance widths; also adjustable by keyboard. Design sensible min/max widths and a clear divider/drag-handle affordance (hover + focus states).
+- **Collapse** — nav collapses fully (by key and by handle), giving the diff the full width. A collapsed pane leaves a clear way to summon it back.
 - The center diff is the hero and always present.
 - Pane sizes and collapsed/expanded state **persist** across launches.
 
 ### Header
 - **Review context** — what's under review, stated plainly: a worktree vs `origin/main`, two refs, or a PR. (e.g. `feature/x → origin/main`, or `PR #63`.)
 - **Progress** — the headline completion signal, derived from the canonical change set (e.g. "38 of 412 changes left", or a thin progress meter). This number is authoritative and must never look smaller than the real change; design it to feel trustworthy.
-- **Global actions** — the **Go** action (dispatch comments / post to PR) lives here, plus the command-palette affordance (`⌘K`).
+- **Global actions** — the **mark-complete / "done"** action (signals the human is finished, so the agent picks the review up) lives here, plus the command-palette affordance (`⌘K`). There is no "send comments" button: dispatch is the agent's egress, not a human action — comments are already the agent's to collect.
 
 ### Nav pane (left) — the structure
 - A two-level tree: **Chapters** (expandable) containing **Sections**.
 - Each row shows: title, a count of changes, and a **mark state** glyph (unreviewed / done / skipped). Design these three states as instantly distinguishable at a glance — this is the most-scanned surface in the app.
+- **Author tier on marks.** A mark is made by a `human` or an `agent` (e.g. a headless pre-review). Design a quiet **tier badge** so an agent-marked Section reads differently from a human-marked one — the human adjudicates the agent's residue. Agent marks may carry a **reviewer label** (`security`, `architecture`); surface it subtly where several lenses pre-reviewed.
 - Chapters ordered by importance; Sections by relevance. A Section's count and state roll up from its changes.
 - The currently-focused Section is clearly indicated and kept in sync with the diff pane.
 - Needs a satisfying "this whole Chapter is done" state — driving a Chapter to zero should feel rewarding.
@@ -117,11 +118,12 @@ This is **not** a normal file diff. Key rules:
 
 **AI summary.** A Section **and** a Chapter may each be headed by a short, agent-written summary that orients the reviewer before they read the evidence. Design it as a distinct, clearly-labelled **"AI summary"** band — visually secondary to the diff, never styled as authoritative. It's a take-with-a-pinch-of-salt aid, not a verdict; the diff below is the source of truth. It must never look like it *replaces* reading the change. (Architecturally the agent can describe but never alter the diff — see [ADR-0004](adr/0004-agent-untrusted-master-list.md).)
 
-### Chat pane (right) — questions, not comments
-- A conversational panel for questions that aren't line comments: *"is this backwards compatible?", "show me the failure path."*
-- Operates at the **Chapter** level — make the chat's current scope (which Chapter) visible.
-- Distinct from line comments: chat is ephemeral Q&A with the agent; comments are durable, authored output. Don't let them visually blur together.
-- Collapsible; when collapsed, leave a clear way to summon it (key + affordance).
+### Inline answers — questions are comments
+There is **no chat pane**. A question is just a comment phrased as one (*"is this backwards compatible?"*): the agent answers and the answer renders **inline at that line**, beneath the comment.
+
+- Design the answer as a distinct, clearly-secondary block under the comment — **sanitized markdown** (headings, emphasis, code, lists, scheme-restricted links), never authoritative, same "pinch of salt" posture as the AI summary.
+- An answered comment reads as **addressed**; the reviewer can re-raise by commenting again. Make the open → answered → re-raised lifecycle legible at the line.
+- The agent infers from the comment text whether to edit code, answer, or both — there are no intent buttons or categories.
 
 ---
 
@@ -141,20 +143,21 @@ The primary loop. From a focused Section the user can **mark done** (`D`) or **s
 - User focuses a line and starts a comment. Primary input is **voice via OS-level dictation** (the app does *not* build voice capture — the user dictates into a normal focused text field). So: design a clean, focusable comment composer that's pleasant to dictate into and to edit by keyboard.
 - The agent **drafts the comment in the user's voice** from their spoken intent; the user reviews/edits before it's committed. Design the draft → review → accept micro-flow.
 - Show where comments exist: a line with a comment needs a persistent, quiet marker, and a way to expand/collapse the comment thread inline.
+- A comment may be a **question** — the agent's answer renders inline beneath it (see Inline answers). Design the comment → answer → re-raise lifecycle at the line; there is no separate Q&A surface.
 
 ### 3. Navigating the structure
 - Move between Chapters, Sections, change-blocks, and lines entirely by keyboard, with a **single, always-visible focus indicator** that's unambiguous across all three panes.
 - Moving focus in nav drives the diff; moving in the diff updates nav. Keep them coupled and obviously so.
 
 ### 4. Command palette (`⌘K`)
-- A fuzzy-searchable overlay listing **every** action: mark done / skip, comment, open-in-editor, jump to a Chapter or Section by name, switch diff source, toggle panes, Go.
+- A fuzzy-searchable overlay listing **every** action: mark done / skip, comment, open-in-editor, jump to a Chapter or Section by name, switch diff source, toggle nav, mark-complete.
 - Each result shows its **current keyboard shortcut** inline, so the palette teaches the keymap as it's used.
 - Design the empty state (recent / suggested actions) and the typing state (ranked fuzzy matches, including jumping straight to a named Chapter/Section).
 
-### 5. Finishing — "Go"
-- When everything is accounted for, the user triggers **Go**: comments are dispatched (and, for a PR, posted).
-- Design the pre-Go summary (what's about to be sent: N comments, where), the dispatch in-progress state, and the done state.
-- Also design Go when work *isn't* finished (unreviewed Sections remain) — a clear, non-blocking confirmation, not a nag.
+### 5. Finishing — "done"
+- When everything is accounted for, the user signals **done** — the review is complete and the agent may pick it up. There is no human "send": the agent collects the comments over `dispatch` (its sole egress) and composes any file/PR export itself.
+- Design the **all-accounted** summary (N comments, N done, N skipped), the "done" affordance, and the terminal state that invites it.
+- Also design **done when work *isn't* finished** (unreviewed Sections remain) — a clear, non-blocking confirmation, not a nag. The agent will still see what's open via the gap report.
 
 ---
 
@@ -175,8 +178,8 @@ Design every one of these. They are where the app feels finished or cheap:
 
 ## Keyboard & focus model
 
-- **A visible focus ring at all times**, unmistakable across nav / diff / chat. The user should always know what a keypress will act on.
-- **Single-key bindings for the hot path:** next / previous Section (`j`/`k` + arrows), **mark done & advance (`D`)**, **skip (`S`)**, comment, open file, toggle chat, toggle diff mode.
+- **A visible focus ring at all times**, unmistakable across nav and diff. The user should always know what a keypress will act on.
+- **Single-key bindings for the hot path:** next / previous Section (`j`/`k` + arrows), **mark done & advance (`D`)**, **skip (`S`)**, comment, open file, toggle nav, toggle diff mode.
 - **Contextual keys:** the same key does the obvious thing for whatever's focused.
 - **Chords for global actions:** `⌘K` palette, pane toggles, Go.
 - Bindings are **remappable**, and the palette always shows the current binding. Design a simple keyboard-shortcuts reference/cheat-sheet surface (a palette mode or an overlay).
@@ -208,11 +211,11 @@ Define these as a token system (light + dark values), so the build can consume t
 
 ## Deliverables
 
-- High-fidelity mockups of the **3-pane main view**, **light and dark**, at a representative window size — populated with a realistic medium-sized review.
+- High-fidelity mockups of the **2-pane main view**, **light and dark**, at a representative window size — populated with a realistic medium-sized review.
 - The **command palette** (empty + typing states).
-- The **comment composer** (dictating, draft-review, committed-with-thread).
-- Key **states**: loading/grouping, empty diff, all-done, resurfaced-after-change, "Other changes", a **partly-ticked Section**, and the **AI summary** band.
-- The **Go** flow (summary → dispatching → done).
+- The **comment composer** (dictating, draft-review, committed-with-thread) **and an inline answer** beneath a question comment.
+- Key **states**: loading/grouping, empty diff, all-done, resurfaced-after-change, "Other changes", a **partly-ticked Section**, **agent-tier / reviewer-label badges**, and the **AI summary** band.
+- The **done** flow (all-accounted summary → done state).
 - **Split vs unified** diff modes.
 - The **token system** (colour/type/spacing/radii/motion), light + dark.
 - A short **interaction spec** for focus movement and the core keyboard map.

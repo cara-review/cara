@@ -2,12 +2,15 @@
 number: 26-016
 title: Comments, composer, CommentSink port, and Go dispatch
 kind: proposal
-status: active
+status: superseded
+superseded-by: 26-026
 issue: "#14"
 tags: [comments, composer, ports, dispatch, hexagonal]
 ---
 
 # TN-26-016: Comments, composer, CommentSink port, and Go dispatch
+
+> **Superseded by [TN-26-026](TN-26-026-cli-agent-protocol-pivot.md) / [ADR-0011](../adr/0011-cli-agent-protocol.md).** The `CommentSink` port, `ReviewDispatch`/`CommentRecord`/`DispatchReceipt`, and the MarkdownCommentSink leave the core (ADR-0007 superseded-in-part). The **`dispatch` verb is the sole egress**; the UI **Go** control becomes **markComplete**; file/PR export moves to the porcelain, composed from `dispatch` output. The comment model, composer, and atom-hash anchoring survive.
 
 Line commenting end-to-end plus the dispatch target. Proposes a 9th driven port (`CommentSink`) and the composer UI. Background for **ADR-0007** (status: accepted) — approved by owner 2026-06-06 (delegated to coordinator).
 

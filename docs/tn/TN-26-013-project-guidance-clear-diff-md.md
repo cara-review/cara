@@ -2,12 +2,15 @@
 number: 26-013
 title: Project guidance — clear-diff.md → InstructionsSource → AgentPort
 kind: plan
-status: active
+status: superseded
+superseded-by: 26-026
 issue: "#26"
 tags: [guidance, instructions, hexagonal, docs]
 ---
 
 # TN-26-013: Project guidance — clear-diff.md → InstructionsSource → AgentPort
+
+> **Superseded by [TN-26-026](TN-26-026-cli-agent-protocol-pivot.md) / [ADR-0011](../adr/0011-cli-agent-protocol.md).** The guidance layer survives, but two facts here are now stale: the file is **`CLEAR_DIFF.md`** (project root) + **`~/.clear-diff/CLEAR_DIFF.md`** (personal), not `clear-diff.md`/`~/.clear-diff.md`; and it no longer feeds `AgentPort` (gone) — it is merged into the methodology the engine emits on the **`atoms`** verb. Read this for the layered-guidance intent only.
 
 Wire the project-guidance layer end-to-end and author the repo's own guidance file, so the grouping agent takes project guidance into account *before* grouping (concept.md: `~/.clear-diff.md` personal + `clear-diff.md` project).
 

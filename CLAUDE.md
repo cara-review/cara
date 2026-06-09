@@ -38,12 +38,13 @@
 
 # Project
 
-**clear-diff** — a local-first, diff-first conversational code reviewer. The agent reads a whole diff, reorganises it into a navigable structure, and surfaces the right part at the right time. You direct; it writes the comments (voice-first). Bun CLI.
+**clear-diff** — a local-first, completeness-gated code-review **engine**, driven by an external agent over a CLI protocol. The engine runs git, owns the atoms/identity/marks, and is **LLM-free**; the calling agent (Claude Code, Cursor, the session that made the change) supplies the grouping and drives the verbs. Dual-mode: human-in-loop (browser) and autonomous (CLI). Bun CLI.
 
 - `index.js` — dev entry (`bun index.js`). The published `clear-diff` bin is the bundled `dist/index.js` (built by `scripts/pack-dist.ts`); both run the same `cli.ts`.
-- Invocation: `clear-diff` (worktree vs `origin/main`), `clear-diff <base>..<head>`, `clear-diff --pr N` (later).
+- **Verbs (agent-invoked plumbing, no LLM/key):** `atoms` (engine→agent: context + atoms), `present` (agent→engine: grouping → browser), `dispatch [--wait]` (engine→agent: comments + progress), `submit` (agent→engine: dispositions/answers → gap report), `instructions` (self-narrating protocol).
+- **Porcelain:** `clear-diff review` — the bundled LLM wrapper that groups, then drives the verbs. `--headless` (autonomous), `--reviewer <label>` (one labelled lens), `--fake` (stub, no key). The only place an API key is touched.
 
-See [`docs/concept.md`](docs/concept.md) for the full product model. Treat it as the source of intent. Architecture: [`docs/adr/`](docs/adr/) — hexagonal core (0003), agent/master-list security invariant (0004), atom identity (0002), marks persistence (0005).
+See [`docs/concept.md`](docs/concept.md) for the full product model. Treat it as the source of intent. The pivot is [TN-26-026](docs/tn/TN-26-026-cli-agent-protocol-pivot.md) → [ADR-0011](docs/adr/0011-cli-agent-protocol.md). Architecture: [`docs/adr/`](docs/adr/) — hexagonal core (0003), agent/master-list security invariant (0004), atom identity (0002), marks persistence (0005), CLI agent protocol (0011).
 
 ## Core model — two layers, never mixed
 
@@ -62,6 +63,8 @@ Use these terms exactly in code, docs, commits, and conversation:
 - **Chapter** — a major tranche of intent, ordered by importance.
 - **Section** — a curated group of related change within a chapter, ordered by relevance (theme, not git position).
 - **atom** — one git hunk; the indivisible mechanical unit. Internal plumbing — never surface the word "atom" to users; user vocabulary is Chapters and Sections.
+- **author tier** — every mark is `human` or `agent`, inferred from channel (browser ⇒ human, CLI ⇒ agent). **No override** — impersonation is structurally impossible. Agent-tier marks may carry an optional `reviewer` label (e.g. `security`, `architecture`).
+- **comment** — the only interface (no chat pane). Freeform in, structured out; `open` until the atom payload changes or an answer is attached. `dispatch` is the engine's sole egress.
 
 # Documentation
 

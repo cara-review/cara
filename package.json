@@ -1,7 +1,26 @@
 {
   "name": "clear-diff",
   "version": "0.3.0",
-  "description": "Clearance for your code. A Diff 2.0 reviewer.",
+  "description": "A local-first, completeness-gated code-review engine an AI agent drives — the LLM stays outside the trust boundary.",
+  "keywords": [
+    "code-review",
+    "diff",
+    "git",
+    "ai-agent",
+    "llm",
+    "cli",
+    "developer-tools",
+    "local-first",
+    "hexagonal"
+  ],
+  "homepage": "https://github.com/clear-diff/clear-diff#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/clear-diff/clear-diff.git"
+  },
+  "bugs": {
+    "url": "https://github.com/clear-diff/clear-diff/issues"
+  },
   "type": "module",
   "workspaces": [
     "packages/*",

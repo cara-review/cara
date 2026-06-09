@@ -17,16 +17,16 @@ Read the `status` field before treating any TN as authoritative: `active` → au
 | [26-009](TN-26-009-web-shell.md) | Web — app shell, 3-pane layout, nav tree, WS client + state store | plan | active | #11 |
 | [26-010](TN-26-010-web-diff-surface.md) | Web — diff surface, marking, keyboard navigation | plan | active | #12 |
 | [26-011](TN-26-011-e2e-playwright-suite.md) | End-to-end Playwright test suite | plan | active | #22 |
-| [26-012](TN-26-012-anthropic-agent-adapter.md) | Real Claude (Sonnet) AgentPort adapter | plan | active | #18 |
-| [26-013](TN-26-013-project-guidance-clear-diff-md.md) | Project guidance — clear-diff.md → InstructionsSource → AgentPort | plan | active | #26 |
+| [26-012](TN-26-012-anthropic-agent-adapter.md) | Real Claude (Sonnet) AgentPort adapter | plan | superseded (→26-026) | #18 |
+| [26-013](TN-26-013-project-guidance-clear-diff-md.md) | Project guidance — clear-diff.md → InstructionsSource → AgentPort | plan | superseded (→26-026) | #26 |
 | [26-015](TN-26-015-monaco-diff-surface.md) | Monaco-based diff surface | proposal | active | #27 |
-| [26-016](TN-26-016-comments-composer-commentsink-port.md) | Comments, composer, CommentSink port, and Go dispatch | proposal | draft | #14 |
+| [26-016](TN-26-016-comments-composer-commentsink-port.md) | Comments, composer, CommentSink port, and Go dispatch | proposal | superseded (→26-026) | #14 |
 | [26-017](TN-26-017-bun-trpc-toolchain-transport.md) | Bun + tRPC toolchain and transport rework | proposal | active | #23 |
 | [26-018](TN-26-018-diff-surface-toggles.md) | Diff-surface toggles — split/unified and show-all-diffs | plan | active | #16, #28 |
 | [26-019](TN-26-019-command-palette.md) | Web — ⌘K command palette | plan | active | #13 |
 | [26-020](TN-26-020-pane-resize-collapse-persisted-layout.md) | Pane resize / collapse + persisted layout | plan | active | #17 |
 | [26-021](TN-26-021-edge-state-polish.md) | Edge-state polish — connection lifecycle, empty, all-done | plan | active | #19 |
-| [26-022](TN-26-022-chat-pane-chapter-qa.md) | Chat pane — chapter-level Q&A with the agent | proposal | active | #15 |
+| [26-022](TN-26-022-chat-pane-chapter-qa.md) | Chat pane — chapter-level Q&A with the agent | proposal | superseded (→26-026) | #15 |
 | [26-023](TN-26-023-chat-answer-markdown-rendering.md) | Chat answers rendered as a sanitized markdown subset | proposal | active | #37 |
 | [26-024](TN-26-024-cross-runtime-server.md) | Cross-runtime server runtime — Node-portable transport for native npx | proposal | active | #42 |
 | [26-025](TN-26-025-competitive-landscape-and-positioning.md) | Competitive landscape and positioning — agent-grouped, completeness-gated diff review | research | active | #46 |

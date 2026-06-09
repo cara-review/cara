@@ -2,12 +2,15 @@
 number: 26-022
 title: Chat pane — chapter-level Q&A with the agent
 kind: proposal
-status: active
+status: superseded
+superseded-by: 26-026
 issue: "#15"
 tags: [chat, agent, ports, protocol, qa, hexagonal, security]
 ---
 
 # TN-26-022: Chat pane — chapter-level Q&A with the agent
+
+> **Superseded by [TN-26-026](TN-26-026-cli-agent-protocol-pivot.md) / [ADR-0011](../adr/0011-cli-agent-protocol.md).** The pivot removes the chat pane and the in-process `AgentChat` capability entirely (ADR-0009 superseded). Q&A is now just a **comment** — the answer routes back to the calling agent and renders inline at the atom. The Q&A substance survives; the chat surface does not.
 
 Wire the existing chat-pane chrome (`apps/web/src/ui/chat-pane.ts`, currently a disabled placeholder) to real Q&A: the reviewer asks free-form questions scoped to the focused Chapter ("is this backwards compatible?") and the agent answers. Ephemeral, distinct from durable line comments. Background for **ADR-0009** (status: accepted). Approved by owner 2026-06-06, delegated to coordinator (CLAUDE.md › Architecture policy).
 

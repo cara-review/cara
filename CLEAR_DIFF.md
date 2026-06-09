@@ -1,6 +1,6 @@
 # clear-diff — project review guidance
 
-Reviewer guidance for changes to clear-diff itself. Steers how the diff is grouped into Chapters and Sections — what leads, what gets relegated. Project layer; pairs with anyone's personal `~/.clear-diff.md`.
+Reviewer guidance for changes to clear-diff itself. Steers how the diff is grouped into Chapters and Sections — what leads, what gets relegated. Project layer; pairs with anyone's personal `~/.clear-diff/CLEAR_DIFF.md`.
 
 ## Lead with these
 
