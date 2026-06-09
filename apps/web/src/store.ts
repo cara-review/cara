@@ -1,12 +1,11 @@
-// The app state store: the shared foundation the diff surface (#12) builds on. Holds
-// the current snapshot + UI focus, exposes subscribe/notify and the action set, and
-// maps the backend's socket lifecycle to a connection status.
+// The app state store: the foundation the diff surface builds on. Holds the current
+// snapshot + UI focus, exposes subscribe/notify and the action set, and maps the
+// backend's socket lifecycle to a connection status.
 // DOM-free — unit-tested under `bun test` against a fake Backend.
 //
-// Post-pivot (ADR-0011): grouping is pre-supplied by the CLI before the browser boots.
-// The browser loads the review snapshot at boot via a one-shot query (no streaming).
-// Chapters/Sections have no domain id; focus is an index path within the current
-// snapshot (the grouping is fixed for the session by `present`).
+// Grouping is fixed for the session by the CLI `present` verb before the browser boots;
+// the browser loads the review snapshot at boot via a one-shot query (no streaming).
+// Chapters/Sections have no domain id — focus is an index path within the snapshot.
 
 import type { Backend, ConnectionStatus } from "./backend.ts";
 import type { AtomHash, Disposition, FileSide, ReviewContext, ReviewSnapshot } from "./protocol.ts";

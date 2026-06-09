@@ -185,6 +185,18 @@ test("progress breaks down addressed per reviewer label when labels are present"
   );
 });
 
+test("two labels marking the same atom credit the last writer only (one-record-per-atom)", () => {
+  // Marks are last-write-wins per atom, so byReviewer is last-writer attribution — not a
+  // per-lens tally. A multi-reviewer-per-atom model would be a domain change (owner decision).
+  const { marks } = project([
+    { type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: SECURITY },
+    { type: "marked", ts: 2, atomHash: h(0), disposition: "done", author: PERF },
+  ]);
+  const progress = reviewProgress(master, marks);
+  assert.equal(progress.addressed, 1);
+  assert.deepEqual(progress.byReviewer, [{ reviewer: "perf", addressed: 1 }]);
+});
+
 test("byReviewer counts only labelled marks landing on master-list atoms", () => {
   const { marks } = project([
     { type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: SECURITY },

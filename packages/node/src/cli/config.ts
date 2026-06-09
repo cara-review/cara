@@ -1,5 +1,6 @@
-// The porcelain config (`~/.clear-diff/config.toml`, TN-26-026). Read ONLY by the
-// `review` wrapper — the plumbing verbs never see it (decision #7). It selects the
+// The porcelain config (`~/.clear-diff/config.toml`, ADR-0011). Read ONLY by the
+// `review` wrapper — the plumbing verbs (`atoms`/`present`/`dispatch`/`submit`) never
+// read it. It selects the
 // grouping mode, names the LLM provider/model and the env var that *names* the key
 // (never the key itself — keys live in the environment, resolved lazily at the LLM
 // call), and carries the editor command for the core ConfigPort. No silent fallbacks:

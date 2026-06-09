@@ -22,8 +22,5 @@ export type {
   Comment,
   MarkAuthor,
   ReviewProgress,
-  DispatchView,
-  CommentView,
-  OpenItem,
   ReviewSnapshot,
 } from "@clear-diff/core";

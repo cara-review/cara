@@ -1,6 +1,6 @@
 // The `clear-diff` CLI dispatcher (driving adapter, ADR-0011). Parse argv into a typed
 // command and route it to its verb. The agent's whole protocol is these verbs; the bare
-// invocation is the `review` porcelain (axis c, task #6). Transport/composition live in
+// invocation is the `review` porcelain. Transport/composition live in
 // the verb modules — this file only wires argv → verb.
 
 import { homedir } from "node:os";

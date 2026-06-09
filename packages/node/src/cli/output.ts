@@ -1,4 +1,4 @@
-// The self-narrating protocol surface (ADR-0011, TN-26-027 decisions #6/#11). Every
+// The self-narrating protocol surface (ADR-0011). Every
 // verb prints one JSON object to stdout carrying a `next` hint — the agent never needs
 // out-of-band docs, the protocol explains itself. The hints and the `instructions`
 // verb-reference are defined here, the single source, so they version-lock with the
@@ -88,5 +88,6 @@ export const VERB_REFERENCE: string = [
   "",
   "Every verb prints JSON with a `next` hint. Spec defaults to the worktree vs origin/main;",
   "pass --range <base>..<head> for a range. Your submissions are recorded as the agent tier",
-  "(--reviewer <label> to distinguish lenses); the browser human is the human tier.",
+  "(--reviewer <label> to distinguish lenses, or a `reviewer` field in the batch object —",
+  "same lowercase-slug rule); the browser human is the human tier.",
 ].join("\n");

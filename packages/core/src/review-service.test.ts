@@ -281,11 +281,12 @@ test("comment surfaces in the snapshot with a stable id and open status; progres
   assert.equal(snap.progress.addressed, 0);
 });
 
-test("answer attaches to a comment by id and flips it addressed", async () => {
+test("a submitted answer attaches to a comment by id and flips it addressed", async () => {
   const { service } = build();
   const ctx = (await service.presentGrouping(WORKTREE, GOOD_GROUPING)).context;
   await service.comment(ctx, HASH(0), "q", HUMAN);
-  const snap = await service.answer(ctx, "c0", "the answer", AGENT);
+  await service.submit(WORKTREE, { answers: [{ commentId: "c0", answer: "the answer" }] }, AGENT);
+  const snap = await service.snapshot(ctx);
   assert.equal(snap.comments[0]?.answer, "the answer");
   assert.equal(snap.comments[0]?.status, "addressed");
 });

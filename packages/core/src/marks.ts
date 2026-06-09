@@ -150,7 +150,9 @@ export function isSectionComplete(
 /**
  * Progress over the canonical master list (ADR-0004), never the grouping. When agent
  * marks carry reviewer labels (ADR-0011 §6), a per-reviewer addressed breakdown is
- * attached; it is absent entirely when no mark is labelled.
+ * attached; it is absent entirely when no mark is labelled. Marks are one-record-per-atom
+ * (last-write-wins), so an atom dispositioned by two reviewer labels is credited to the
+ * later writer only — the breakdown is last-writer attribution, not a per-lens tally.
  */
 export function reviewProgress(
   masterList: readonly Atom[],

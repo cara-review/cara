@@ -25,8 +25,8 @@ function isAuthor(value: unknown): boolean {
   return tierOk && reviewerOk;
 }
 
-/** The mutating event types that, pre-pivot, lacked an `author` field (Risk seam #1). */
-const AUTHORED_TYPES = new Set(["marked", "unmarked", "commented"]);
+/** Mutating event types that must carry a channel-inferred `author` field. */
+const TYPES_REQUIRING_AUTHOR = new Set(["marked", "unmarked", "commented"]);
 
 function isMarkEvent(value: unknown): value is MarkEvent {
   if (typeof value !== "object" || value === null) return false;
@@ -52,11 +52,11 @@ function isMarkEvent(value: unknown): value is MarkEvent {
   }
 }
 
-/** True when a line is a recognisable pre-pivot event (a known type missing its `author`). */
-function isPrePivotEvent(value: unknown): boolean {
+/** True when a line is a known mutating event that lacks its required `author` field. */
+function isLegacyEventMissingAuthor(value: unknown): boolean {
   if (typeof value !== "object" || value === null) return false;
   const event = value as Record<string, unknown>;
-  return AUTHORED_TYPES.has(event["type"] as string) && !isAuthor(event["author"]);
+  return TYPES_REQUIRING_AUTHOR.has(event["type"] as string) && !isAuthor(event["author"]);
 }
 
 /** SHA-256 of the context string: a stable, filesystem-safe per-review key (ADR-0005). */
@@ -92,11 +92,11 @@ export class JsonlReviewStore implements ReviewStore {
       // surfacing it beats masking lost history (ADR-0005).
       const parsed: unknown = JSON.parse(line);
       if (!isMarkEvent(parsed)) {
-        // A pre-pivot log (no channel-inferred author, Risk seam #1) is not corruption
-        // — it predates the tier contract. Marks are local, gitignored runtime state, so
-        // there is no migration: name the file and tell the user to delete it.
-        if (isPrePivotEvent(parsed)) {
-          throw new Error(`${file}: incompatible review log (pre-pivot format) — delete it and re-review`);
+        // A log whose mutating events lack a channel-inferred author predates the tier
+        // contract — not corruption, just an older format. Marks are local, gitignored
+        // runtime state, so there is no migration: name the file, tell the user to delete it.
+        if (isLegacyEventMissingAuthor(parsed)) {
+          throw new Error(`${file}: incompatible review log (missing author tier) — delete it and re-review`);
         }
         throw new Error(`Corrupt event log line: ${line}`);
       }

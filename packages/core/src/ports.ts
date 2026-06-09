@@ -217,12 +217,6 @@ export interface ReviewService {
     body: string,
     author: MarkAuthor,
   ): Promise<ReviewSnapshot>;
-  answer(
-    context: ReviewContext,
-    commentId: string,
-    body: string,
-    author: MarkAuthor,
-  ): Promise<ReviewSnapshot>;
   /** `submit` (ADR-0011): apply a batch of marks/comments/answers, return the gap report. */
   submit(spec: DiffSpec, batch: SubmitBatch, author: MarkAuthor): Promise<SubmitResult>;
   /**

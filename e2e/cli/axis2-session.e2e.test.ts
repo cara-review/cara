@@ -116,8 +116,8 @@ test("the agent answers an open human comment → it flips to addressed", async 
     const commentId = snap.comments[0]!.id;
     await s.human.done.mutate({ context: s.context });
 
-    // The agent answers over its own channel (agent tier), not the browser WS.
-    await s.backend.service.answer(s.context, commentId, "**Addressed** — guard added.", AGENT);
+    // The agent answers over its own channel — the `submit` verb (agent tier), not the browser WS.
+    await s.backend.service.submit(s.spec, { answers: [{ commentId, answer: "**Addressed** — guard added." }] }, AGENT);
 
     const view = await s.backend.service.dispatch(s.spec);
     const dispatched = view.comments.find((c) => c.id === commentId);

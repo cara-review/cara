@@ -153,16 +153,6 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
       });
     },
 
-    async answer(context, commentId, body, author) {
-      return appendToReview(context, {
-        type: "answered",
-        ts: deps.clock.now(),
-        commentId,
-        body,
-        author,
-      });
-    },
-
     async submit(spec, batch, author) {
       const { context, masterList } = await freshReview(spec);
 

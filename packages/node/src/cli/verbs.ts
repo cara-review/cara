@@ -1,8 +1,8 @@
-// The five agent-facing verbs (ADR-0011, TN-26-027 §b). Each composes the LLM-free
-// backend, drives one use-case, and prints a self-narrating JSON envelope (the
-// `instructions` verb prints plain text). Plumbing only: no grouping/LLM config is ever
-// read here (decision #7), and channel-inferred tiers are set structurally — a CLI
-// `submit` is always the agent tier, never forgeable to human.
+// The five agent-facing verbs (ADR-0011). Each composes the LLM-free backend, drives
+// one use-case, and prints a self-narrating JSON envelope (the `instructions` verb
+// prints plain text). Plumbing only: no grouping/LLM config is ever read here, and
+// channel-inferred tiers are set structurally — a CLI `submit` is always the agent
+// tier, never forgeable to human.
 
 import { homedir } from "node:os";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -89,11 +89,12 @@ export async function runDispatch(cmd: DispatchCommand, ctx: VerbContext): Promi
     return;
   }
 
-  // Seconds → whole milliseconds: the server's `wait` input is integer ms, so a
-  // fractional `--timeout`/`--idle-threshold` must round here, not reach the wire raw.
+  // Seconds → whole milliseconds: the server's `wait` input is a positive integer
+  // ms, so a fractional `--timeout`/`--idle-threshold` must round here, not reach the
+  // wire raw. Floor at 1ms so a sub-millisecond value can't round to 0 and be rejected.
   const opts: { maxBlockMs?: number; idleMs?: number } = {};
-  if (cmd.timeoutS !== null) opts.maxBlockMs = Math.round(cmd.timeoutS * 1000);
-  if (cmd.idleThresholdS !== null) opts.idleMs = Math.round(cmd.idleThresholdS * 1000);
+  if (cmd.timeoutS !== null) opts.maxBlockMs = Math.max(1, Math.round(cmd.timeoutS * 1000));
+  if (cmd.idleThresholdS !== null) opts.idleMs = Math.max(1, Math.round(cmd.idleThresholdS * 1000));
   const result = await callWait(info.url, context, opts);
   if (result.state === "done") {
     emit(ctx.io, { state: "done", context, comments: result.comments, progress: result.progress, next: NEXT.waitDone });

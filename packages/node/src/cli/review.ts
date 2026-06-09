@@ -1,4 +1,4 @@
-// `clear-diff review` — the porcelain (TN-26-027 §c). The bare invocation. It drives the
+// `clear-diff review` — the porcelain (ADR-0011). The bare invocation. It drives the
 // SAME LLM-free plumbing an external agent drives (getAtoms → grouping → present →
 // dispatch/submit), but supplies the one LLM itself. Two modes:
 //
@@ -87,7 +87,9 @@ function resolveLlm(cmd: ReviewCommand, ctx: PorcelainContext, config: Porcelain
   if (ctx.makeLlm) return ctx.makeLlm();
   if (cmd.fake) return new FakeLlm();
   if (config.llm === null) {
-    throw new CliError('grouping.mode = "llm" requires an [llm] block in ~/.clear-diff/config.toml.');
+    throw new CliError(
+      "clear-diff review needs an [llm] block in ~/.clear-diff/config.toml (or pass --fake for the stub).",
+    );
   }
   return new AnthropicLlm({ model: config.llm.model, apiKeyEnv: config.llm.apiKeyEnv });
 }
@@ -117,8 +119,10 @@ async function runHeadless(cmd: ReviewCommand, ctx: PorcelainContext, config: Po
 
   const result = await service.submit(cmd.spec, {}, { tier: "agent", reviewer: null });
   const dispatch = await service.dispatch(cmd.spec);
-  // Per-reviewer comments are attributable precisely (each carries its author label); the
-  // authoritative cross-cutting mark breakdown stays in `progress.byReviewer`.
+  // Per-reviewer comments are attributable precisely (each carries its author label). The
+  // cross-cutting mark breakdown in `progress.byReviewer` credits the *last* reviewer to
+  // disposition each atom — marks are one-record-per-atom, so when two lenses mark the same
+  // atom only the latest label is retained (see marks.reviewProgress).
   emit(ctx.io, {
     context: dispatch.context,
     gap: result.gap,
@@ -238,7 +242,7 @@ async function loadLens(home: string, label: string): Promise<string> {
   }
 }
 
-/** Compose a standalone markdown comment file from the dispatch view (the old CommentSink). */
+/** Compose a standalone markdown comment file from the dispatch view, for the human-in-loop path. */
 async function exportComments(stateDir: string, context: ReviewContext, comments: readonly CommentView[]): Promise<string> {
   const path = join(stateDir, `${contextHash(context)}.comments.md`);
   const body = comments

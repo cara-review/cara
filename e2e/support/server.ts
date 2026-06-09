@@ -98,7 +98,11 @@ export function bootWithAnsweredComment(repoDir: string, range: string): Promise
     const commentId = snap.comments[0]?.id;
     if (commentId !== undefined) {
       const agentAuthor: MarkAuthor = { tier: "agent", reviewer: null };
-      await backend.service.answer(context, commentId, "**Addressed** — guard added in the next commit.", agentAuthor);
+      await backend.service.submit(
+        parseSpec(range),
+        { answers: [{ commentId, answer: "**Addressed** — guard added in the next commit." }] },
+        agentAuthor,
+      );
     }
   });
 }

@@ -94,14 +94,14 @@ test("load throws on a structurally invalid event (missing disposition)", async 
   await assert.rejects(new JsonlReviewStore(dir).load(context), /Corrupt event log line/);
 });
 
-test("a pre-pivot log (no author) is a hard error naming the file, not silent corruption", async () => {
+test("a legacy log (no author) is a hard error naming the file, not silent corruption", async () => {
   const dir = await mkdtemp(join(tmpdir(), "clear-diff-store-"));
   const context = ctx("worktree:feature/x");
   // The old format: a marked event with no `author` field.
   await writeFile(fileFor(dir, context), `${JSON.stringify({ type: "marked", ts: 1, atomHash: "a", disposition: "done" })}\n`, "utf8");
   await assert.rejects(
     new JsonlReviewStore(dir).load(context),
-    /incompatible review log \(pre-pivot format\) — delete it and re-review/,
+    /incompatible review log \(missing author tier\) — delete it and re-review/,
   );
 });
 
@@ -110,5 +110,5 @@ test("a marked event with a malformed author is rejected", async () => {
   const context = ctx("worktree:feature/x");
   const line = JSON.stringify({ type: "marked", ts: 1, atomHash: "a", disposition: "done", author: { tier: "ghost", reviewer: null } });
   await writeFile(fileFor(dir, context), `${line}\n`, "utf8");
-  await assert.rejects(new JsonlReviewStore(dir).load(context), /pre-pivot format/);
+  await assert.rejects(new JsonlReviewStore(dir).load(context), /missing author tier/);
 });

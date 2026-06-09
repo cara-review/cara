@@ -25,7 +25,6 @@ function stubDeps(service?: ReviewService): RpcDeps {
     mark: unused,
     unmark: unused,
     comment: unused,
-    answer: unused,
     submit: unused,
     dispatch: unused,
     markComplete: unused,

@@ -1,4 +1,4 @@
-// The detached browser server (TN-26-027 §b). `present --open` spawns this as a
+// The detached browser server (ADR-0011). `present --open` spawns this as a
 // separate, long-lived process so the verb itself returns promptly while the human's
 // browser session keeps running. The child re-composes the LLM-free backend, replays
 // the persisted grouping to cache the review, boots the localhost server, and writes

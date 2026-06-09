@@ -1,4 +1,4 @@
-// The `dispatch --wait` client (TN-26-027 §b). Connects to the running browser server
+// The `dispatch --wait` client (ADR-0011). Connects to the running browser server
 // over its WebSocket and calls the `wait` procedure, which blocks server-side until the
 // review settles into one of three states. Transport lives here, off the verb path, so
 // the verb logic stays synchronous data-shuffling. The server, not the client, owns the

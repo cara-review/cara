@@ -40,7 +40,7 @@ roadmap.
 | `ReviewStore` | persist marks / comments / grouping per context | fs JSON (→ sqlite) |
 | `EditorPort` | open file at line | spawn `code`/`zed` |
 | `ConfigPort` | editor cmd, prefs | fs / env |
-| `InstructionsSource` | load `clear-diff.md` (personal + project) | fs |
+| `InstructionsSource` | load `CLEAR_DIFF.md` (personal + project) | fs |
 | `ClockPort` | timestamps | system / fixed |
 
 `LoggerPort` deferred — retrofit if it ever earns its keep. Rule for adding a port: a

@@ -1,4 +1,4 @@
-// Server discovery (TN-26-027 §b). `present` boots a detached, long-lived server for
+// Server discovery (ADR-0011). `present` boots a detached, long-lived server for
 // the human's browser; a later `dispatch --wait` in a fresh process must find it to
 // observe live activity. The boot writes `<stateDir>/<contextHash>.server.json`; the
 // server deletes it on close. A missing file, or a file whose pid is dead, means there

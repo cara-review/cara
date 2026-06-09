@@ -70,7 +70,6 @@ function isContainedRepoPath(value: string): boolean {
 
 const contextSchema = z.string().refine((s) => s.trim() !== "", "context must not be empty");
 const atomHashSchema = z.string().min(1, "atomHash must not be empty");
-const commentIdSchema = z.string().min(1, "commentId must not be empty");
 const dispositionSchema = z.enum(["done", "skipped"]);
 const sideSchema = z.enum(["base", "head"]);
 const repoPathSchema = z
@@ -117,17 +116,10 @@ export function createAppRouter(deps: RpcDeps) {
       }),
 
     comment: t.procedure
-      .input(z.object({ context: contextSchema, atomHash: atomHashSchema, body: z.string() }))
+      .input(z.object({ context: contextSchema, atomHash: atomHashSchema, body: z.string().min(1, "comment body must not be empty") }))
       .mutation(({ input, ctx }) => {
         deps.activity.touch();
         return deps.service.comment(reviewContext(input.context), input.atomHash as AtomHash, input.body, ctx.author);
-      }),
-
-    answer: t.procedure
-      .input(z.object({ context: contextSchema, commentId: commentIdSchema, body: z.string() }))
-      .mutation(({ input, ctx }) => {
-        deps.activity.touch();
-        return deps.service.answer(reviewContext(input.context), input.commentId, input.body, ctx.author);
       }),
 
     /**

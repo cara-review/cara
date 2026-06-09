@@ -2,9 +2,9 @@
 // one WebSocket. `Backend` abstracts it so the AppStore unit-tests against a fake (no
 // real socket). The `AppRouter` type is imported type-only from the node contract —
 // end-to-end type safety from one source of truth, with zero node runtime in the bundle.
-// Post-pivot (ADR-0011): grouping is pre-supplied by the CLI before the browser boots,
-// so `snapshot` is a one-shot query (not a subscription). The browser loads it at boot
-// and mutations return fresh snapshots.
+// Grouping is pre-supplied by the CLI (`present` verb) before the browser boots, so
+// `snapshot` is a one-shot query (not a subscription): the browser loads it at boot and
+// mutations return fresh snapshots.
 
 import { createTRPCClient, createWSClient, wsLink } from "@trpc/client";
 import type { AppRouter } from "@clear-diff/node/contract";

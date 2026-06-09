@@ -1,4 +1,4 @@
-// A deterministic PorcelainLlm stub for `--fake` and tests (TN-26-027 §c). No network,
+// A deterministic PorcelainLlm stub for `--fake` and tests (ADR-0011). No network,
 // no key. It groups every change into one section, accounts for every change in a lens
 // pass (so the gap report converges), and returns a canned answer — enough to exercise
 // the full wrapper loop offline.

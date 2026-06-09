@@ -55,10 +55,6 @@ function fakeService(calls: string[]): ReviewService {
       calls.push(`comment:${context}:${atomHash}:${body}:${author.tier}`);
       return snapshot(context);
     },
-    answer: async (context, commentId, body, author) => {
-      calls.push(`answer:${context}:${commentId}:${body}:${author.tier}`);
-      return snapshot(context);
-    },
     submit: unused,
     dispatch: async (spec) => {
       calls.push(`dispatch:${spec.kind}`);
@@ -103,12 +99,6 @@ test("mark stamps the channel-inferred human tier — no input can forge it", as
   const calls: string[] = [];
   await caller(calls).mark({ context: "feature/x", atomHash: "abc", disposition: "done" });
   assert.deepEqual(calls, ["mark:feature/x:abc:done:human/null"]);
-});
-
-test("answer threads commentId + body with the human tier", async () => {
-  const calls: string[] = [];
-  await caller(calls).answer({ context: "c", commentId: "c0", body: "addressed" });
-  assert.deepEqual(calls, ["answer:c:c0:addressed:human"]);
 });
 
 test("done marks the context complete and flips the activity flag", async () => {
