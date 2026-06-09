@@ -125,6 +125,8 @@ Subsumes `AppConfig.groupingModel`; becomes the `ConfigPort` source. Instruction
 
 `clear-diff gate` / risk tiers · RCR artifact + verifier · standing/cross-context store · fleet mode · MCP adapter · lens fan-out. The pivot must not preclude them; the event-log + tier substrate is exactly what they build on.
 
+**Accepted (owner ruling, 2026-06-10):** `progress.byReviewer` is last-writer attribution — the fold keeps one mark per atom, so overlapping lenses credit the later label. The event log retains every lens's mark, so per-lens progress is derivable later without schema change; proper multi-lens accounting ships with the lens-fanout/gate TN.
+
 ## Implementation sketch (post-approval)
 
 1. Core: mark-event author tier; comment `open|addressed` derivation; grouping-inbound use-case split (`atoms`-equivalent / `present`-equivalent on `ReviewService`); remove `AgentPort`/`AgentChat` from `ReviewServiceDeps`.
