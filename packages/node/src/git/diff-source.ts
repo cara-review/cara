@@ -22,9 +22,12 @@ const DIFF_FLAGS = ["-c", "core.quotePath=false", "diff", "-U0", "--histogram", 
 function diffArgs(spec: DiffSpec): string[] {
   const { base, head } = refsForSpec(spec); // throws for pr
   if (base.kind !== "rev") throw new Error("diff base must be a revision");
+  // `--end-of-options` seals the boundary: a ref can never be read as a git
+  // flag (e.g. `--output=…` writing an arbitrary file). Refs are also
+  // dash-rejected at parse time; this is the structural backstop.
   return head.kind === "worktree"
-    ? [...DIFF_FLAGS, base.rev]
-    : [...DIFF_FLAGS, base.rev, head.rev];
+    ? [...DIFF_FLAGS, "--end-of-options", base.rev]
+    : [...DIFF_FLAGS, "--end-of-options", base.rev, head.rev];
 }
 
 export class GitDiffSource implements DiffSource {

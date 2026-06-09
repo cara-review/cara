@@ -31,7 +31,7 @@ export class GitWorkspaceReader implements WorkspaceReader {
       }
     }
     try {
-      return await runGit(["show", `${ref.rev}:${path}`], this.#cwd);
+      return await runGit(["show", "--end-of-options", `${ref.rev}:${path}`], this.#cwd);
     } catch (err) {
       // git exits non-zero when the path is absent at that revision; a spawn
       // failure (git missing, not a repo) has no exit code and must surface.

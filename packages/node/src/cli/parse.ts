@@ -1,4 +1,4 @@
-// argv → a typed command (ADR-0011, TN-26-027 §b). The CLI is the agent's whole
+// argv → a typed command (ADR-0011). The CLI is the agent's whole
 // protocol surface: four plumbing verbs (`atoms`/`present`/`dispatch`/`submit`),
 // the `instructions` reference, the `review` porcelain (bare invocation), and the
 // internal `serve` boot the `present` verb spawns. Parsing is pure — no IO, no
@@ -120,6 +120,11 @@ function parseSpec(arg: string | undefined): DiffSpec {
   if (parts.length !== 2 || base === "" || head === "" || base.endsWith(".") || head.startsWith(".")) {
     throw new CliError(`Invalid range "${arg}". Use <base>..<head>.`);
   }
+  // A git revision never starts with a dash; reject so a ref can't be smuggled
+  // in as a git flag (arg injection) before it reaches the diff invocation.
+  if (base.startsWith("-") || head.startsWith("-")) {
+    throw new CliError(`Invalid range "${arg}". A revision cannot start with "-".`);
+  }
   return { kind: "range", base, head };
 }
 
@@ -228,7 +233,7 @@ export function parseCommand(argv: readonly string[]): Command {
     }
     default:
       // Explicit `clear-diff review …`, or a bare `clear-diff [<base>..<head>]` → the
-      // porcelain (axis c). `args` already drops a leading `review` verb token.
+      // porcelain. `args` already drops a leading `review` verb token.
       return parseReview(args);
   }
 }

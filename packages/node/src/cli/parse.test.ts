@@ -86,6 +86,17 @@ test("--range threads a range through present/dispatch/submit", () => {
   assert.deepEqual(dispatch.verb === "dispatch" && dispatch.spec, { kind: "range", base: "a", head: "b" });
 });
 
+test("a range side starting with '-' is rejected (git arg injection, CWE-88)", () => {
+  // Without the guard, `--output=…` would reach `git diff` as a real flag and write a file.
+  assert.throws(() => parseCommand(["atoms", "--range", "--output=/tmp/pwn..HEAD"]), /cannot start with "-"/);
+  assert.throws(() => parseCommand(["dispatch", "--range", "HEAD..-O/tmp/pwn"]), /cannot start with "-"/);
+  // A legitimate range is unaffected.
+  assert.deepEqual(parseCommand(["atoms", "main..feature"]), {
+    verb: "atoms",
+    spec: { kind: "range", base: "main", head: "feature" },
+  });
+});
+
 test("dispatch flags: --wait plus second-granularity thresholds", () => {
   assert.deepEqual(parseCommand(["dispatch"]), {
     verb: "dispatch",
