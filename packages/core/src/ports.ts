@@ -120,7 +120,12 @@ export interface SubmitBatch {
 /** Completeness accounting over the master list: every atom must carry a disposition or a comment. */
 export interface GapReport {
   readonly total: number;
-  /** Atoms with a disposition OR a comment. */
+  /**
+   * Gap-closed: atoms with a disposition OR a comment. Wider than
+   * `ReviewProgress.addressed` (disposition only) — a comment-only atom is accounted
+   * but still unaddressed. Counted by atom hash, so identical hunks (shared hash) are
+   * accounted together (ADR-0002 identity).
+   */
   readonly accounted: number;
   readonly missing: readonly {
     readonly atomHash: AtomHash;
@@ -180,6 +185,17 @@ export interface ReviewSnapshot {
  * the use-cases. The agent is a driving actor over a CLI (ADR-0011); grouping
  * arrives inbound. Mutations return a fresh snapshot for the browser to re-render;
  * the agent verbs (`getAtoms`/`dispatch`/`submit`) return their own view shapes.
+ *
+ * Provenance invariant (ADR-0011 §5): `author` is set by the *adapter from its
+ * channel* — a browser session ⇒ `human`, a CLI invocation ⇒ `agent` — never from
+ * caller- or payload-supplied data. Core trusts the channel, not the request; an
+ * adapter must never thread a request-supplied tier through. Adding a channel concept
+ * to core would itself be a boundary leak, so the obligation lives at the adapter.
+ *
+ * `commentId` (ordinal `c0`/`c1`…) is stable only within a serialized append stream
+ * for a context (ADR-0005 makes marks order-independent, but comment ids are ordinal).
+ * Concurrent writers to one context must serialize their appends, or re-read ids
+ * before answering, so an `answer` cannot mis-target a comment it never saw.
  */
 export interface ReviewService {
   /** `atoms` (ADR-0011): master list + merged methodology + carried-over open items. No grouping. */
@@ -209,8 +225,13 @@ export interface ReviewService {
   ): Promise<ReviewSnapshot>;
   /** `submit` (ADR-0011): apply a batch of marks/comments/answers, return the gap report. */
   submit(spec: DiffSpec, batch: SubmitBatch, author: MarkAuthor): Promise<SubmitResult>;
-  /** `dispatch` (ADR-0011): every located comment with lifecycle + author, recomputed from spec. */
-  dispatch(context: ReviewContext, spec: DiffSpec): Promise<DispatchView>;
+  /**
+   * `dispatch` (ADR-0011): every located comment with lifecycle + author, recomputed
+   * from git. Context is derived from `spec` (one source of identity) — there is no
+   * separate context param, so a comment's events and atoms can never key off
+   * mismatched reviews.
+   */
+  dispatch(spec: DiffSpec): Promise<DispatchView>;
   /** The human "done reviewing" signal (ADR-0011 §4) — flips `dispatch --wait` to done. */
   markComplete(context: ReviewContext): Promise<void>;
   openInEditor(path: string, line: number): Promise<void>;

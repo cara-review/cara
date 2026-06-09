@@ -380,7 +380,7 @@ test("submit answers attach to comments made earlier in the same batch", async (
     },
     AGENT,
   );
-  const view = await service.dispatch(reviewContext("ctx"), WORKTREE);
+  const view = await service.dispatch(WORKTREE);
   assert.equal(view.comments[0]?.answer, "a");
   assert.equal(view.comments[0]?.status, "addressed");
 });
@@ -403,12 +403,29 @@ test("label-less agent marks produce no per-reviewer breakdown", async () => {
   assert.equal("byReviewer" in result.progress, false);
 });
 
+// Byte-identical hunks collapse to one hash (ADR-0002 identity) but stay distinct list
+// entries (surface area counted in full, master-list.ts). Marks are hash-keyed and cannot
+// disposition occurrences independently, so addressing the content accounts every
+// occurrence — the only coherent rule. `total` still counts both; accounting credits both.
+test("a mark on duplicated content accounts every occurrence of that content", async () => {
+  const DUP: readonly RawHunk[] = [hunk("a.ts", "x"), hunk("a.ts", "x"), hunk("b.ts", "y")];
+  const dupHash = hashAtom(DUP[0]!); // == hashAtom(DUP[1]!)
+  const yHash = hashAtom(DUP[2]!);
+  const { service } = build({ hunks: DUP });
+
+  const result = await service.submit(WORKTREE, { marks: [{ atomHash: dupHash, disposition: "done" }] }, AGENT);
+  assert.equal(result.gap.total, 3); // both copies counted in the surface area
+  assert.equal(result.gap.accounted, 2); // one mark addresses the content in both copies
+  assert.deepEqual(result.gap.missing, [{ atomHash: yHash, path: "b.ts", lineRange: { start: 1, count: 1 } }]);
+  assert.equal(result.progress.addressed, 2); // progress agrees — content-identity throughout
+});
+
 // --- dispatch (agent read) --------------------------------------------------
 
 test("dispatch returns located comments with lifecycle, tier and reviewer label", async () => {
   const { service } = build();
   await service.submit(WORKTREE, { comments: [{ atomHash: HASH(0), body: "tighten this" }] }, SECURITY);
-  const view = await service.dispatch(reviewContext("ctx"), WORKTREE);
+  const view = await service.dispatch(WORKTREE);
   assert.deepEqual(view.comments, [
     {
       id: "c0",
@@ -429,14 +446,14 @@ test("dispatch drops a comment whose atom is gone (addressed-by-edit, no live lo
   const ctx = reviewContext("ctx");
   await store.append(ctx, { type: "commented", ts: 1, atomHash: "gone" as AtomHash, body: "stale", author: HUMAN });
   await service.submit(WORKTREE, { comments: [{ atomHash: HASH(1), body: "live" }] }, HUMAN);
-  const view = await service.dispatch(ctx, WORKTREE);
+  const view = await service.dispatch(WORKTREE);
   assert.deepEqual(view.comments.map((c) => c.body), ["live"]);
 });
 
 test("dispatch reports full progress over the master list", async () => {
   const { service } = build();
   await service.submit(WORKTREE, { marks: [{ atomHash: HASH(0), disposition: "done" }] }, AGENT);
-  const view = await service.dispatch(reviewContext("ctx"), WORKTREE);
+  const view = await service.dispatch(WORKTREE);
   assert.deepEqual(view.progress, { total: 3, addressed: 1, unaddressed: 2 });
 });
 

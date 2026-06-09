@@ -18,6 +18,7 @@ import type {
   ClockPort,
   CommentView,
   DiffSource,
+  DiffSpec,
   EditorPort,
   GapReport,
   InstructionsSource,
@@ -72,6 +73,22 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     return review;
   }
 
+  /**
+   * The stateless recompute the agent verbs (`getAtoms`/`presentGrouping`/`submit`/
+   * `dispatch`) share: resolve the context and rebuild the canonical master list from
+   * git. Deterministic across processes (ADR-0002), so each verb is self-contained and
+   * one source of identity drives both the event log (context) and the atoms (spec).
+   */
+  async function freshReview(
+    spec: DiffSpec,
+  ): Promise<{ context: ReviewContext; masterList: readonly Atom[] }> {
+    const [rawHunks, context] = await Promise.all([
+      deps.diffSource.diff(spec),
+      deps.diffSource.resolveContext(spec),
+    ]);
+    return { context, masterList: buildMasterList(rawHunks) };
+  }
+
   /** Append a mutating event to the live log and return the refreshed browser snapshot. */
   async function appendToReview(
     context: ReviewContext,
@@ -84,8 +101,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
 
   return {
     async getAtoms(spec) {
-      const masterList = buildMasterList(await deps.diffSource.diff(spec));
-      const context = await deps.diffSource.resolveContext(spec);
+      const { context, masterList } = await freshReview(spec);
       const methodology = buildMethodology(await deps.instructions.load());
       const state = project(await deps.store.load(context));
 
@@ -103,8 +119,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     },
 
     async presentGrouping(spec, grouping) {
-      const masterList = buildMasterList(await deps.diffSource.diff(spec));
-      const context = await deps.diffSource.resolveContext(spec);
+      const { context, masterList } = await freshReview(spec);
       const review = repairGrouping(masterList, grouping);
       reviews.set(context, review);
       return buildSnapshot(context, review);
@@ -149,8 +164,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     },
 
     async submit(spec, batch, author) {
-      const masterList = buildMasterList(await deps.diffSource.diff(spec));
-      const context = await deps.diffSource.resolveContext(spec);
+      const { context, masterList } = await freshReview(spec);
 
       for (const m of batch.marks ?? []) {
         await deps.store.append(context, {
@@ -184,8 +198,8 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
       return { gap: buildGapReport(masterList, state), progress: reviewProgress(masterList, state.marks) };
     },
 
-    async dispatch(context, spec) {
-      const masterList = buildMasterList(await deps.diffSource.diff(spec));
+    async dispatch(spec) {
+      const { context, masterList } = await freshReview(spec);
       const state = project(await deps.store.load(context));
       const masterHashes = hashSet(masterList);
       const byHash = atomsByHash(masterList);
@@ -239,7 +253,16 @@ function toOpenItem(comment: Comment, atom: Atom, status: "open" | "addressed"):
   };
 }
 
-/** Completeness over the master list (ADR-0011): an atom is accounted by a disposition or a comment. */
+/**
+ * Completeness over the master list (ADR-0011): an atom is accounted by a disposition
+ * OR a comment. This is wider than `ReviewProgress.addressed` (disposition only) — a
+ * comment-only atom is accounted (gap-closed) yet still unaddressed (not dispositioned).
+ *
+ * Accounting is by atom hash (ADR-0002 identity): when byte-identical hunks share a
+ * hash, addressing the content accounts every occurrence — marks are hash-keyed and
+ * cannot disposition occurrences independently, so content-identity is the only coherent
+ * rule. `total` still counts every occurrence (master-list surface area, ADR-0004).
+ */
 function buildGapReport(masterList: readonly Atom[], state: ReviewState): GapReport {
   const commented = new Set<AtomHash>(state.comments.map((comment) => comment.atomHash));
   const missing: GapReport["missing"][number][] = [];

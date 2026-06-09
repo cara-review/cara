@@ -38,12 +38,14 @@ export const SYSTEM_METHODOLOGY: string = [
 
 /**
  * Merge the canonical methodology with the project (CLEAR_DIFF.md) and personal
- * reviewer guidance, in that precedence order. Pure text assembly — the version is
- * carried alongside as `METHODOLOGY_VERSION`, never interpreted from the prose.
+ * instructions, in that precedence order. "instructions" (not "reviewer guidance") to
+ * avoid colliding with the ADR-0011 §6 `reviewer` label, since this text is emitted
+ * verbatim to the agent. Pure text assembly — the version is carried alongside as
+ * `METHODOLOGY_VERSION`, never interpreted from the prose.
  */
 export function buildMethodology(instructions: ReviewInstructions): string {
   const parts: string[] = [SYSTEM_METHODOLOGY];
-  if (instructions.project) parts.push(`Project reviewer guidance:\n${instructions.project.trim()}`);
-  if (instructions.personal) parts.push(`Personal reviewer guidance:\n${instructions.personal.trim()}`);
+  if (instructions.project) parts.push(`Project instructions:\n${instructions.project.trim()}`);
+  if (instructions.personal) parts.push(`Personal instructions:\n${instructions.personal.trim()}`);
   return parts.join("\n\n");
 }
