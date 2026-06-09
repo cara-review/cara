@@ -5,7 +5,9 @@
 
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import { resolve } from "node:path";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { makeTestRepo } from "../git/test-repo.ts";
 
 const BIN = resolve(import.meta.dir, "../../../../index.js");
@@ -16,9 +18,10 @@ interface Run {
   readonly err: string;
 }
 
-async function runBin(args: string[], cwd: string, input?: string): Promise<Run> {
+async function runBin(args: string[], cwd: string, input?: string, env?: Record<string, string | undefined>): Promise<Run> {
   const proc = Bun.spawn(["bun", BIN, ...args], {
     cwd,
+    ...(env ? { env } : {}),
     stdin: input === undefined ? "ignore" : new TextEncoder().encode(input),
     stdout: "pipe",
     stderr: "pipe",
@@ -75,6 +78,43 @@ test("the headless loop converges over the spawned bin", async () => {
     assert.match(instructions.out, /clear-diff atoms/);
   } finally {
     await repo.cleanup();
+  }
+}, 30_000);
+
+test("the headless multi-reviewer porcelain converges over the spawned bin with the stub LLM", async () => {
+  const repo = await makeTestRepo();
+  const home = await mkdtemp(join(tmpdir(), "clear-diff-e2e-home-"));
+  try {
+    await mkdir(join(home, ".clear-diff"), { recursive: true });
+    await writeFile(
+      join(home, ".clear-diff", "config.toml"),
+      `[grouping]\nmode = "llm"\n[llm]\nprovider="anthropic"\nmodel="m"\napi_key_env="ANTHROPIC_API_KEY"\n`,
+    );
+    await repo.write("a.ts", "one\n");
+    const baseSha = await repo.commit("base");
+    await repo.write("a.ts", "one\ntwo\n");
+    const head = await repo.commit("edit");
+    const range = `${baseSha}..${head}`;
+
+    // --fake drives the stub LLM (no network, no key needed); HOME points at the temp config.
+    const review = await runBin(["review", "--headless", "--reviewer", "security", "--fake", "--range", range], repo.dir, undefined, {
+      ...process.env,
+      HOME: home,
+    });
+    assert.equal(review.code, 0, review.err);
+    const out = JSON.parse(review.out) as {
+      gap: { total: number; missing: unknown[] };
+      reviewers: { reviewer: string; comments: unknown[] }[];
+    };
+    assert.equal(out.gap.missing.length, 0);
+    assert.deepEqual(
+      out.reviewers.map((r) => r.reviewer),
+      ["security"],
+    );
+    assert.ok(out.reviewers[0]!.comments.length >= 1);
+  } finally {
+    await repo.cleanup();
+    await rm(home, { recursive: true, force: true });
   }
 }, 30_000);
 

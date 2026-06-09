@@ -48,6 +48,12 @@ export interface InstructionsCommand {
 export interface ReviewCommand {
   readonly verb: "review";
   readonly spec: DiffSpec;
+  /** Autonomous multi-reviewer mode (no browser). Implied when `--reviewer` is given. */
+  readonly headless: boolean;
+  /** Reviewer lenses for headless mode; empty = the shipped defaults. */
+  readonly reviewers: readonly string[];
+  /** Drive the deterministic stub LLM (tests / offline) instead of a real provider. */
+  readonly fake: boolean;
 }
 /** Internal: the long-lived server `present` spawns (not advertised to agents). */
 export interface ServeCommand {
@@ -205,11 +211,43 @@ export function parseCommand(argv: readonly string[]): Command {
         openBrowser: flags.bool.has("open-browser"),
       };
     }
-    default: {
-      // Bare `clear-diff` or `clear-diff <base>..<head>` → the porcelain (axis c).
-      const flags = splitFlags(argv, new Set());
-      if (flags.positional.length > 1) throw new CliError("Expected a single <base>..<head> argument.");
-      return { verb: "review", spec: parseSpec(flags.positional[0]) };
-    }
+    default:
+      // Explicit `clear-diff review …`, or a bare `clear-diff [<base>..<head>]` → the
+      // porcelain (axis c). `args` already drops a leading `review` verb token.
+      return parseReview(args);
   }
+}
+
+/**
+ * The porcelain's argv grammar. `--reviewer` repeats (one per lens), so it is parsed
+ * by hand rather than through `splitFlags` (whose value map keeps only the last).
+ */
+function parseReview(argv: readonly string[]): ReviewCommand {
+  const positional: string[] = [];
+  const reviewers: string[] = [];
+  let headless = false;
+  let fake = false;
+  let range: string | undefined;
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i] as string;
+    if (!arg.startsWith("--")) {
+      positional.push(arg);
+      continue;
+    }
+    const name = arg.slice(2);
+    if (name === "headless") headless = true;
+    else if (name === "fake") fake = true;
+    else if (name === "reviewer" || name === "range") {
+      const value = argv[++i];
+      if (value === undefined) throw new CliError(`Option --${name} needs a value.`);
+      if (name === "reviewer") {
+        // The label names a lens file (`~/.clear-diff/reviewers/<label>.md`); keep it to a
+        // safe slug so it can never escape that directory.
+        if (!/^[a-z0-9-]+$/.test(value)) throw new CliError("--reviewer must be a lowercase slug (a-z, 0-9, -).");
+        reviewers.push(value);
+      } else range = value;
+    } else throw new CliError(`Unknown option: --${name}`);
+  }
+  if (positional.length > 1) throw new CliError("Expected a single <base>..<head> argument.");
+  return { verb: "review", spec: parseSpec(positional[0] ?? range), headless, reviewers, fake };
 }

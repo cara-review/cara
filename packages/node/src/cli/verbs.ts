@@ -27,6 +27,8 @@ import { callWait } from "./wait.ts";
 export interface VerbContext {
   readonly cwd: string;
   readonly stateDir: string;
+  /** Home directory for the porcelain config + reviewer lenses (injected in tests). */
+  readonly home: string;
   readonly io: CliIo;
   readonly config?: ConfigPort;
   readonly clock?: ClockPort;

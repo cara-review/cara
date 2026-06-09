@@ -166,10 +166,11 @@ test("instructions prints the methodology plus the verb reference, as plain text
   }
 });
 
-test("the bare review porcelain is not wired yet and says so loudly", async () => {
+test("the bare review porcelain fails loudly when no config exists", async () => {
   const repo = await makeTestRepo();
   try {
-    await assert.rejects(runCli([], { ...deps(repo), io: capture().io }), /not wired yet/);
+    // Point home at an empty dir so no config.toml is found; the error pastes a sample.
+    await assert.rejects(runCli([], { ...deps(repo), home: repo.dir, io: capture().io }), /No clear-diff config/);
   } finally {
     await repo.cleanup();
   }

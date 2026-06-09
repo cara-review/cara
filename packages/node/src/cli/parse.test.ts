@@ -3,14 +3,43 @@ import assert from "node:assert/strict";
 import { CliError, parseCommand } from "./parse.ts";
 
 test("bare invocation is the review porcelain over the worktree", () => {
-  assert.deepEqual(parseCommand([]), { verb: "review", spec: { kind: "worktree" } });
+  assert.deepEqual(parseCommand([]), {
+    verb: "review",
+    spec: { kind: "worktree" },
+    headless: false,
+    reviewers: [],
+    fake: false,
+  });
 });
 
 test("a leading range is the porcelain over that range", () => {
   assert.deepEqual(parseCommand(["main..feature"]), {
     verb: "review",
     spec: { kind: "range", base: "main", head: "feature" },
+    headless: false,
+    reviewers: [],
+    fake: false,
   });
+});
+
+test("review collects repeated --reviewer lenses and the headless / fake flags", () => {
+  assert.deepEqual(parseCommand(["--headless", "--reviewer", "security", "--reviewer", "architecture", "--fake"]), {
+    verb: "review",
+    spec: { kind: "worktree" },
+    headless: true,
+    reviewers: ["security", "architecture"],
+    fake: true,
+  });
+});
+
+test("review rejects an unknown option and a dangling --reviewer", () => {
+  assert.throws(() => parseCommand(["--bogus"]), /Unknown option/);
+  assert.throws(() => parseCommand(["--reviewer"]), /needs a value/);
+});
+
+test("review rejects a non-slug --reviewer (no path traversal into the lens directory)", () => {
+  assert.throws(() => parseCommand(["--reviewer", "../../etc/passwd"]), /lowercase slug/);
+  assert.throws(() => parseCommand(["--reviewer", "Security"]), /lowercase slug/);
 });
 
 test("atoms defaults to the worktree and accepts a range positional", () => {
