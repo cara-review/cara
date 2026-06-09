@@ -29,3 +29,4 @@ Read the `status` field before treating any TN as authoritative: `active` → au
 | [26-022](TN-26-022-chat-pane-chapter-qa.md) | Chat pane — chapter-level Q&A with the agent | proposal | active | #15 |
 | [26-023](TN-26-023-chat-answer-markdown-rendering.md) | Chat answers rendered as a sanitized markdown subset | proposal | active | #37 |
 | [26-024](TN-26-024-cross-runtime-server.md) | Cross-runtime server runtime — Node-portable transport for native npx | proposal | active | #42 |
+| [26-025](TN-26-025-competitive-landscape-and-positioning.md) | Competitive landscape and positioning — agent-grouped, completeness-gated diff review | research | active | #46 |
