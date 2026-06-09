@@ -12,14 +12,13 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.70.1",
     "@clear-diff/core": "*",
+    "@trpc/client": "^11",
     "@trpc/server": "^11",
     "ws": "^8.18.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@trpc/client": "^11",
     "@types/ws": "^8.5.13"
   },
   "license": "MIT"

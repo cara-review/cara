@@ -4,76 +4,80 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { createTRPCClient, createWSClient, wsLink } from "@trpc/client";
-import type { ReviewService, ReviewSnapshot } from "@clear-diff/core";
+import type { ReviewService } from "@clear-diff/core";
+import { fixedClock } from "../clock.ts";
 import { makeTestRepo } from "../git/test-repo.ts";
 import { UserFacingError } from "../user-facing-error.ts";
+import { createReviewActivity } from "./activity.ts";
 import { compose } from "./compose.ts";
 import { startServer } from "./server.ts";
 import type { AppRouter, RpcDeps } from "./router.ts";
 
 /** A backend whose use-cases throw if touched — for tests that never reach a procedure. */
-function stubDeps(): RpcDeps {
+function stubDeps(service?: ReviewService): RpcDeps {
   const unused = (): never => {
     throw new Error("backend not exercised by this test");
   };
+  const full: ReviewService = service ?? {
+    getAtoms: unused,
+    presentGrouping: unused,
+    snapshot: unused,
+    mark: unused,
+    unmark: unused,
+    comment: unused,
+    answer: unused,
+    submit: unused,
+    dispatch: unused,
+    markComplete: unused,
+    openInEditor: unused,
+  };
   return {
-    service: { open: unused, mark: unused, unmark: unused, comment: unused, dispatch: unused, ask: unused, openInEditor: unused },
+    service: full,
     workspace: { readFile: () => Promise.resolve(null) },
     spec: { kind: "worktree" },
+    activity: createReviewActivity(fixedClock(0)),
+    clock: fixedClock(0),
   };
 }
 
-/** A tRPC client over the server's WebSocket, plus a close(). */
 function connect(httpUrl: string) {
   const ws = createWSClient({ url: httpUrl.replace(/^http/, "ws") });
   const trpc = createTRPCClient<AppRouter>({ links: [wsLink({ client: ws })] });
   return { trpc, close: () => ws.close() };
 }
 
-/** Drive the `open` subscription to its terminal snapshot event. */
-function openSnapshot(trpc: ReturnType<typeof connect>["trpc"]): Promise<ReviewSnapshot> {
-  return new Promise((resolve, reject) => {
-    const sub = trpc.open.subscribe(undefined, {
-      onData: (event) => {
-        if (event.kind === "snapshot") {
-          resolve(event.snapshot);
-          sub.unsubscribe();
-        }
-      },
-      onError: (error) => reject(error),
-    });
-  });
-}
-
-test("WS round-trip: open, mark, and readFile over a real repo", async () => {
+test("WS round-trip: snapshot query, mark, and readFile over a real repo", async () => {
   const repo = await makeTestRepo();
   await repo.write("a.ts", "one\n");
   const base = await repo.commit("base");
   await repo.write("a.ts", "one\ntwo\n");
   const head = await repo.commit("add line");
 
+  const spec = { kind: "range", base, head } as const;
   const backend = await compose({
     cwd: repo.dir,
-    spec: { kind: "range", base, head },
+    spec,
     stateDir: join(repo.dir, ".state"),
-    config: { load: () => Promise.resolve({ editorCommand: "true", groupingModel: "claude-haiku-4-5-20251001" }) },
-    allowFake: true,
+    config: { load: () => Promise.resolve({ editorCommand: "true" }) },
   });
+  // The browser boots against a grouping the CLI `present` has already cached.
+  const presented = await backend.service.presentGrouping(spec, { chapters: [] });
+  const hash = presented.review.masterList[0]?.hash;
+  assert.ok(hash, "the diff has at least one atom");
+
   const server = await startServer(backend);
   assert.ok(server.url.startsWith("http://127.0.0.1:"), "binds localhost only");
-
   const { trpc, close } = connect(server.url);
   try {
-    const opened = await openSnapshot(trpc);
-    const hash = opened.review.masterList[0]?.hash;
-    assert.ok(hash, "open returns at least one atom");
+    const snap = await trpc.snapshot.query({ context: presented.context });
+    assert.ok(snap.review.masterList.length >= 1);
 
-    const marked = await trpc.mark.mutate({ context: opened.context, atomHash: hash, disposition: "done" });
+    const marked = await trpc.mark.mutate({ context: presented.context, atomHash: hash, disposition: "done" });
     assert.equal(marked.marks.length, 1);
+    assert.equal(marked.marks[0]!.author.tier, "human"); // channel-inferred
     assert.equal(marked.progress.addressed, 1);
 
-    const file = await trpc.readFile.query({ path: "a.ts", side: "head" });
-    assert.deepEqual(file, { text: "one\ntwo\n" });
+    assert.deepEqual(await trpc.readFile.query({ path: "a.ts", side: "head" }), { text: "one\ntwo\n" });
   } finally {
     close();
     await server.close();
@@ -81,21 +85,32 @@ test("WS round-trip: open, mark, and readFile over a real repo", async () => {
   }
 });
 
+test("callWait round-trips the wait verdict over a live server (done once complete)", async () => {
+  const { callWait } = await import("../cli/wait.ts");
+  const base = stubDeps();
+  const service = {
+    ...base.service,
+    dispatch: async () => ({ context: "ctx" as never, comments: [], progress: { total: 2, addressed: 2, unaddressed: 0 } }),
+  } as ReviewService;
+  const activity = createReviewActivity(fixedClock(0));
+  activity.complete();
+  const server = await startServer({ ...base, service, activity });
+  try {
+    const result = await callWait(server.url, "ctx" as never, {});
+    assert.equal(result.state, "done");
+    assert.ok(result.state === "done" && result.progress.addressed === 2);
+  } finally {
+    await server.close();
+  }
+});
+
 test("a use-case failure is masked behind a generic error over the wire", async () => {
   const reject = () => Promise.reject(new Error("git stderr: /Users/secret/path leaked"));
-  const failing: ReviewService = {
-    open: reject,
-    mark: reject,
-    unmark: reject,
-    comment: reject,
-    dispatch: reject,
-    ask: reject,
-    openInEditor: reject,
-  };
-  const server = await startServer({ service: failing, workspace: stubDeps().workspace, spec: { kind: "worktree" } });
+  const failing = { ...stubDeps().service, snapshot: reject } as ReviewService;
+  const server = await startServer(stubDeps(failing));
   const { trpc, close } = connect(server.url);
   try {
-    await assert.rejects(() => openSnapshot(trpc), /Internal error\./);
+    await assert.rejects(() => trpc.snapshot.query({ context: "c" }), /Internal error\./);
   } finally {
     close();
     await server.close();
@@ -103,21 +118,16 @@ test("a use-case failure is masked behind a generic error over the wire", async 
 });
 
 test("a UserFacingError surfaces its curated message instead of being masked", async () => {
-  const message = "AI grouping timed out — the diff may be too large. Try a smaller range.";
+  const message = "This review log predates the pivot — delete it and re-review.";
   const reject = () => Promise.reject(new UserFacingError(message));
-  const failing: ReviewService = {
-    open: reject,
-    mark: reject,
-    unmark: reject,
-    comment: reject,
-    dispatch: reject,
-    ask: reject,
-    openInEditor: reject,
-  };
-  const server = await startServer({ service: failing, workspace: stubDeps().workspace, spec: { kind: "worktree" } });
+  const failing = { ...stubDeps().service, snapshot: reject } as ReviewService;
+  const server = await startServer(stubDeps(failing));
   const { trpc, close } = connect(server.url);
   try {
-    await assert.rejects(() => openSnapshot(trpc), new RegExp(message.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    await assert.rejects(
+      () => trpc.snapshot.query({ context: "c" }),
+      new RegExp(message.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    );
   } finally {
     close();
     await server.close();
@@ -127,9 +137,7 @@ test("a UserFacingError surfaces its curated message instead of being masked", a
 test("a non-loopback Origin is rejected at the WS handshake", async () => {
   const server = await startServer(stubDeps());
   try {
-    const socket = new WebSocket(server.url.replace(/^http/, "ws"), {
-      headers: { Origin: "https://evil.example" },
-    });
+    const socket = new WebSocket(server.url.replace(/^http/, "ws"), { headers: { Origin: "https://evil.example" } });
     const refused = await new Promise<boolean>((resolve) => {
       socket.addEventListener("open", () => resolve(false), { once: true });
       socket.addEventListener("close", () => resolve(true), { once: true });
@@ -149,10 +157,7 @@ test("static serving refuses to read outside the web root", async () => {
 
   const server = await startServer(stubDeps(), { webRoot: root });
   try {
-    const index = await fetch(`${server.url}/`);
-    assert.equal(await index.text(), "<h1>app</h1>");
-
-    // %2e%2e survives client-side normalisation; the server decodes then must reject the escape.
+    assert.equal(await (await fetch(`${server.url}/`)).text(), "<h1>app</h1>");
     const escaped = await fetch(`${server.url}/%2e%2e/${basename(secret)}/secret.txt`);
     assert.ok(!(await escaped.text()).includes("TOPSECRET"), "traversal must not leak outside the root");
   } finally {

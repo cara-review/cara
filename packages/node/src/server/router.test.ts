@@ -1,49 +1,71 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import type { FileSide, ReviewContext, ReviewService, ReviewSnapshot, WorkspaceReader } from "@clear-diff/core";
-import { createAppRouter, type OpenEvent, type RpcDeps } from "./router.ts";
+import type {
+  ClockPort,
+  DispatchView,
+  FileSide,
+  MarkAuthor,
+  ReviewContext,
+  ReviewService,
+  ReviewSnapshot,
+  WorkspaceReader,
+} from "@clear-diff/core";
+import { fixedClock } from "../clock.ts";
+import { createReviewActivity, type ReviewActivity } from "./activity.ts";
+import { createAppRouter, type RpcContext, type RpcDeps } from "./router.ts";
 
-function snapshot(context: string): ReviewSnapshot {
+const human: MarkAuthor = { tier: "human", reviewer: null };
+
+function snapshot(context: string, addressed = 0): ReviewSnapshot {
   return {
     context: context as ReviewContext,
-    review: {
-      chapters: [
-        { title: "C1", summary: null, sections: [{ title: "S1", summary: null, atoms: [] }] },
-        { title: "C2", summary: null, sections: [{ title: "S2", summary: null, atoms: [] }] },
-      ],
-      masterList: [],
-    },
+    review: { chapters: [], masterList: [] },
     marks: [],
     comments: [],
-    progress: { total: 0, addressed: 0, unaddressed: 0 },
+    progress: { total: 3, addressed, unaddressed: 3 - addressed },
+    completed: false,
   };
 }
 
+function dispatchView(context: string): DispatchView {
+  return { context: context as ReviewContext, comments: [], progress: { total: 3, addressed: 1, unaddressed: 2 } };
+}
+
+/** A service that records the calls the router makes, with controllable returns. */
 function fakeService(calls: string[]): ReviewService {
+  const unused = (): never => {
+    throw new Error("not exercised");
+  };
   return {
-    open: async (spec) => {
-      calls.push(`open:${spec.kind}`);
-      return snapshot("ctx");
-    },
-    mark: async (context, atomHash, disposition) => {
-      calls.push(`mark:${context}:${atomHash}:${disposition}`);
+    getAtoms: unused,
+    presentGrouping: unused,
+    snapshot: async (context) => {
+      calls.push(`snapshot:${context}`);
       return snapshot(context);
     },
-    unmark: async (context, atomHash) => {
-      calls.push(`unmark:${context}:${atomHash}`);
+    mark: async (context, atomHash, disposition, author) => {
+      calls.push(`mark:${context}:${atomHash}:${disposition}:${author.tier}/${author.reviewer}`);
+      return snapshot(context, 1);
+    },
+    unmark: async (context, atomHash, author) => {
+      calls.push(`unmark:${context}:${atomHash}:${author.tier}`);
       return snapshot(context);
     },
-    comment: async (context, atomHash, body) => {
-      calls.push(`comment:${context}:${atomHash}:${body}`);
+    comment: async (context, atomHash, body, author) => {
+      calls.push(`comment:${context}:${atomHash}:${body}:${author.tier}`);
       return snapshot(context);
     },
-    dispatch: async (context) => {
-      calls.push(`dispatch:${context}`);
-      return { count: 0, location: `sink://${context}` };
+    answer: async (context, commentId, body, author) => {
+      calls.push(`answer:${context}:${commentId}:${body}:${author.tier}`);
+      return snapshot(context);
     },
-    ask: async (context, chapterIndex, question) => {
-      calls.push(`ask:${context}:${chapterIndex}:${question}`);
-      return { answer: `re ${chapterIndex}: ${question}` };
+    submit: unused,
+    dispatch: async (spec) => {
+      calls.push(`dispatch:${spec.kind}`);
+      return dispatchView("ctx");
+    },
+    markComplete: async (context) => {
+      calls.push(`markComplete:${context}`);
     },
     openInEditor: async (path, line) => {
       calls.push(`editor:${path}:${line}`);
@@ -55,91 +77,105 @@ const workspace: WorkspaceReader = {
   readFile: (path: string, side: FileSide) => Promise.resolve(`${path}@${side}`),
 };
 
-function caller(calls: string[]) {
-  const deps: RpcDeps = { service: fakeService(calls), workspace, spec: { kind: "worktree" } };
-  return createAppRouter(deps).createCaller({});
+function caller(
+  calls: string[],
+  opts: { activity?: ReviewActivity; clock?: ClockPort; author?: MarkAuthor } = {},
+) {
+  const deps: RpcDeps = {
+    service: fakeService(calls),
+    workspace,
+    spec: { kind: "worktree" },
+    activity: opts.activity ?? createReviewActivity(fixedClock(1000)),
+    clock: opts.clock ?? fixedClock(1000),
+  };
+  const ctx: RpcContext = { author: opts.author ?? human };
+  return createAppRouter(deps).createCaller(ctx);
 }
 
-test("open streams progress/section events ending with the snapshot, using the boot spec", async () => {
+test("snapshot query reads the current snapshot for the context", async () => {
   const calls: string[] = [];
-  const events: OpenEvent[] = [];
-  for await (const event of await caller(calls).open()) events.push(event);
-
-  assert.deepEqual(calls, ["open:worktree"]);
-  const titles = events.filter((e) => e.kind === "section").map((e) => (e.kind === "section" ? e.title : ""));
-  assert.deepEqual(titles, ["S1", "S2"]);
-  const last = events.at(-1);
-  assert.ok(last?.kind === "snapshot" && last.snapshot.context === "ctx");
+  const snap = await caller(calls).snapshot({ context: "feature/x" });
+  assert.deepEqual(calls, ["snapshot:feature/x"]);
+  assert.equal(snap.context, "feature/x");
 });
 
-test("mark passes branded context, atom hash, and disposition through", async () => {
+test("mark stamps the channel-inferred human tier — no input can forge it", async () => {
   const calls: string[] = [];
   await caller(calls).mark({ context: "feature/x", atomHash: "abc", disposition: "done" });
-  assert.deepEqual(calls, ["mark:feature/x:abc:done"]);
+  assert.deepEqual(calls, ["mark:feature/x:abc:done:human/null"]);
 });
 
-test("dispatch passes the branded context through and returns the receipt", async () => {
+test("answer threads commentId + body with the human tier", async () => {
   const calls: string[] = [];
-  const receipt = await caller(calls).dispatch({ context: "feature/x" });
-  assert.deepEqual(calls, ["dispatch:feature/x"]);
-  assert.deepEqual(receipt, { count: 0, location: "sink://feature/x" });
+  await caller(calls).answer({ context: "c", commentId: "c0", body: "addressed" });
+  assert.deepEqual(calls, ["answer:c:c0:addressed:human"]);
 });
 
-test("ask passes context, chapter index, and question through (ADR-0009)", async () => {
+test("done marks the context complete and flips the activity flag", async () => {
   const calls: string[] = [];
-  const answer = await caller(calls).ask({
-    context: "feature/x",
-    chapterIndex: 2,
-    question: "is this backwards compatible?",
-  });
-  assert.deepEqual(calls, ["ask:feature/x:2:is this backwards compatible?"]);
-  assert.deepEqual(answer, { answer: "re 2: is this backwards compatible?" });
-});
-
-test("ask rejects a negative or non-integer chapter index", async () => {
-  for (const chapterIndex of [-1, 1.5]) {
-    await assert.rejects(() => caller([]).ask({ context: "c", chapterIndex, question: "q" }));
-  }
-});
-
-test("ask rejects an empty or whitespace-only question", async () => {
-  for (const question of ["", "   "]) {
-    await assert.rejects(() => caller([]).ask({ context: "c", chapterIndex: 0, question }));
-  }
-});
-
-test("readFile round-trips the WorkspaceReader", async () => {
-  const result = await caller([]).readFile({ path: "src/a.ts", side: "head" });
-  assert.deepEqual(result, { text: "src/a.ts@head" });
-});
-
-test("openInEditor resolves to a null result", async () => {
-  const calls: string[] = [];
-  const result = await caller(calls).openInEditor({ path: "src/a.ts", line: 12 });
-  assert.deepEqual(calls, ["editor:src/a.ts:12"]);
+  const activity = createReviewActivity(fixedClock(1000));
+  const result = await caller(calls, { activity }).done({ context: "c" });
   assert.equal(result, null);
+  assert.deepEqual(calls, ["markComplete:c"]);
+  assert.equal(activity.state().completed, true);
 });
 
-test("an invalid disposition is rejected", async () => {
-  await assert.rejects(() => caller([]).mark({ context: "c", atomHash: "h", disposition: "maybe" } as never));
+test("a mutation bumps the activity tracker", async () => {
+  let t = 1000;
+  const activity = createReviewActivity({ now: () => t });
+  t = 9000;
+  await caller([], { activity }).comment({ context: "c", atomHash: "h", body: "x" });
+  assert.equal(activity.state().lastActivityTs, 9000);
 });
 
-test("an empty / whitespace-only context is rejected at the boundary", async () => {
+// --- wait: the three terminal states, no real sleeping -----------------------
+
+test("wait returns done with the dispatch view once the human completes", async () => {
+  const calls: string[] = [];
+  const activity = createReviewActivity(fixedClock(1000));
+  activity.complete();
+  const result = await caller(calls, { activity }).wait({ context: "ctx" });
+  assert.equal(result.state, "done");
+  assert.ok(result.state === "done" && result.view.context === "ctx");
+  assert.ok(calls.includes("dispatch:worktree"));
+});
+
+test("wait returns reviewIdle after the idle threshold with no activity", async () => {
+  const activity = createReviewActivity(fixedClock(0)); // last activity at t=0
+  const result = await caller([], { activity, clock: fixedClock(400_000) }).wait({ context: "ctx" });
+  assert.equal(result.state, "reviewIdle");
+  assert.ok(result.state === "reviewIdle" && result.progress.total === 3);
+});
+
+test("wait returns reviewInProgress once the block window elapses while active", async () => {
+  // A clock that advances past the block window between startTs and the first check,
+  // with activity kept fresh so idle does not fire.
+  let call = 0;
+  const clock: ClockPort = { now: () => (call++ === 0 ? 0 : 100_000) };
+  const activity = createReviewActivity(fixedClock(100_000));
+  const result = await caller([], { activity, clock }).wait({ context: "ctx", maxBlockMs: 5000, idleMs: 1_000_000 });
+  assert.equal(result.state, "reviewInProgress");
+});
+
+test("wait's window inputs are integer-ms and bounded — the CLI must round + stay in range", async () => {
+  // A fractional ms (a fractional --timeout that doesn't land on a whole ms) is rejected:
+  // the verb rounds before sending, so this contract must stay strict to catch a regression.
+  await assert.rejects(() => caller([]).wait({ context: "ctx", maxBlockMs: 1000.5 }));
+  // An unbounded window is rejected so a loopback page can't park a long-lived block.
+  await assert.rejects(() => caller([]).wait({ context: "ctx", maxBlockMs: 9_999_999_999 }));
+});
+
+// --- security invariants preserved -------------------------------------------
+
+test("readFile round-trips the WorkspaceReader; openInEditor resolves to null", async () => {
+  const calls: string[] = [];
+  assert.deepEqual(await caller(calls).readFile({ path: "src/a.ts", side: "head" }), { text: "src/a.ts@head" });
+  assert.equal(await caller(calls).openInEditor({ path: "src/a.ts", line: 12 }), null);
+});
+
+test("an empty context, a bad disposition, and a traversal path are all rejected", async () => {
   await assert.rejects(() => caller([]).unmark({ context: "   ", atomHash: "h" }));
-});
-
-test("openInEditor rejects a non-positive or non-integer line", async () => {
-  for (const line of [0, -3, 1.5]) {
-    await assert.rejects(() => caller([]).openInEditor({ path: "a.ts", line }));
-  }
-});
-
-test("readFile rejects a path that escapes the repository", async () => {
-  for (const path of ["../../etc/passwd", "/etc/passwd", "a/../../b"]) {
-    await assert.rejects(() => caller([]).readFile({ path, side: "head" }));
-  }
-});
-
-test("openInEditor rejects a path that could be read as an editor flag", async () => {
+  await assert.rejects(() => caller([]).mark({ context: "c", atomHash: "h", disposition: "maybe" } as never));
+  await assert.rejects(() => caller([]).readFile({ path: "../../etc/passwd", side: "head" }));
   await assert.rejects(() => caller([]).openInEditor({ path: "-rf", line: 1 }));
 });

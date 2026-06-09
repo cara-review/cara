@@ -1,6 +1,6 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FileInstructions } from "./instructions.ts";
@@ -9,8 +9,9 @@ test("FileInstructions reads personal and project files when present", async () 
   const home = await mkdtemp(join(tmpdir(), "cd-home-"));
   const repo = await mkdtemp(join(tmpdir(), "cd-repo-"));
   try {
-    await writeFile(join(home, ".clear-diff.md"), "personal");
-    await writeFile(join(repo, "clear-diff.md"), "project");
+    await mkdir(join(home, ".clear-diff"), { recursive: true });
+    await writeFile(join(home, ".clear-diff", "CLEAR_DIFF.md"), "personal");
+    await writeFile(join(repo, "CLEAR_DIFF.md"), "project");
     const instructions = await new FileInstructions(home, repo).load();
     assert.deepEqual(instructions, { personal: "personal", project: "project" });
   } finally {

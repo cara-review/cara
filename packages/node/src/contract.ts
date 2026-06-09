@@ -5,7 +5,7 @@
 // "no import at all" (ADR-0003 as amended). This subpath stays free of server runtime
 // code so importing it never drags the server / node builtins into the web program.
 
-export type { AppRouter, OpenEvent } from "./server/router.ts";
+export type { AppRouter } from "./server/router.ts";
 
 export type {
   AtomHash,
@@ -20,8 +20,10 @@ export type {
   Chapter,
   Review,
   Comment,
+  MarkAuthor,
   ReviewProgress,
-  DispatchReceipt,
-  ChatAnswer,
+  DispatchView,
+  CommentView,
+  OpenItem,
   ReviewSnapshot,
 } from "@clear-diff/core";

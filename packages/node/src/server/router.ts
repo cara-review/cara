@@ -5,38 +5,43 @@
 // sockets, no Bun, no node builtins — so this module's *type* can be imported across
 // the web↔node seam (type-only, runtime-erased) without dragging server code into
 // the web bundle. The node:http + ws wiring that carries this router lives in server.ts.
+//
+// Author tier is channel-inferred (ADR-0011 §5): every mutation over this router is a
+// browser session, so `ctx.author` is the fixed human tier — no input can forge it.
+// The CLI agent never reaches this router for writes; it submits over the `submit`
+// verb, which stamps the agent tier (server/compose path, not here).
 
 import { initTRPC } from "@trpc/server";
 import { z } from "zod";
 import type {
   AtomHash,
+  ClockPort,
   DiffSpec,
+  MarkAuthor,
   ReviewService,
-  ReviewSnapshot,
   WorkspaceReader,
 } from "@clear-diff/core";
 import { reviewContext } from "@clear-diff/core";
 import { UserFacingError } from "../user-facing-error.ts";
+import { classifyWait, type ReviewActivity } from "./activity.ts";
 
 /** The driving adapter's view of the backend: the inbound port + evidence reader + boot spec. */
 export interface RpcDeps {
   readonly service: ReviewService;
   readonly workspace: WorkspaceReader;
   readonly spec: DiffSpec;
+  /** UI-activity tracker for `dispatch --wait` (ADR-0011 §4). */
+  readonly activity: ReviewActivity;
+  /** The clock the `wait` decision compares against — fixed in tests. */
+  readonly clock: ClockPort;
 }
 
-/**
- * What the `open` subscription streams: live grouping progress (an elapsed tick
- * while the agent works), then the resolved Section titles revealed one by one (the
- * scrolling UX), then the final snapshot. Progress is synthesised in the transport
- * layer — the core grouping stays a single use-case, no new port (ADR-0008).
- */
-export type OpenEvent =
-  | { readonly kind: "progress"; readonly elapsedMs: number }
-  | { readonly kind: "section"; readonly title: string }
-  | { readonly kind: "snapshot"; readonly snapshot: ReviewSnapshot };
+/** Per-connection context. A browser session is always the human tier (ADR-0011 §5). */
+export interface RpcContext {
+  readonly author: MarkAuthor;
+}
 
-const t = initTRPC.create({
+const t = initTRPC.context<RpcContext>().create({
   // The peer may be a remote page, so never leak internals. UserFacingError carries a
   // curated, safe message; a malformed input is a zod BAD_REQUEST naming the bad field;
   // everything else (git stderr, fs paths) is masked to a generic string. The adapter's
@@ -48,9 +53,14 @@ const t = initTRPC.create({
   },
 });
 
-const PROGRESS_TICK_MS = 250;
-/** Cap the title reveal so a huge review streams a taste, not thousands of frames. */
-const MAX_REVEAL_TITLES = 12;
+/** How often the blocking `wait` re-checks activity while still pending. */
+const WAIT_TICK_MS = 250;
+/** Block at most this long before returning `reviewInProgress` (ADR-0011 §4). */
+const DEFAULT_MAX_BLOCK_MS = 240_000;
+/** No UI activity for this long → `reviewIdle` (the human walked away). */
+const DEFAULT_IDLE_MS = 300_000;
+/** Upper bound on a caller-supplied wait window — caps a loopback page parking a block (CWE-770). */
+const MAX_WAIT_MS = 1_800_000;
 
 /** A repo-relative path that stays within the repository: no absolute, no `..` escape (CWE-22). */
 function isContainedRepoPath(value: string): boolean {
@@ -60,6 +70,7 @@ function isContainedRepoPath(value: string): boolean {
 
 const contextSchema = z.string().refine((s) => s.trim() !== "", "context must not be empty");
 const atomHashSchema = z.string().min(1, "atomHash must not be empty");
+const commentIdSchema = z.string().min(1, "commentId must not be empty");
 const dispositionSchema = z.enum(["done", "skipped"]);
 const sideSchema = z.enum(["base", "head"]);
 const repoPathSchema = z
@@ -67,10 +78,6 @@ const repoPathSchema = z
   .refine(isContainedRepoPath, "path must be a repo-relative path that stays within the repository");
 // Also reject a leading "-" so the path can't be read as an editor flag (CWE-88).
 const editorPathSchema = repoPathSchema.refine((p) => !p.startsWith("-"), 'path must not start with "-"');
-
-function sectionTitles(snapshot: ReviewSnapshot): string[] {
-  return snapshot.review.chapters.flatMap((chapter) => chapter.sections.map((section) => section.title));
-}
 
 /** A cancellable delay: resolves after `ms`, or immediately when the subscription aborts. */
 function delay(ms: number, signal: AbortSignal | undefined): Promise<void> {
@@ -90,69 +97,90 @@ function delay(ms: number, signal: AbortSignal | undefined): Promise<void> {
 /** Build the router over the composed backend. `AppRouter` (its type) is the web contract. */
 export function createAppRouter(deps: RpcDeps) {
   return t.router({
-    /**
-     * Open the review and stream grouping progress. The CLI fixes the DiffSpec at boot,
-     * so this carries no input. Ticks elapsed while the agent groups, then reveals the
-     * resolved Section titles, then the snapshot — all transport-layer, no core change.
-     */
-    open: t.procedure.subscription(async function* (opts) {
-      const start = Date.now();
-      let snapshot: ReviewSnapshot | undefined;
-      let failure: unknown;
-      const opening = deps.service.open(deps.spec).then(
-        (result) => {
-          snapshot = result;
-        },
-        (error: unknown) => {
-          failure = error;
-        },
-      );
-
-      while (snapshot === undefined && failure === undefined) {
-        if (opts.signal?.aborted) return;
-        await Promise.race([opening, delay(PROGRESS_TICK_MS, opts.signal)]);
-        if (snapshot === undefined && failure === undefined && !opts.signal?.aborted) {
-          yield { kind: "progress", elapsedMs: Date.now() - start } satisfies OpenEvent;
-        }
-      }
-      if (failure !== undefined) throw failure;
-
-      const ready = snapshot as ReviewSnapshot;
-      for (const title of sectionTitles(ready).slice(0, MAX_REVEAL_TITLES)) {
-        yield { kind: "section", title } satisfies OpenEvent;
-      }
-      yield { kind: "snapshot", snapshot: ready } satisfies OpenEvent;
-    }),
+    /** Current snapshot — the browser's boot load and re-poll read (ADR-0011, Risk seam #3). */
+    snapshot: t.procedure
+      .input(z.object({ context: contextSchema }))
+      .query(({ input }) => deps.service.snapshot(reviewContext(input.context))),
 
     mark: t.procedure
       .input(z.object({ context: contextSchema, atomHash: atomHashSchema, disposition: dispositionSchema }))
-      .mutation(({ input }) =>
-        deps.service.mark(reviewContext(input.context), input.atomHash as AtomHash, input.disposition),
-      ),
+      .mutation(({ input, ctx }) => {
+        deps.activity.touch();
+        return deps.service.mark(reviewContext(input.context), input.atomHash as AtomHash, input.disposition, ctx.author);
+      }),
 
     unmark: t.procedure
       .input(z.object({ context: contextSchema, atomHash: atomHashSchema }))
-      .mutation(({ input }) => deps.service.unmark(reviewContext(input.context), input.atomHash as AtomHash)),
+      .mutation(({ input, ctx }) => {
+        deps.activity.touch();
+        return deps.service.unmark(reviewContext(input.context), input.atomHash as AtomHash, ctx.author);
+      }),
 
     comment: t.procedure
       .input(z.object({ context: contextSchema, atomHash: atomHashSchema, body: z.string() }))
-      .mutation(({ input }) =>
-        deps.service.comment(reviewContext(input.context), input.atomHash as AtomHash, input.body),
-      ),
+      .mutation(({ input, ctx }) => {
+        deps.activity.touch();
+        return deps.service.comment(reviewContext(input.context), input.atomHash as AtomHash, input.body, ctx.author);
+      }),
 
-    dispatch: t.procedure
-      .input(z.object({ context: contextSchema }))
-      .mutation(({ input }) => deps.service.dispatch(reviewContext(input.context))),
+    answer: t.procedure
+      .input(z.object({ context: contextSchema, commentId: commentIdSchema, body: z.string() }))
+      .mutation(({ input, ctx }) => {
+        deps.activity.touch();
+        return deps.service.answer(reviewContext(input.context), input.commentId, input.body, ctx.author);
+      }),
 
-    ask: t.procedure
+    /**
+     * The human "done reviewing" signal (ADR-0011 §4) — flips `dispatch --wait` to done.
+     * Human-only by channel: this router serves the browser, so "done" is definitionally a
+     * human act; no author is read because completion carries no tier.
+     */
+    done: t.procedure.input(z.object({ context: contextSchema })).mutation(async ({ input }) => {
+      deps.activity.complete();
+      await deps.service.markComplete(reviewContext(input.context));
+      return null;
+    }),
+
+    /**
+     * Block until the review settles, returning one of three states (ADR-0011 §4). The
+     * CLI agent calls this over WS for `dispatch --wait`. The decision is pure
+     * (`classifyWait`) over the injected clock; the loop sleeps in real time but returns
+     * immediately the moment a terminal condition holds, so a fixed-clock test never sleeps.
+     */
+    wait: t.procedure
       .input(
         z.object({
           context: contextSchema,
-          chapterIndex: z.number().int().nonnegative(),
-          question: z.string().refine((q) => q.trim() !== "", "question must not be empty"),
+          // Bounded so a hostile loopback page can't pin a long-lived server block (CWE-770).
+          maxBlockMs: z.number().int().positive().max(MAX_WAIT_MS).optional(),
+          idleMs: z.number().int().positive().max(MAX_WAIT_MS).optional(),
         }),
       )
-      .mutation(({ input }) => deps.service.ask(reviewContext(input.context), input.chapterIndex, input.question)),
+      .query(async ({ input, signal }) => {
+        const context = reviewContext(input.context);
+        const maxBlockMs = input.maxBlockMs ?? DEFAULT_MAX_BLOCK_MS;
+        const idleMs = input.idleMs ?? DEFAULT_IDLE_MS;
+        const startTs = deps.clock.now();
+        for (;;) {
+          const { lastActivityTs, completed } = deps.activity.state();
+          const decision = classifyWait({
+            completed,
+            lastActivityTs,
+            now: deps.clock.now(),
+            startTs,
+            idleMs,
+            maxBlockMs,
+          });
+          if (decision === "done") {
+            return { state: "done", view: await deps.service.dispatch(deps.spec) } as const;
+          }
+          if (decision !== "pending" || signal?.aborted) {
+            const { progress } = await deps.service.snapshot(context);
+            return { state: decision === "reviewIdle" ? "reviewIdle" : "reviewInProgress", progress } as const;
+          }
+          await delay(WAIT_TICK_MS, signal);
+        }
+      }),
 
     openInEditor: t.procedure
       .input(z.object({ path: editorPathSchema, line: z.number().int().positive() }))

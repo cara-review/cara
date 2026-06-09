@@ -3,8 +3,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { InstructionsSource, ReviewInstructions } from "@clear-diff/core";
 
-const PERSONAL_FILE = ".clear-diff.md";
-const PROJECT_FILE = "clear-diff.md";
+const PERSONAL_FILE = ".clear-diff/CLEAR_DIFF.md";
+const PROJECT_FILE = "CLEAR_DIFF.md";
 
 async function readIfPresent(path: string): Promise<string | null> {
   try {
@@ -15,7 +15,7 @@ async function readIfPresent(path: string): Promise<string | null> {
   }
 }
 
-/** Loads personal (~/.clear-diff.md) and project (clear-diff.md) instructions. */
+/** Loads personal (~/.clear-diff/CLEAR_DIFF.md) and project (CLEAR_DIFF.md) instructions. */
 export class FileInstructions implements InstructionsSource {
   readonly #homeDir: string;
   readonly #repoDir: string;

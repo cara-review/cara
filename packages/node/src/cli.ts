@@ -1,107 +1,63 @@
-// The `clear-diff` CLI (driving adapter): parse the invocation into a DiffSpec,
-// build the backend at the composition root, boot the localhost server, and open
-// the UI in an `--app`-mode browser window (ADR-0001). All transport/launch
-// concerns stay here; the domain knows nothing of argv, ports, or browsers.
+// The `clear-diff` CLI dispatcher (driving adapter, ADR-0011). Parse argv into a typed
+// command and route it to its verb. The agent's whole protocol is these verbs; the bare
+// invocation is the `review` porcelain (axis c, task #6). Transport/composition live in
+// the verb modules — this file only wires argv → verb.
 
-import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import type { DiffSpec } from "@clear-diff/core";
-import { compose } from "./server/compose.ts";
-import { startServer, type RunningServer } from "./server/server.ts";
+import { join } from "node:path";
+import type { ClockPort, ConfigPort, ReviewContext } from "@clear-diff/core";
+import { parseCommand, CliError, type PresentCommand } from "./cli/parse.ts";
+import { systemIo, type CliIo } from "./cli/output.ts";
+import { runAtoms, runDispatch, runInstructions, runPresent, runSubmit, type VerbContext } from "./cli/verbs.ts";
+import { runServe } from "./cli/serve.ts";
+import { composeOverrides } from "./server/compose.ts";
 
-/** A usage error. Carries a message fit to print to the user; no stack noise. */
-export class CliError extends Error {}
-
-export interface CliArgs {
-  readonly spec: DiffSpec;
-  /** Whether to open the UI window. `--no-open` suppresses it (tests, headless). */
-  readonly open: boolean;
-  /** Permit the offline FakeAgent when no credentials are set (`--fake`). */
-  readonly fake: boolean;
-}
-
-/**
- * Parse argv (without node/script) into a spec + flags.
- *   clear-diff               → worktree vs origin/main
- *   clear-diff <base>..<head> → a ref range
- *   clear-diff --fake        → use the offline demo agent (no credentials needed)
- *   clear-diff --pr N        → rejected (not yet supported)
- */
-export function parseArgs(argv: readonly string[]): CliArgs {
-  let open = true;
-  let fake = false;
-  const positional: string[] = [];
-  for (const arg of argv) {
-    if (arg === "--no-open") open = false;
-    else if (arg === "--fake") fake = true;
-    else if (arg === "--pr") throw new CliError("clear-diff --pr is not yet supported.");
-    else if (arg.startsWith("--")) throw new CliError(`Unknown option: ${arg}`);
-    else positional.push(arg);
-  }
-
-  const [target, ...rest] = positional;
-  if (rest.length > 0) throw new CliError("Expected a single <base>..<head> argument.");
-  if (target === undefined) return { spec: { kind: "worktree" }, open, fake };
-  return { spec: parseRange(target), open, fake };
-}
-
-function parseRange(arg: string): DiffSpec {
-  // Exactly one ".." with non-empty sides. A second ".." (a..b..c) or a third dot
-  // (the git three-dot form main...feature) is corrupt, not a two-dot range.
-  const parts = arg.split("..");
-  const base = parts[0] ?? "";
-  const head = parts[1] ?? "";
-  if (parts.length !== 2 || base === "" || head === "" || base.endsWith(".") || head.startsWith(".")) {
-    throw new CliError(`Invalid range "${arg}". Use clear-diff <base>..<head>.`);
-  }
-  return { kind: "range", base, head };
-}
+export { CliError } from "./cli/parse.ts";
+export { parseCommand, type Command } from "./cli/parse.ts";
 
 export interface CliDeps {
   readonly cwd?: string;
-  readonly openApp?: (url: string) => void;
-  readonly log?: (message: string) => void;
+  readonly io?: CliIo;
+  /** ConfigPort override for tests; defaults to EnvConfig over process.env. */
+  readonly config?: ConfigPort;
+  /** ClockPort override for tests; defaults to the system clock. */
+  readonly clock?: ClockPort;
+  /** Boot the browser server for `present` (injected in tests; default = detached spawn). */
+  readonly bootServer?: (cmd: PresentCommand, context: ReviewContext) => Promise<{ url: string }>;
 }
 
-/** Boot the server and (unless suppressed) open the UI. Returns the running server. */
-export async function runCli(argv: readonly string[], deps: CliDeps = {}): Promise<RunningServer> {
-  const { spec, open, fake } = parseArgs(argv);
+/** Parse argv (without node/script) and run the matching verb. */
+export async function runCli(argv: readonly string[], deps: CliDeps = {}): Promise<void> {
+  const cmd = parseCommand(argv);
   const cwd = deps.cwd ?? process.cwd();
-  const log = deps.log ?? ((message) => console.log(message));
+  const ctx: VerbContext = buildContext(cwd, deps);
 
-  const backend = await compose({ cwd, spec, stateDir: join(cwd, ".agent-state", "reviews"), allowFake: fake });
-
-  const webRoot = resolveWebRoot();
-  const server = await startServer(backend, webRoot !== undefined ? { webRoot } : {});
-  log(`clear-diff: reviewing ${describe(spec)} at ${server.url}`);
-  if (open) (deps.openApp ?? openApp)(server.url);
-  return server;
+  switch (cmd.verb) {
+    case "atoms":
+      return runAtoms(cmd.spec, ctx);
+    case "present":
+      return runPresent(cmd, ctx);
+    case "dispatch":
+      return runDispatch(cmd, ctx);
+    case "submit":
+      return runSubmit(cmd, ctx);
+    case "instructions":
+      return runInstructions(ctx);
+    case "serve":
+      return runServe(cmd, { cwd, stateDir: ctx.stateDir, ...composeOverrides(deps) });
+    case "review":
+      throw new CliError(
+        "clear-diff review (the LLM wrapper) is not wired yet — use the plumbing verbs: atoms, present, dispatch, submit, instructions.",
+      );
+  }
 }
 
-function describe(spec: DiffSpec): string {
-  // Only worktree / range reach here — parseArgs rejects --pr before boot.
-  return spec.kind === "range" ? `${spec.base}..${spec.head}` : "the worktree against origin/main";
-}
-
-/** Locate the built UI assets, or undefined if not built. */
-function resolveWebRoot(): string | undefined {
-  const here = dirname(fileURLToPath(import.meta.url));
-  // Published: the bundled dist/cli.js sits beside dist/web. Dev: cli.ts lives in
-  // packages/node/src, with the assets under apps/web/dist at the repo root.
-  const candidates = [resolve(here, "web"), resolve(here, "../../../apps/web/dist")];
-  return candidates.find((path) => existsSync(path));
-}
-
-/** Open the URL in a chromium `--app` window (macOS-first), falling back to the OS opener. */
-function openApp(url: string): void {
-  const child = spawn("open", ["-na", "Google Chrome", "--args", `--app=${url}`], {
-    stdio: "ignore",
-    detached: true,
-  });
-  child.on("error", () => {
-    spawn("open", [url], { stdio: "ignore", detached: true }).unref();
-  });
-  child.unref();
+function buildContext(cwd: string, deps: CliDeps): VerbContext {
+  return {
+    cwd,
+    stateDir: join(cwd, ".agent-state", "reviews"),
+    io: deps.io ?? systemIo,
+    ...(deps.config ? { config: deps.config } : {}),
+    ...(deps.clock ? { clock: deps.clock } : {}),
+    ...(deps.bootServer ? { bootServer: deps.bootServer } : {}),
+  };
 }

@@ -2,8 +2,7 @@
 // Depends on core to prove the dependency direction (node → core).
 import { buildMasterList, type RawHunk } from "@clear-diff/core";
 
-export { JsonlReviewStore } from "./review-store.ts";
-export { MarkdownCommentSink } from "./markdown-comment-sink.ts";
+export { JsonlReviewStore, contextHash } from "./review-store.ts";
 
 export const PACKAGE_ID = "@clear-diff/node";
 
@@ -13,8 +12,6 @@ export function coreAtomCount(hunks: readonly RawHunk[]): number {
 }
 
 // Driven adapters (TN-26-006).
-export { FakeAgent, FakeAgentChat } from "./fake-agent.ts";
-export { AnthropicAgent, AnthropicAgentChat } from "./anthropic-agent.ts";
 export { SystemClock, fixedClock } from "./clock.ts";
 export { SpawnEditor, editorArgs } from "./editor.ts";
 export { EnvConfig } from "./config.ts";
@@ -25,8 +22,9 @@ export { GitDiffSource } from "./git/diff-source.ts";
 export { GitWorkspaceReader } from "./git/workspace-reader.ts";
 export { refsForSpec, type GitRef, type SpecRefs } from "./git/refs.ts";
 
-// Driving adapter: composition root + node:http/tRPC server + CLI (TN-26-008, ADR-0008).
-export { compose, selectAgent, selectChat, type CompositionConfig } from "./server/compose.ts";
+// Driving adapter: composition root + node:http/tRPC server + CLI (TN-26-008, ADR-0008, ADR-0011).
+export { compose, composeCore, type CompositionConfig, type CoreBackend } from "./server/compose.ts";
+export { createReviewActivity, classifyWait, type ReviewActivity, type WaitDecision } from "./server/activity.ts";
 export { startServer, type RunningServer, type ServerOptions } from "./server/server.ts";
-export { createAppRouter, type AppRouter, type OpenEvent, type RpcDeps } from "./server/router.ts";
-export { runCli, parseArgs, CliError, type CliArgs, type CliDeps } from "./cli.ts";
+export { createAppRouter, type AppRouter, type RpcDeps, type RpcContext } from "./server/router.ts";
+export { runCli, parseCommand, CliError, type Command, type CliDeps } from "./cli.ts";

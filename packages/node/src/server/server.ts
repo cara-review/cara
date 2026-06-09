@@ -47,7 +47,9 @@ export async function startServer(deps: RpcDeps, options: ServerOptions = {}): P
   const handler = applyWSSHandler({
     wss,
     router,
-    createContext: () => ({}),
+    // Channel-inferred tier (ADR-0011 §5): every write over this socket is a browser
+    // session, so the author is the fixed human tier. No CLI path reaches here.
+    createContext: () => ({ author: { tier: "human" as const, reviewer: null } }),
     // Log the full error server-side; the router's errorFormatter masks what reaches the peer.
     onError: ({ error }) => console.error("clear-diff RPC error:", error),
   });
