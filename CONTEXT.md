@@ -20,10 +20,14 @@ One git hunk; the indivisible mechanical unit. Internal plumbing — never surfa
 _Avoid_: hunk (in user-facing copy), chunk; atom (in user-facing copy).
 
 **mark**:
-A user's disposition on an atom — `done` or `skipped` — keyed by content hash of the atom's payload. Set per-block (tick one change-block) or per-Section (mark all its atoms at once); a Section completes when its last atom is marked.
+A disposition on an atom — `done` or `skipped` — keyed by content hash of the atom's payload, carrying its author tier (`human` | `agent`). Agent marks never masquerade as human attestation; policy (e.g. a completeness gate) may require human-tier marks on specific atoms. Set per-block (tick one change-block) or per-Section (mark all its atoms at once); a Section completes when its last atom is marked.
+
+**comment**:
+A freeform, atom-anchored note written by the reviewer — never categorised by the author (no intent buttons; like a GitHub review comment). The acting agent infers what's needed from the text: edit code (detected mechanically by the atom's hash changing) and/or reply with an answer (attached back to the comment, rendered inline at the atom as untrusted overlay). A comment is `open` until its atom's payload changes or an answer attaches; the reviewer adjudicates on reopen.
+_Avoid_: intent categories, chat (there is no chat surface; the comment is the only conversational interface).
 
 **AI summary**:
-A short agent-written description of a Chapter or Section, shown as an untrusted orienting aid ("pinch of salt"). Never authoritative, never alters or substitutes for the diff.
+An agent-written markdown description of a Chapter or Section, rendered (sanitized subset) at the top of it as an untrusted orienting aid ("pinch of salt"). Its content follows the layered instructions (system methodology + project `CLEAR_DIFF.md` + personal `~/.clear-diff/CLEAR_DIFF.md`) — e.g. a pref like "list the test types in test sections". Never authoritative, never alters or substitutes for the diff. No per-block summaries — the change-block is its own evidence.
 _Avoid_: framing it as a verdict or review conclusion.
 
 **master list**:
