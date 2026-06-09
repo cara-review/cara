@@ -1,11 +1,22 @@
 ---
 status: accepted
-amended-by: 0009
+amended-by: [0009, 0011]
 ---
 
 # Agent layer: untrusted, with a canonical master atom list
 
-> **Amended in part by [ADR-0009](0009-chat-qa-agent-reads-diff.md).** The
+> **Amended by [ADR-0011](0011-cli-agent-protocol.md) (TN-26-026, Refs #47).** The
+> **diff-blind clause is narrowed**: because the external caller has the repo and can read
+> any diff itself, grouping-path diff-blindness is unenforceable theatre, so `atoms` now
+> emits diff lines (a one-shot convenience). The **surviving structural invariant** is
+> unchanged: grouping output is ids + titles + summaries; rendered evidence always comes
+> from git verbatim; the agent cannot add, remove, hide, or edit an atom; the union of
+> sections equals the master list. Grouping is now **inbound (supplied), not fetched**, and
+> marks carry a channel-inferred **author tier** (`human` | `agent`). See the amendment at
+> the foot of this ADR.
+
+> **Amended in part by [ADR-0009](0009-chat-qa-agent-reads-diff.md) (superseded by
+> [ADR-0011](0011-cli-agent-protocol.md)).** The
 > diff-blind-agent invariant below ("The diff is never agent-touched") is lifted
 > **for Chapter Q&A only**: a separate, read-only `AgentChat` capability may receive
 > Chapter-scoped diff content to answer a reviewer's question. That is a *read*, not a
@@ -71,3 +82,30 @@ collapses visibility, and only from the default flow. Nothing removes an atom.
 - A `FakeAgent` returning fixed groupings makes the whole pipeline testable offline.
 - Grouping is disposable: cached by master-set hash, regenerated when the set changes
   (ADR-0003), marks unaffected.
+
+## Amendment (2026-06-09): diff-blind narrowed, inbound grouping, author tiers
+
+Background: TN-26-026, issue #47. Owner-approved in-session 2026-06-09.
+
+The pivot makes the agent an external caller over a CLI (ADR-0011). Three changes:
+
+- **Diff-blind clause narrowed.** "The diff is never agent-touched" was a *write* invariant
+  wearing a *read* restriction. The external caller has the repo and can run `git diff`
+  itself, so withholding diff lines on the grouping path is theatre, not security. `atoms`
+  therefore **includes diff lines** — a one-shot convenience so the caller need not
+  replicate `-U0 --histogram -M`. **The surviving invariant is the only structural one and
+  is unchanged:** grouping output is **ids + titles + summaries**; rendered evidence always
+  comes from git verbatim (`DiffSource`/`WorkspaceReader`); the bijection holds; the agent
+  **cannot add, remove, hide, or edit an atom**. Reading the diff was never the risk —
+  *defining the change* is, and the agent still can't.
+- **Grouping is inbound, not fetched.** The core no longer calls an `AgentPort` to obtain
+  grouping; the caller **supplies** it via `present`, and the same bijection repair runs on
+  it. "Untrusted overlay" is unchanged — the trust posture is identical whether grouping is
+  pulled or pushed.
+- **Marks carry an author tier — `human` | `agent` — inferred from channel** (browser ⇒
+  `human`, CLI ⇒ `agent`), **no override** (ADR-0011 §5). This extends the master-list
+  philosophy to provenance: impersonation is structurally impossible, not policed. An
+  optional `reviewer` label may distinguish agent-tier reviewers; it never crosses into the
+  `human` tier and never affects counts or the bijection.
+
+Counts and completion still derive from the canonical master list, never the grouping.

@@ -2,7 +2,7 @@
 number: 26-026
 title: CLI agent protocol pivot — external agent supplies grouping, dual-mode, LLM-free core
 kind: proposal
-status: draft
+status: active
 issue: "#47"
 tags: [pivot, cli, agent-protocol, dual-mode, architecture, security, adr-fallout]
 ---

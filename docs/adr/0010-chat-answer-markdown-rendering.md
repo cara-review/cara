@@ -6,6 +6,13 @@ status: accepted
 
 Background: TN-26-023. Approved by owner 2026-06-08 (clickable scheme-restricted links).
 
+> **Carried forward under [ADR-0011](0011-cli-agent-protocol.md) (TN-26-026, Refs #47).**
+> ADR-0011 supersedes ADR-0009 and removes the chat pane, but this rendering discipline
+> survives intact — it now governs the **inline answer at the atom** rather than a chat
+> message. "Chat answer" below reads as "comment answer"; every rule (agent emits markdown
+> never HTML, raw-HTML-off render, sanitized allowlist, scheme-restricted links, plain error
+> text) stands unchanged.
+
 Amends **ADR-0009 §2**, which mandated chat answers be rendered as plain text (`textContent`, "never interpreted as markup"). This ADR permits rendering them as a sanitized markdown subset, without relaxing the untrusted posture.
 
 ## Context

@@ -1,8 +1,20 @@
 ---
-status: accepted
+status: superseded
+superseded-by: 0011
 ---
 
 # Chapter Q&A: a diff-reading agent capability over a sibling port
+
+> **Superseded by [ADR-0011](0011-cli-agent-protocol.md) (TN-26-026, Refs #47).** The
+> pivot removes the in-process LLM and the chat surface entirely. There is no `AgentChat`
+> driven port, no chat pane, no `ask` use-case or WS method. **Q&A is now a comment
+> answer:** the reviewer comments freeform; the answer routes back to the caller and renders
+> inline at the atom. The substance survives — answering still requires *reading* the diff,
+> still produces untrusted overlay text, still never defines or changes the review (the
+> ADR-0004 master-list invariant, as amended by ADR-0011, holds). Only the mechanism is
+> gone: the capability moves outside the boundary to the single LLM porcelain. The
+> sanitized-markdown rendering of answers (ADR-0010) carries forward, now applied to the
+> inline answer instead of a chat pane.
 
 Background: TN-26-022. Approved by owner 2026-06-06, delegated to coordinator (CLAUDE.md › Architecture policy).
 

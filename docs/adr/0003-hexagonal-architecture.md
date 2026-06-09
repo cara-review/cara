@@ -1,8 +1,17 @@
 ---
 status: accepted
+amended-by: [0008, 0011]
 ---
 
 # Hexagonal architecture: ports and adapters, boundaries enforced by packages
+
+> **Amended by [ADR-0011](0011-cli-agent-protocol.md) (TN-26-026, Refs #47).** The
+> agent is no longer a **driven** port the core fetches grouping from. `AgentPort` and
+> `AgentChat` (ADR-0009) leave the driven-port table; the **agent becomes a driving
+> actor** invoking CLI verbs, and the LLM-wrapper porcelain (`clear-diff review`) is a
+> **driving adapter**. Grouping arrives **inbound** (untrusted, repaired to a bijection),
+> never fetched. `ConfigPort` is sourced from `~/.clear-diff/config.toml`. See the
+> amendment at the foot of this ADR.
 
 clear-diff is a hexagon: a pure domain + application core surrounded by adapters. Form
 factor (local web app, ADR-0001) and roadmap (CLI, phone, cloud config) mean many
@@ -99,3 +108,27 @@ triviality stays a function.
 - **Pre-rendered diff from the backend** — locks to one renderer, breaks the phone app and
   viewer swaps.
 - **Plain JS** — throws away the compile-time checks that make a port a real boundary.
+
+## Amendment (2026-06-09): agent inverts from driven to driving
+
+Background: TN-26-026, issue #47. Owner-approved in-session 2026-06-09.
+
+The pivot removes the built-in grouping LLM. The port table changes:
+
+- **`AgentPort` removed** as a driven port. Grouping is no longer fetched; it arrives
+  **inbound** over the CLI (`present`), untrusted, and is repaired to a bijection over the
+  master list before anything renders (ADR-0004, as amended). The agent is now a **driving
+  actor**, not a secondary dependency.
+- **`AgentChat` removed** (ADR-0009 superseded by ADR-0011). No chat surface; Q&A routes
+  back to the caller as a comment answer.
+- **LLM-wrapper porcelain (`clear-diff review`) is a driving adapter** — an outer module
+  that drives the same plumbing verbs (`atoms`/`present`/`dispatch`/`submit`). The core
+  carries no LLM, no model, no API key.
+- **`ConfigPort` source is `~/.clear-diff/config.toml`** (was "fs / env"). It subsumes the
+  old `AppConfig.groupingModel`; plumbing verbs never read `[grouping]`/`[llm]`.
+- `InstructionsSource` loads `CLEAR_DIFF.md` (project root + `~/.clear-diff/`), merged with
+  system methodology, version-locked to the `present` schema (renamed from `clear-diff.md`).
+
+The CLI was always a driving adapter (above); this amendment makes the **agent itself** a
+driving actor over it. The hexagon, the package boundaries, and the dependency rule are
+otherwise untouched — the change is which side of the boundary the agent sits on.
