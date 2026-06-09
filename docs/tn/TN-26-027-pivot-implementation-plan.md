@@ -22,13 +22,25 @@ Component plan executing [TN-26-026](TN-26-026-cli-agent-protocol-pivot.md). Pre
 5. **Instructions rename + methodology** (axis e) — folds into 1–2.
 6. **Tests** (axis f) — continuous; e2e gate after 3+4.
 
+**Delivery:** every workstream commits to local `main` after a passing local `bun run lint && bun run test` (never `--no-verify`). Pushes are failing environment-wide (SSH agent down); team-lead pushes when SSH returns — no push-retry logic in any workstream.
+
 Removals (no back-compat, no aliases — ADR-0004 floor preserved): `AgentPort`, `AgentChat`, `GroupingRequest`, `ChatRequest`, `ChatAnswer`, the `ask`/`open` use-cases. Full touchpoints in the audit.
 
 **Reconciliation with the audit** (`.agent-state/pivot-audit.md`):
 - **Label field name = `reviewer`** (ADR-0011 §6), not `label`. The task's "label" and the ADR's `reviewer` are the same field; this plan uses `reviewer` throughout (authoritative).
 - **Answers are keyed by `commentId`, not `atomHash`** — ADR-0011 §1 ("`submit {commentId, answer}`"). The audit's `AnsweredEvent{atomHash,...}` is superseded by the `commentId` form below; one atom can carry several comments, so the answer must target a comment.
 - **OPEN DECISION — the UI "Go"/`CommentSink` egress.** ADR-0011 says the autonomous deliverable is the event log + verb returns, implying the markdown-file egress is obsolete; the audit marks the UI `dispatch` procedure **KEEP** (human-mode export, separate from the CLI verb). Not settled by the ADR. **This plan keeps `CommentSink`/`MarkdownCommentSink`** and renames the egress use-case `dispatch` → **`exportComments`** to free the verb name; the CLI `dispatch` verb maps to the new `dispatch(context, spec): DispatchView` read. Confirm with the owner at axis-b review — if Go is dropped, delete `CommentSink`/`ReviewDispatch`/`DispatchReceipt`/`MarkdownCommentSink` and `exportComments`.
-- **Strict store validator, no migration** (CLAUDE.md — pre-release, no back-compat): `JsonlReviewStore`'s `isMarkEvent` validates the new shapes strictly (author + new event types); existing local `.jsonl` logs are gitignored runtime state and are regenerated, never migrated.
+- **Strict store validator, no migration** — see Risk seam #1.
+
+## Risk seams — settled rulings (team-lead, authoritative)
+
+The audit flags five seams. Rulings, each to be implemented exactly as one atomic step so no inferred type half-breaks:
+
+1. **JSONL `author` field — REQUIRED, no migration, no default shim.** Every persisted `MarkEvent` carries `author` (and the new event types carry `author`/`commentId`). `JsonlReviewStore.isMarkEvent` validates the new shapes strictly; an old log that lacks `author` is a **hard error naming the offending file** (`"<path>: incompatible review log (pre-pivot format) — delete it and re-review"`) so the user deletes it. No optional-with-default, no transitional read path (CLAUDE.md — pre-1.0, marks are local per-context runtime state, gitignored). Touchpoint: `review-store.ts:19–33`.
+2. **Idle detection — stateful server-side tracker, ClockPort seam.** New module `src/server/activity.ts` exporting `createReviewActivity(clock: ClockPort): ReviewActivity` with `{ touch(): void; complete(): void; state(): { lastActivityTs: number; completed: boolean } }`. `clock` is the existing `ClockPort` (injected, fixed in tests — no `Date.now()` in the tracker). The server bumps `touch()` on every inbound mutation and `complete()` on `done`; the `wait` procedure reads `state()` and compares against `clock.now()` for the three-state decision. Touchpoint: `server.ts:32–81` (wire the tracker), `router.ts` (`wait`).
+3. **Use-case split — `open()` → `getAtoms` + `presentGrouping`** (replaces `review-service.ts:68–78`, `compose.ts:67–80`). `open()` is deleted. `getAtoms(spec)` runs git + methodology + open items (no grouping). `presentGrouping(spec, grouping)` repairs the inbound grouping into the cached review and returns the snapshot. **tRPC shape change:** the `open` *subscription* (which streamed `progress`/`section`/`snapshot` while the in-process agent grouped) is removed — grouping is now pre-supplied by the CLI `present` before the browser boots, so there is no grouping wait to stream. Replace it with a one-shot `snapshot` **query** returning the current `ReviewSnapshot`; the browser loads it at boot, and mutations return fresh snapshots as today. `OpenEvent` and the title-reveal/progress-tick code in `router.ts:34–124` are deleted. (Cross-process live refresh — an agent `submit` reflected in an open browser — is out of scope here; the human re-opens or the snapshot query is re-polled. Note, don't build.)
+4. **`submit` + answer lifecycle — ONE atomic core+contract step.** Land together so the inferred `AppRouter` type never half-breaks: (i) `AnsweredEvent`/`CompletedEvent` added to `MarkEvent` (`marks.ts`); (ii) `project()` folds answers + the `open|addressed` derivation (`marks.ts:38–55`); (iii) `buildSnapshot` returns comment `status`/`answer` and mark `author` (`review-service.ts:51–58`); (iv) `ReviewSnapshot` shape change (`ports.ts:170–180`); (v) the `submit`/`answer`/`done` tRPC procedures + `contract.ts` re-exports — all in the same change. No intermediate commit where core and contract disagree.
+5. **Web chat removal — ONE atomic step, exact file set** (audit §2, §8): `router.ts:147` (`ask` procedure), `backend.ts:40` + `:79` (`ask`), `store.ts:122–124` (`ask`), `apps/web/src/ui/chat-pane.ts` (delete file), `view.ts:11/25/27/49` (createChatPane wiring), `ui/layout.ts:17–101` (chat constants/state/divider/grid → `[nav, diff]`), `contract.ts:25` (`ChatAnswer` re-export). Plus the test/e2e fallout: `layout.test.ts:5/22–32`, `e2e/tests/chat.spec.ts` (delete), `e2e/support/answering-agent.ts` (delete), `test-support.ts:3/15/62–65`. Land as a single removal so the bundle never references a deleted symbol.
 
 ---
 
@@ -248,7 +260,7 @@ Clean gap → `next`: "All 41 accounted. Review complete."
 - `router.ts`:
   - `createContext` → `{ author: { tier:"human", label:null } }`.
   - `mark`/`unmark`/`comment` pass `ctx.author`; add `answer({context,commentId,body})` and `done({context})` (→ `markComplete`) mutations. Remove `ask`. The UI `dispatch` procedure stays (→ `exportComments`, the Go egress) unless Go is dropped; the CLI `dispatch` verb is served by the new `dispatch` use-case, not this procedure.
-  - **Activity tracking:** module-level mutable `{ lastEventTs:number, completed:boolean }`; every mutation bumps `lastEventTs = clock.now()`; `done` sets `completed = true`.
+  - **Activity tracking:** the `ReviewActivity` tracker from `src/server/activity.ts` (Risk seam #2) — ClockPort-backed, `touch()` on every mutation, `complete()` on `done`.
   - **`wait` procedure** (`{context, maxBlockMs?, idleMs?}`) — server blocks internally and returns one of the three states:
     - `completed` true → `{state:"done", view:DispatchView}`
     - `now - lastEventTs > idleMs` (~300 000) → `{state:"reviewIdle", progress}`
@@ -256,7 +268,7 @@ Clean gap → `next`: "All 41 accounted. Review complete."
     - both thresholds are flags on `dispatch --wait` (`--block-ms`, `--idle-ms`).
 - **Server discovery:** `present` (when it boots a server) writes `.agent-state/reviews/<context>/server.json` = `{ url, pid, ts }`; the server deletes it on close. `dispatch --wait` reads it, connects, calls `wait`. **No server file / dead pid** → `dispatch --wait` returns `done` from the store immediately (nothing to wait on — autonomous, or the human already closed).
 - `compose.ts`: drop `selectAgent`/`selectChat`/`AnthropicAgent*`/`Fake*`/`MarkdownCommentSink`; service deps shrink to git/store/instructions/editor/clock. `ConfigPort` → `editorCommand` only (toml-backed via the porcelain config; env stays as the test override).
-- `contract.ts`: drop `ChatAnswer`; add `Comment`(updated), `DispatchView`, `MarkAuthor` (keep `DispatchReceipt` while Go survives). `OpenEvent` unchanged in spirit; `snapshot` now carries the richer comment/mark shapes.
+- `contract.ts`: drop `ChatAnswer` and `OpenEvent` (the `open` subscription is gone — Risk seam #3); add `Comment`(updated), `DispatchView`, `MarkAuthor` (keep `DispatchReceipt` while Go survives). The `snapshot` query carries the richer comment/mark shapes.
 
 ---
 
