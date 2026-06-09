@@ -1,8 +1,21 @@
 ---
 status: accepted
+superseded-in-part-by: 0011
 ---
 
 # CommentSink: a driven egress port for dispatching review comments
+
+> **Superseded in part by [ADR-0011](0011-cli-agent-protocol.md) (TN-26-026, Refs #47).**
+> The pivot makes the `dispatch` verb the **sole egress** — comments flow back to the
+> calling agent as structured data over the CLI, not out through a driven sink. So the
+> **`CommentSink` driven port and `ReviewDispatch`/`CommentRecord`/`DispatchReceipt` leave
+> the core**, and the UI **`Go` action becomes `markComplete`** (no push). File export
+> (the MarkdownFile adapter) moves **outside the boundary to the LLM porcelain**, which can
+> render the dispatched comments however a caller wants. What survives unchanged: comments
+> are still events keyed by atom hash (ADR-0005), still anchored by identity not line number
+> (ADR-0002), still untrusted user-reviewed drafts (ADR-0004); the composer and Monaco
+> anchoring below stand. Only the egress *mechanism* changes — a driven sink → an
+> agent-invoked verb.
 
 Background: TN-26-016. Approved by owner 2026-06-06 (delegated to coordinator).
 
