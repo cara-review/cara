@@ -9,7 +9,7 @@ tags: [pivot, plan, core, cli, porcelain, web, agent-protocol, dual-mode, tests]
 
 # TN-26-027: Pivot implementation plan
 
-Component plan executing [TN-26-026](TN-26-026-cli-agent-protocol-pivot.md). Pre-supposes the ADR fallout has landed (new CLI-protocol ADR-0011; ADR-0003/0004 amended; ADR-0009 superseded; **ADR-0007 superseded** — CommentSink/composer egress dropped from core, flagged to adr-author). Precise enough that three implementers (core, CLI/porcelain, web) work without re-deriving decisions. Read TN-26-026 first; it is the ratified intent. Touchpoint inventory: `.agent-state/pivot-audit.md` (task #3).
+Component plan executing [TN-26-026](TN-26-026-cli-agent-protocol-pivot.md). Pre-supposes the ADR fallout has landed (new CLI-protocol ADR-0011; ADR-0003/0004 amended; ADR-0009 superseded; **ADR-0007 superseded-in-part** by ADR-0011 — the CommentSink egress/"Go" is dropped from core; comment authoring, composer, and atom-hash anchoring survive). Precise enough that three implementers (core, CLI/porcelain, web) work without re-deriving decisions. Read TN-26-026 first; it is the ratified intent. Touchpoint inventory: `.agent-state/pivot-audit.md` (task #3).
 
 **End state:** core is a pure, LLM-free, content-addressed accounting engine. One LLM lives in the porcelain, outside the boundary. Four agent-invoked verbs + `instructions` drive everything. Dual-mode (human browser / autonomous CLI) from one bin. Marks carry channel-inferred author tier. No silent fallbacks.
 
@@ -29,7 +29,7 @@ Removals (no back-compat, no aliases — ADR-0004 floor preserved): `AgentPort`,
 **Reconciliation with the audit** (`.agent-state/pivot-audit.md`):
 - **Label field name = `reviewer`** (ADR-0011 §6), not `label`. The task's "label" and the ADR's `reviewer` are the same field; this plan uses `reviewer` throughout (authoritative).
 - **Answers are keyed by `commentId`, not `atomHash`** — ADR-0011 §1 ("`submit {commentId, answer}`"). The audit's `AnsweredEvent{atomHash,...}` is superseded by the `commentId` form below; one atom can carry several comments, so the answer must target a comment.
-- **SETTLED — drop `CommentSink` from core** (team-lead, owner-delegated; **supersedes ADR-0007** — flag to adr-author). `CommentSink`, `ReviewDispatch`, `DispatchReceipt`, `CommentRecord`, `MarkdownCommentSink`, and the egress use-case are **removed entirely** — no `exportComments` rename. The CLI `dispatch` verb (`dispatch(context, spec): DispatchView`) is the sole egress. Standalone comment-file export moves to the **porcelain** (the wrapper composes a file from `dispatch` output). The UI "Go" control becomes **`markComplete` only**.
+- **SETTLED — drop `CommentSink` from core** (team-lead, owner-delegated; **supersedes-in-part ADR-0007** via ADR-0011 — egress/"Go" gone, authoring/composer/anchoring survive). `CommentSink`, `ReviewDispatch`, `DispatchReceipt`, `CommentRecord`, `MarkdownCommentSink`, and the egress use-case are **removed entirely** — no `exportComments` rename. The CLI `dispatch` verb (`dispatch(context, spec): DispatchView`) is the sole egress. Standalone comment-file export moves to the **porcelain** (the wrapper composes a file from `dispatch` output). The UI "Go" control becomes **`markComplete` only**.
 - **Strict store validator, no migration** — see Risk seam #1.
 
 ## Risk seams — settled rulings (team-lead, authoritative)
@@ -117,7 +117,7 @@ export function buildMethodology(instructions: ReviewInstructions): string;
 
 ### Ports (`ports.ts`)
 
-- **Remove:** `AgentPort`, `GroupingRequest`, `AgentChat`, `ChatRequest`, `ChatAnswer`, `CommentSink`, `ReviewDispatch`, `DispatchReceipt`, `CommentRecord` (egress dropped from core — supersedes ADR-0007).
+- **Remove:** `AgentPort`, `GroupingRequest`, `AgentChat`, `ChatRequest`, `ChatAnswer`, `CommentSink`, `ReviewDispatch`, `DispatchReceipt`, `CommentRecord` (egress dropped from core — supersedes-in-part ADR-0007).
 - `AppConfig` shrinks to `{ readonly editorCommand: string | null }` (drop `groupingModel` — grouping is no longer a core concern; the porcelain holds llm config in toml, never core).
 - Keep: `DiffSource`, `WorkspaceReader`, `ReviewInstructions`, `InstructionsSource`, `ReviewStore`, `EditorPort`, `ClockPort`, `ConfigPort`, `LineRange`.
 - New inbound contract types (below), exported from `index.ts`.
