@@ -9,7 +9,7 @@ tags: [pivot, plan, core, cli, porcelain, web, agent-protocol, dual-mode, tests]
 
 # TN-26-027: Pivot implementation plan
 
-Component plan executing [TN-26-026](TN-26-026-cli-agent-protocol-pivot.md). Pre-supposes the ADR fallout has landed (new CLI-protocol ADR; ADR-0003/0004 amended; ADR-0009 superseded). Precise enough that three implementers (core, CLI/porcelain, web) work without re-deriving decisions. Read TN-26-026 first; it is the ratified intent. Touchpoint inventory: `.agent-state/pivot-audit.md` (task #3).
+Component plan executing [TN-26-026](TN-26-026-cli-agent-protocol-pivot.md). Pre-supposes the ADR fallout has landed (new CLI-protocol ADR-0011; ADR-0003/0004 amended; ADR-0009 superseded; **ADR-0007 superseded** — CommentSink/composer egress dropped from core, flagged to adr-author). Precise enough that three implementers (core, CLI/porcelain, web) work without re-deriving decisions. Read TN-26-026 first; it is the ratified intent. Touchpoint inventory: `.agent-state/pivot-audit.md` (task #3).
 
 **End state:** core is a pure, LLM-free, content-addressed accounting engine. One LLM lives in the porcelain, outside the boundary. Four agent-invoked verbs + `instructions` drive everything. Dual-mode (human browser / autonomous CLI) from one bin. Marks carry channel-inferred author tier. No silent fallbacks.
 
@@ -29,7 +29,7 @@ Removals (no back-compat, no aliases — ADR-0004 floor preserved): `AgentPort`,
 **Reconciliation with the audit** (`.agent-state/pivot-audit.md`):
 - **Label field name = `reviewer`** (ADR-0011 §6), not `label`. The task's "label" and the ADR's `reviewer` are the same field; this plan uses `reviewer` throughout (authoritative).
 - **Answers are keyed by `commentId`, not `atomHash`** — ADR-0011 §1 ("`submit {commentId, answer}`"). The audit's `AnsweredEvent{atomHash,...}` is superseded by the `commentId` form below; one atom can carry several comments, so the answer must target a comment.
-- **OPEN DECISION — the UI "Go"/`CommentSink` egress.** ADR-0011 says the autonomous deliverable is the event log + verb returns, implying the markdown-file egress is obsolete; the audit marks the UI `dispatch` procedure **KEEP** (human-mode export, separate from the CLI verb). Not settled by the ADR. **This plan keeps `CommentSink`/`MarkdownCommentSink`** and renames the egress use-case `dispatch` → **`exportComments`** to free the verb name; the CLI `dispatch` verb maps to the new `dispatch(context, spec): DispatchView` read. Confirm with the owner at axis-b review — if Go is dropped, delete `CommentSink`/`ReviewDispatch`/`DispatchReceipt`/`MarkdownCommentSink` and `exportComments`.
+- **SETTLED — drop `CommentSink` from core** (team-lead, owner-delegated; **supersedes ADR-0007** — flag to adr-author). `CommentSink`, `ReviewDispatch`, `DispatchReceipt`, `CommentRecord`, `MarkdownCommentSink`, and the egress use-case are **removed entirely** — no `exportComments` rename. The CLI `dispatch` verb (`dispatch(context, spec): DispatchView`) is the sole egress. Standalone comment-file export moves to the **porcelain** (the wrapper composes a file from `dispatch` output). The UI "Go" control becomes **`markComplete` only**.
 - **Strict store validator, no migration** — see Risk seam #1.
 
 ## Risk seams — settled rulings (team-lead, authoritative)
@@ -117,9 +117,9 @@ export function buildMethodology(instructions: ReviewInstructions): string;
 
 ### Ports (`ports.ts`)
 
-- **Remove:** `AgentPort`, `GroupingRequest`, `AgentChat`, `ChatRequest`, `ChatAnswer`.
+- **Remove:** `AgentPort`, `GroupingRequest`, `AgentChat`, `ChatRequest`, `ChatAnswer`, `CommentSink`, `ReviewDispatch`, `DispatchReceipt`, `CommentRecord` (egress dropped from core — supersedes ADR-0007).
 - `AppConfig` shrinks to `{ readonly editorCommand: string | null }` (drop `groupingModel` — grouping is no longer a core concern; the porcelain holds llm config in toml, never core).
-- Keep: `DiffSource`, `WorkspaceReader`, `ReviewInstructions`, `InstructionsSource`, `ReviewStore`, `EditorPort`, `ClockPort`, `ConfigPort`, `LineRange`. Keep `CommentSink`/`ReviewDispatch`/`DispatchReceipt`/`CommentRecord` pending the Go open-decision (above) — if dropped, remove all four.
+- Keep: `DiffSource`, `WorkspaceReader`, `ReviewInstructions`, `InstructionsSource`, `ReviewStore`, `EditorPort`, `ClockPort`, `ConfigPort`, `LineRange`.
 - New inbound contract types (below), exported from `index.ts`.
 
 ```ts
@@ -172,19 +172,18 @@ export interface ReviewService {
   comment(context: ReviewContext, atomHash: AtomHash, body: string, author: MarkAuthor): Promise<ReviewSnapshot>;
   answer(context: ReviewContext, commentId: string, body: string, author: MarkAuthor): Promise<ReviewSnapshot>;
   submit(spec: DiffSpec, batch: SubmitBatch, author: MarkAuthor): Promise<SubmitResult>;
-  dispatch(context: ReviewContext, spec: DiffSpec): Promise<DispatchView>;  // agent-read verb (new)
-  exportComments(context: ReviewContext): Promise<DispatchReceipt>;          // UI "Go" egress (renamed from old `dispatch`); pending Go open-decision
+  dispatch(context: ReviewContext, spec: DiffSpec): Promise<DispatchView>;  // sole egress (agent-read verb)
   markComplete(context: ReviewContext): Promise<void>;   // human "done" signal, for dispatch --wait
   openInEditor(path: string, line: number): Promise<void>;
 }
 ```
 
-- `ReviewServiceDeps`: **drop `agent`, `chat`**. Keep `diffSource`, `store`, `instructions`, `editor`, `clock`, and `sink` (only while Go survives — drop with the egress otherwise). No new ports — methodology is a pure fn; grouping arrives inbound as `unknown`.
+- `ReviewServiceDeps`: **drop `agent`, `chat`, `sink`**. Keep `diffSource`, `store`, `instructions`, `editor`, `clock`. No new ports — methodology is a pure fn; grouping arrives inbound as `unknown`.
 - **`getAtoms`**: `buildMasterList(diff(spec))` → resolve context → `buildMethodology(instructions.load())` → load events → `openItems` = open comments (status derived against the fresh master list). Caches the master list per context (in-process; cross-process verbs recompute from git — deterministic).
 - **`presentGrouping`**: recompute master list from `spec` (stateless across processes), `repairGrouping(masterList, grouping)` → cache review → `buildSnapshot`. Browser boot is the CLI's job, not the service's.
 - **`mark`/`unmark`/`comment`/`answer`**: append the event with `author`, rebuild snapshot. `commentId` is never stored — `project` re-derives it by ordinal on every fold, so the returned id is stable.
 - **`submit`**: apply `batch.marks` → `marked` events, `batch.comments` → `commented`, `batch.answers` → `answered`, all with `author`. Then compute `GapReport` over the fresh master list (`accounted` = atoms with disposition or comment). Idempotent enough to resubmit; repeated identical marks just re-append (fold is last-write-wins).
-- **`dispatch`** (agent-read verb): load events, recompute master list from `spec`, project comments, derive `status`/`tier`/`reviewer` per comment, return `DispatchView`. Distinct from `exportComments` (the UI Go egress, renamed from the old `dispatch`).
+- **`dispatch`** (agent-read verb, sole egress): load events, recompute master list from `spec`, project comments, derive `status`/`tier`/`reviewer` per comment, return `DispatchView`.
 - **`markComplete`**: append a context-level `completed` marker OR signal the server (see §b `wait`) — store the completion in the event log as a `completed` event so a fresh process can read it. Add `CompletedEvent { type:"completed"; ts }` to `MarkEvent`; `project` exposes `completed: boolean`.
 
 `ReviewSnapshot` (`ports.ts`) gains: `marks: { atomHash, disposition, author }[]`; `comments: Comment[]` (now with `id`, `author`, `answer`, `status`); `completed: boolean`.
@@ -259,7 +258,7 @@ Clean gap → `next`: "All 41 accounted. Review complete."
 
 - `router.ts`:
   - `createContext` → `{ author: { tier:"human", label:null } }`.
-  - `mark`/`unmark`/`comment` pass `ctx.author`; add `answer({context,commentId,body})` and `done({context})` (→ `markComplete`) mutations. Remove `ask`. The UI `dispatch` procedure stays (→ `exportComments`, the Go egress) unless Go is dropped; the CLI `dispatch` verb is served by the new `dispatch` use-case, not this procedure.
+  - `mark`/`unmark`/`comment` pass `ctx.author`; add `answer({context,commentId,body})` and `done({context})` (→ `markComplete`) mutations. Remove `ask` **and the egress `dispatch` procedure** (CommentSink gone). The CLI `dispatch` verb is served by the new `dispatch` use-case, not a tRPC procedure.
   - **Activity tracking:** the `ReviewActivity` tracker from `src/server/activity.ts` (Risk seam #2) — ClockPort-backed, `touch()` on every mutation, `complete()` on `done`.
   - **`wait` procedure** (`{context, maxBlockMs?, idleMs?}`) — server blocks internally and returns one of the three states:
     - `completed` true → `{state:"done", view:DispatchView}`
@@ -267,8 +266,8 @@ Clean gap → `next`: "All 41 accounted. Review complete."
     - `maxBlockMs` (~240 000) elapsed, still active → `{state:"reviewInProgress", progress}`
     - both thresholds are flags on `dispatch --wait` (`--block-ms`, `--idle-ms`).
 - **Server discovery:** `present` (when it boots a server) writes `.agent-state/reviews/<context>/server.json` = `{ url, pid, ts }`; the server deletes it on close. `dispatch --wait` reads it, connects, calls `wait`. **No server file / dead pid** → `dispatch --wait` returns `done` from the store immediately (nothing to wait on — autonomous, or the human already closed).
-- `compose.ts`: drop `selectAgent`/`selectChat`/`AnthropicAgent*`/`Fake*`/`MarkdownCommentSink`; service deps shrink to git/store/instructions/editor/clock. `ConfigPort` → `editorCommand` only (toml-backed via the porcelain config; env stays as the test override).
-- `contract.ts`: drop `ChatAnswer` and `OpenEvent` (the `open` subscription is gone — Risk seam #3); add `Comment`(updated), `DispatchView`, `MarkAuthor` (keep `DispatchReceipt` while Go survives). The `snapshot` query carries the richer comment/mark shapes.
+- `compose.ts`: drop `selectAgent`/`selectChat`/`AnthropicAgent*`/`Fake*`/`MarkdownCommentSink`; service deps shrink to git/store/instructions/editor/clock (no `sink`). `ConfigPort` → `editorCommand` only (toml-backed via the porcelain config; env stays as the test override). Delete `markdown-comment-sink.ts` + its test.
+- `contract.ts`: drop `ChatAnswer`, `DispatchReceipt`, and `OpenEvent` (the `open` subscription is gone — Risk seam #3); add `Comment`(updated), `DispatchView`, `MarkAuthor`. The `snapshot` query carries the richer comment/mark shapes.
 
 ---
 
@@ -290,6 +289,7 @@ The single LLM wrapper. Drives the same plumbing in-process (composes the LLM-fr
      - `"llm"` → **lazy key resolution**: read `process.env[llm.apiKeyEnv]` *only here, at the first LLM call*; empty/unset → loud error (`grouping.mode=llm but $ANTHROPIC_API_KEY is unset`), **never auto-drop to git-order**. Build the grouping prompt from `SYSTEM_METHODOLOGY` (shared with core/instructions) → Anthropic forced-tool call (the `propose_grouping` tool + id→hash relabel transplant from today's `anthropic-agent.ts`) → `presentGrouping`.
   3. Human-in-loop: boot browser via `present`; converge through the human loop. Autonomous: `--no-open` + `submit`/`dispatch` until gap clean.
 - **Answer calls (autonomous Q&A):** when an open comment needs an answer, the porcelain LLM reads the atom's diff (the old `AnthropicAgentChat` prompt + untrusted-data fence, moved here, fully outside core) → `submit {answers:[{commentId,answer}]}`.
+- **Comment-file export (was core `CommentSink`):** the porcelain composes a standalone comment file from `dispatch` output (`DispatchView.comments`) — the markdown egress that used to be `MarkdownCommentSink` now lives here, downstream of the sole `dispatch` egress. Optional, porcelain-only; core never writes files.
 - **Headless multi-reviewer:** `clear-diff review --autonomous --reviewers security,perf,style` (or `[reviewers]` in toml). N passes, each an LLM review producing marks+comments for its lens → `submit --label <lens>`. Marks/comments carry distinct labels; tiers all `agent`; concurrent JSONL appends are order-independent (ADR-0005 fold). Gap report aggregates across reviewers. Default: one unlabelled reviewer.
 - **`FakeAgent`/`FakeAgentChat`** repurpose as porcelain LLM stubs (`src/cli/fake-llm.ts`) for tests/`--fake` — they leave core (core has no AgentPort).
 
@@ -301,7 +301,7 @@ The single LLM wrapper. Drives the same plumbing in-process (composes the LLM-fr
 - **Inline answers:** answers render **at the atom** (in `ui/comments.ts`/`ui/diff-pane.ts`), reusing the **TN-26-023 sanitized renderer** (`ui/markdown.ts`) — now general comment/answer rendering, no longer chat-specific. Untrusted overlay: escape on render, never drives an action.
 - **Tier badges on marks:** snapshot marks carry `author{tier,label}`; render a small badge on each mark glyph (`ui/glyph.ts`/`ui/nav.ts`) — `human` vs `agent:<label>`. Lets a human adjudicate an agent pre-review (hybrid mode).
 - **Markdown Chapter/Section summaries:** render `chapter.summary`/`section.summary` through `ui/markdown.ts` (sanitized subset) instead of plain text (decision #11).
-- **"Done reviewing" control:** a header button → `done` RPC (`markComplete`) — the human synchroniser signal that flips `dispatch --wait` to `done`.
+- **"Done reviewing" control:** the existing "Go" button **becomes `markComplete` only** — a header button → `done` RPC, the human synchroniser signal that flips `dispatch --wait` to `done`. No file-export action in the UI (the egress `dispatch` procedure and `DispatchReceipt`/toast are removed; comment-file export is porcelain-only now).
 - `store.ts`/`selectors.ts`: thread `comment.status`/`comment.answer`/`mark.author`/`completed` through the snapshot; show open-vs-addressed state on comments.
 
 ---
