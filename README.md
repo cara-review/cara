@@ -38,16 +38,22 @@ The point of clear-diff is to be driven by *your* agent. Onboarding is one line 
 The agent drives the engine with four verbs plus a helper. clear-diff never calls out to the agent — every verb is agent-invoked, which is what makes it portable to any platform that can run a command and read JSON.
 
 ```
-clear-diff atoms [spec]       # engine → agent: context, merged guidance, atoms
-                              #   (hash, path, ranges, diff lines), open items.
-clear-diff present [grouping] # agent → engine: grouping JSON → bijection repair →
+clear-diff atoms [--range <base>..<head>]   # engine → agent: context, merged guidance,
+                              #   atoms (hash, path, ranges, diff lines), open items.
+clear-diff present <grouping> # agent → engine: grouping JSON → bijection repair →
                               #   boots server + browser. --no-open stays headless.
-clear-diff dispatch [--wait]  # engine → agent: all comments (open|addressed) + progress.
+                              #   Every chapter & section needs a one-line summary.
+clear-diff dispatch [--wait]  # engine → agent: all comments (open|addressed), any
+                              #   reshape request, + progress.
 clear-diff submit <batch>     # agent → engine: dispositions and/or answers, batched.
                               #   Returns a gap report ("38/41 accounted; missing: …").
 clear-diff instructions       # emits the canonical loop + verb reference.
 ```
 
+- **Payloads** — `present`/`submit` take their JSON inline (`'{…}'`), as a file path, or from stdin (`-`). The spec defaults to the worktree vs `origin/main`; pass `--range <base>..<head>` for any other range.
+- **Summaries are required** — `present` rejects a grouping where any chapter or section lacks a one-line summary, returning the missing list to complete. The engine repairs *structure*; it makes you author the *semantics* ([ADR-0012](docs/adr/0012-field-test-amendments.md)).
+- **Reshape** — a human can ask, in plain language, for a different *view* of the diff (regroup, filter, or answer-as-a-view). It rides back on `dispatch`; the agent answers by re-presenting, which live-refreshes the one open browser. The comment stream stays code-only.
+- **One server per context** — a re-present hands the new grouping to the running server and live-refreshes in place (marks intact), never spawning a second window.
 - **Engine as agent memory** — every response returns full open state + a gap report; the agent tracks nothing across calls.
 - **Fixes need no verb** — the agent edits code, the atom's hash changes, the engine marks the comment addressed mechanically.
 - **`dispatch --wait`** blocks (zero agent tokens burned) and returns one of three states: `done`, `reviewInProgress` (human still active — re-run), or `reviewIdle` (no activity ~5 min — stop polling, await the user).

@@ -23,12 +23,16 @@ _Avoid_: hunk (in user-facing copy), chunk; atom (in user-facing copy).
 A disposition on an atom — `done` or `skipped` — keyed by content hash of the atom's payload, carrying its author tier (`human` | `agent`). Agent marks never masquerade as human attestation; policy (e.g. a completeness gate) may require human-tier marks on specific atoms. Set per-block (tick one change-block) or per-Section (mark all its atoms at once); a Section completes when its last atom is marked.
 
 **comment**:
-A freeform, atom-anchored note written by the reviewer — never categorised by the author (no intent buttons; like a GitHub review comment). The acting agent infers what's needed from the text: edit code (detected mechanically by the atom's hash changing) and/or reply with an answer (attached back to the comment, rendered inline at the atom as untrusted overlay). A comment is `open` until its atom's payload changes or an answer attaches; the reviewer adjudicates on reopen.
+A freeform, atom-anchored note written by the reviewer — never categorised by the author (no intent buttons; like a GitHub review comment). The acting agent infers what's needed from the text: edit code (detected mechanically by the atom's hash changing) and/or reply with an answer (attached back to the comment, rendered inline at the atom as untrusted overlay). A comment is `open` until its atom's payload changes or an answer attaches; the reviewer adjudicates on reopen. May optionally pin to one line within its atom by **content + side** (never a line number) — display-only: it refines where the comment shows, falls back to the end of the hunk when that line no longer matches, and never changes the atom-level mark.
 _Avoid_: intent categories, chat (there is no chat surface; the comment is the only conversational interface).
 
+**reshape**:
+A review-level request from the human (browser) asking the agent for a different *view* of the diff — regroup ("split the tests out"), filter to a subset ("show only the public-interface changes"; the rest sweeps to "Other changes" via the bijection), or answer a question as a view. **Not** a comment: no atom anchor, no author tier beyond the human channel, never affects counts or the bijection. Routed to the agent via `dispatch`; the agent answers by **re-presenting**, which live-refreshes the open browser (marks intact). The comment stream stays code-only.
+_Avoid_: treating it as a comment or a chat turn.
+
 **AI summary**:
-An agent-written markdown description of a Chapter or Section, rendered (sanitized subset) at the top of it as an untrusted orienting aid ("pinch of salt"). Its content follows the layered instructions (system methodology + project `CLEAR_DIFF.md` + personal `~/.clear-diff/CLEAR_DIFF.md`) — e.g. a pref like "list the test types in test sections". Never authoritative, never alters or substitutes for the diff. No per-block summaries — the change-block is its own evidence.
-_Avoid_: framing it as a verdict or review conclusion.
+An agent-written markdown description of a Chapter or Section, rendered (sanitized subset) at the top of it as an untrusted orienting aid ("pinch of salt"). **Required on every Chapter and Section** — `present` rejects an agent grouping missing one and returns the missing list to complete (the engine-swept "Other changes" chapter and the git-order floor are exempt). Its content follows the layered instructions (system methodology + project `CLEAR_DIFF.md` + personal `~/.clear-diff/CLEAR_DIFF.md`) — e.g. a pref like "list the test types in test sections". Never authoritative, never alters or substitutes for the diff. No per-block summaries — the change-block is its own evidence.
+_Avoid_: framing it as a verdict or review conclusion; calling it optional.
 
 **master list**:
 The complete, canonical set of atoms for a Review, computed by the domain straight from the diff. Authoritative; the agent grouping can never add to, remove from, or hide it.

@@ -32,3 +32,5 @@ Read the `status` field before treating any TN as authoritative: `active` → au
 | [26-025](TN-26-025-competitive-landscape-and-positioning.md) | Competitive landscape and positioning — agent-grouped, completeness-gated diff review | research | active | #46 |
 | [26-026](TN-26-026-cli-agent-protocol-pivot.md) | CLI agent protocol pivot — external agent supplies grouping, dual-mode, LLM-free core | proposal | active | #47 |
 | [26-027](TN-26-027-pivot-implementation-plan.md) | Pivot implementation plan — LLM-free core, CLI agent protocol, dual-mode | plan | active | #47 |
+| [26-028](TN-26-028-polish-pass-implementation-plan.md) | Polish-pass implementation plan — field-test findings on the pivot | plan | active | #47 |
+| [26-029](TN-26-029-ab-eval-scaffolded-vs-freeform.md) | A/B evaluation — scaffolded (clear-diff) vs freeform review (first eval datapoint) | research | active | #47 |

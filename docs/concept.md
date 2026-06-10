@@ -94,7 +94,7 @@ Review
 ```
 
 - **Chapter** — a major tranche of intent. A small diff is one chapter; a big diff is several. *"Event-bus migration", "New API surface", "Frontend wiring", "Tests & fixtures".*
-- **Section** — a curated group of related changes within a chapter. Defined by **theme, not position** — so a section can pull related lines out of several places, even out of a single file, and leave the rest behind. *"The retry logic", "Domain model changes", "The tests".*
+- **Section** — a curated group of related changes within a chapter. Defined by **theme, not position** — so a section can pull related lines out of several places, even out of a single file, and leave the rest behind. *"The retry logic", "Domain model changes", "The tests".* Sized by **cognitive load**, not a target count: roughly a page or two of *varied* change, as much as you can grasp at once. A long run of near-identical edits (a mechanical rename across many files) stays **one** section however large — one idea to verify; varied change never runs long.
 - **atom** — one git hunk. The indivisible mechanical unit everything is built from. Internal only — the user vocabulary is Chapters and Sections.
 
 This is what lets review feel like reading a report instead of scrolling a file dump: importance at the top, detail underneath, related things together.
@@ -152,17 +152,19 @@ The atoms-in-git-order floor is the safety net: even a poor grouping never feels
 
 ## The Interaction
 
-Each chapter and section can be headed by a short **AI summary** — an agent-written orientation of what the change does, taken with a pinch of salt. It's an aid, never authoritative and never a substitute for reading the diff; the evidence below it is the truth.
+Each chapter and section is headed by a short **AI summary** — an agent-written orientation of what the change does, taken with a pinch of salt. It's an aid, never authoritative and never a substitute for reading the diff; the evidence below it is the truth. Summaries are **required**, not optional: `present` rejects an agent grouping that omits one and hands back the missing list to complete (the engine's own "Other changes" sweep and the git-order floor are exempt — they claim no semantics). The agent can repair *structure* on its own but cannot author the prose that orients you — so the engine validates it ([ADR-0012](adr/0012-field-test-amendments.md)).
 
 You descend the structure. For each chapter, top section first, you read the surfaced diff and either:
 
 - **mark it** — done or skip. Mark a whole section in one keystroke, or *zap through it block by block*: each change-block ticks off on its own and the section completes when the last one's ticked. Either granularity lands the mark on the underlying atoms.
-- **comment** — click a line and talk. Voice-to-text is the primary input, strongly encouraged: you just say what you mean and the agent writes the comment in your voice. *"Tell them to use the existing retry util rather than rolling their own."*
+- **comment** — click a line and talk. Voice-to-text is the primary input, strongly encouraged: you just say what you mean and the agent writes the comment in your voice. *"Tell them to use the existing retry util rather than rolling their own."* A comment can pin to a specific line, anchored by that line's *content* (not its number), so it stays put as the diff moves and falls back to the end of the block if the line is edited away — but the mark itself stays block-level.
 - **open the file** — jump to the real file at that line in your editor (VS Code / Zed / configurable) when the diff isn't enough.
 
 **The comment is the only interface.** There is no chat pane. A comment is freeform in, structured out — you say what you mean and the agent infers whether to edit code, answer, or both. Questions are just comments; the answer routes back to the agent and renders inline at the atom (sanitized markdown, untrusted overlay). A comment is `open` until the atom's payload changes or an answer is attached; the reviewer adjudicates on reopen and re-raises by commenting again.
 
-You work down each chapter until you stop caring, then move on. When everything's accounted for, the comments are already in the agent's hands — `dispatch` is the engine's sole egress, and the agent composes any file or PR export it wants from that output.
+**Reshape — ask for a different view.** The grouping isn't fixed. At any point you can ask the agent, in plain language, to *re-present the diff a different way*: regroup it ("split the tests out"), filter it to a slice ("show only the public-interface changes" — the rest sweeps into "Other changes", nothing hidden), or answer a question *as* a view. It's a review-level request, not a comment — it carries no line, no atom, never touches the counts — and the agent answers by re-presenting, which live-refreshes the open browser with your marks intact. The comment stream stays code-only.
+
+You work down each chapter until you stop caring, then move on. An atom is **accounted for** the moment you mark it *or* comment on it — a comment alone closes the gap, so a change you've flagged never blocks completion. When everything's accounted for, the comments are already in the agent's hands — `dispatch` is the engine's sole egress, and the agent composes any file or PR export it wants from that output.
 
 The point throughout: **less guessing, more selective disclosure.** The agent's job is to structure and surface; yours is to decide what's worth your attention. The marking — not an AI prediction — is what hides the noise.
 
@@ -248,5 +250,7 @@ Deliberately not in the first cut — noted so they don't creep in:
 ## Form Factor
 
 **Decided ([ADR-0001](adr/0001-form-factor-local-web-first.md)): a local web app, Electron deferred.** In human-in-loop mode `present` boots a localhost server and opens the UI in an `--app`-mode window. All real work (git, atom hashing, open-in-editor) lives in the local server; the form factor is only the rendering shell, so a later Electron wrapper stays thin and additive. In autonomous mode there is no window at all — the agent works the verbs headless.
+
+There is **one live server per review context**. A re-present (a regroup, or a Reshape answer) doesn't spawn a second window — it hands the new grouping to the running server, which **live-refreshes** the open browser in place, marks intact. A stale server is replaced, never left to pile up beside the new one.
 
 In-host MCP (inline HTML in Claude Code / Desktop) is rejected for the human surface: the dominant host is a terminal with no canvas, and a focused, keyboard-driven split-pane can't live in a borrowed panel. MCP may return later as an *adapter* over the same verbs. Voice is not built — speech→text is delegated to OS-level dictation.
