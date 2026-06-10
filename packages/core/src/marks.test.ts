@@ -38,6 +38,12 @@ const AGENT: MarkAuthor = { tier: "agent", reviewer: null };
 const SECURITY: MarkAuthor = { tier: "agent", reviewer: "security" };
 const PERF: MarkAuthor = { tier: "agent", reviewer: "perf" };
 
+/** A minimal comment for reviewProgress — only the hash + author tier feed its scrutiny breakdown. */
+const comment = (i: number, author: MarkAuthor): { atomHash: AtomHash; author: MarkAuthor } => ({
+  atomHash: h(i),
+  author,
+});
+
 // --- marks fold -------------------------------------------------------------
 
 test("project folds marked/unmarked to current state, carrying the author", () => {
@@ -157,7 +163,7 @@ test("progress derives from the master list, counting skipped as addressed", () 
     { type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: HUMAN },
     { type: "marked", ts: 2, atomHash: h(2), disposition: "skipped", author: HUMAN },
   ]);
-  const progress = reviewProgress(master, marks, new Set());
+  const progress = reviewProgress(master, marks, []);
   assert.equal(progress.total, 3);
   assert.equal(progress.addressed, 2);
   assert.equal(progress.unaddressed, 1);
@@ -168,7 +174,7 @@ test("progress omits byReviewer entirely when no mark carries a label", () => {
     { type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: HUMAN },
     { type: "marked", ts: 2, atomHash: h(1), disposition: "done", author: AGENT },
   ]);
-  assert.equal("byReviewer" in reviewProgress(master, marks, new Set()), false);
+  assert.equal("byReviewer" in reviewProgress(master, marks, []), false);
 });
 
 test("progress breaks down addressed per reviewer label when labels are present", () => {
@@ -177,7 +183,7 @@ test("progress breaks down addressed per reviewer label when labels are present"
     { type: "marked", ts: 2, atomHash: h(1), disposition: "done", author: SECURITY },
     { type: "marked", ts: 3, atomHash: h(2), disposition: "done", author: PERF },
   ]);
-  const breakdown = reviewProgress(master, marks, new Set()).byReviewer;
+  const breakdown = reviewProgress(master, marks, []).byReviewer;
   assert.deepEqual(
     [...(breakdown ?? [])].sort((a, b) => a.reviewer.localeCompare(b.reviewer)),
     [
@@ -194,7 +200,7 @@ test("two labels marking the same atom credit the last writer only (one-record-p
     { type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: SECURITY },
     { type: "marked", ts: 2, atomHash: h(0), disposition: "done", author: PERF },
   ]);
-  const progress = reviewProgress(master, marks, new Set());
+  const progress = reviewProgress(master, marks, []);
   assert.equal(progress.addressed, 1);
   assert.deepEqual(progress.byReviewer, [{ reviewer: "perf", addressed: 1 }]);
 });
@@ -204,14 +210,14 @@ test("byReviewer counts only labelled marks landing on master-list atoms", () =>
     { type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: SECURITY },
     { type: "marked", ts: 2, atomHash: "gone" as AtomHash, disposition: "done", author: SECURITY },
   ]);
-  assert.deepEqual(reviewProgress(master, marks, new Set()).byReviewer, [{ reviewer: "security", addressed: 1 }]);
+  assert.deepEqual(reviewProgress(master, marks, []).byReviewer, [{ reviewer: "security", addressed: 1 }]);
 });
 
 // --- gap-closed accounting (ADR-0012 §f) ------------------------------------
 
 test("accounted counts a disposition OR a comment; addressed counts disposition only", () => {
   const { marks } = project([{ type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: HUMAN }]);
-  const progress = reviewProgress(master, marks, new Set([h(1)])); // h(1) comment-only
+  const progress = reviewProgress(master, marks, [comment(1, AGENT)]); // h(1) comment-only
   assert.equal(progress.total, 3);
   assert.equal(progress.addressed, 1); // h(0) dispositioned
   assert.equal(progress.accounted, 2); // h(0) by mark, h(1) by comment
@@ -219,9 +225,79 @@ test("accounted counts a disposition OR a comment; addressed counts disposition 
 });
 
 test("a comment-only atom is accounted but never addressed (gap-closed yet undispositioned)", () => {
-  const progress = reviewProgress(master, new Map(), new Set([h(0)]));
+  const progress = reviewProgress(master, new Map(), [comment(0, AGENT)]);
   assert.equal(progress.addressed, 0);
   assert.equal(progress.accounted, 1);
+});
+
+// --- scrutiny breakdown (TN-26-029: dispositioned ≠ reviewed) ---------------
+
+test("scrutiny is empty when nothing is accounted", () => {
+  assert.deepEqual(reviewProgress(master, new Map(), []).scrutiny, []);
+});
+
+test("scrutiny splits commented engagement from a bare-disposition sweep, per tier", () => {
+  // Agent sweeps all three by disposition but comments only one — the warning the breakdown surfaces.
+  const { marks } = project([
+    { type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: AGENT },
+    { type: "marked", ts: 2, atomHash: h(1), disposition: "done", author: AGENT },
+    { type: "marked", ts: 3, atomHash: h(2), disposition: "done", author: AGENT },
+  ]);
+  const progress = reviewProgress(master, marks, [comment(0, AGENT)]);
+  assert.deepEqual(progress.scrutiny, [{ tier: "agent", accounted: 3, commented: 1 }]);
+});
+
+test("an atom one tier swept and another commented counts in both rows (footprint, not a partition)", () => {
+  // h(0): agent mark + human comment → agent counts it swept AND human counts it commented.
+  const { marks } = project([
+    { type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: AGENT },
+    { type: "marked", ts: 2, atomHash: h(1), disposition: "done", author: AGENT },
+  ]);
+  const progress = reviewProgress(master, marks, [comment(0, HUMAN)]);
+  assert.deepEqual(progress.scrutiny, [
+    { tier: "human", accounted: 1, commented: 1 },
+    { tier: "agent", accounted: 2, commented: 0 }, // the agent swept both — the human comment doesn't erase h(0)
+  ]);
+});
+
+test("a human comment on an agent-swept atom never shrinks the agent's sweep total", () => {
+  // The warning this feature exists to raise: agent dispositioned all three with no comment.
+  const { marks } = project([
+    { type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: AGENT },
+    { type: "marked", ts: 2, atomHash: h(1), disposition: "done", author: AGENT },
+    { type: "marked", ts: 3, atomHash: h(2), disposition: "done", author: AGENT },
+  ]);
+  const progress = reviewProgress(master, marks, [comment(2, HUMAN)]);
+  assert.deepEqual(progress.scrutiny, [
+    { tier: "human", accounted: 1, commented: 1 },
+    { tier: "agent", accounted: 3, commented: 0 }, // still 3 swept — the human comment adds on top
+  ]);
+});
+
+test("a comment-only atom (no disposition) counts as scrutiny under its comment tier", () => {
+  const progress = reviewProgress(master, new Map(), [comment(0, AGENT)]);
+  assert.deepEqual(progress.scrutiny, [{ tier: "agent", accounted: 1, commented: 1 }]);
+});
+
+test("a human + agent comment on one atom credit both tiers, order-independent", () => {
+  const agentFirst = reviewProgress(master, new Map(), [comment(0, AGENT), comment(0, HUMAN)]);
+  const humanFirst = reviewProgress(master, new Map(), [comment(0, HUMAN), comment(0, AGENT)]);
+  const expected = [
+    { tier: "human", accounted: 1, commented: 1 },
+    { tier: "agent", accounted: 1, commented: 1 },
+  ];
+  assert.deepEqual(agentFirst.scrutiny, expected);
+  assert.deepEqual(humanFirst.scrutiny, expected);
+});
+
+test("scrutiny counts are surface-area: a hash-keyed comment credits every occurrence (like accounted)", () => {
+  // Two byte-identical hunks collapse to one hash but stay distinct list entries; a single
+  // hash-keyed comment is credited to both occurrences, exactly as `accounted` double-counts them.
+  const dupMaster = buildMasterList([hunk("a.ts", "x"), hunk("a.ts", "x"), hunk("b.ts", "y")]);
+  const dupHash = dupMaster[0]!.hash;
+  const progress = reviewProgress(dupMaster, new Map(), [{ atomHash: dupHash, author: AGENT }]);
+  assert.equal(progress.accounted, 2); // both occurrences of the shared hash
+  assert.deepEqual(progress.scrutiny, [{ tier: "agent", accounted: 2, commented: 2 }]);
 });
 
 test("isAccounted: true on a disposition, true on a comment, false on neither", () => {

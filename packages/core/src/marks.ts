@@ -232,22 +232,55 @@ export function isSectionComplete(
  * attached; it is absent entirely when no mark is labelled. Marks are one-record-per-atom
  * (last-write-wins), so an atom dispositioned by two reviewer labels is credited to the
  * later writer only — the breakdown is last-writer attribution, not a per-lens tally.
+ *
+ * Takes the comments (not a bare hash set) because scrutiny is tier-aware (TN-26-029):
+ * each tier's row counts the atoms that tier touched (marked or commented) and how many
+ * it commented — dispositioned ≠ reviewed, so an agent's bare-disposition sweep stays
+ * visible regardless of what other tiers did to the same atom.
  */
 export function reviewProgress(
   masterList: readonly Atom[],
   marks: ReadonlyMap<AtomHash, MarkRecord>,
-  commentedHashes: ReadonlySet<AtomHash>,
+  comments: readonly Pick<Comment, "atomHash" | "author">[],
 ): ReviewProgress {
+  // The tiers that commented each atom (a hash may carry comments from both tiers).
+  const commentTiers = new Map<AtomHash, Set<MarkAuthor["tier"]>>();
+  for (const { atomHash, author } of comments) {
+    const tiers = commentTiers.get(atomHash) ?? new Set<MarkAuthor["tier"]>();
+    tiers.add(author.tier);
+    commentTiers.set(atomHash, tiers);
+  }
+  const commentedHashes = new Set(commentTiers.keys());
+
   let addressed = 0;
   let accounted = 0;
   const byReviewer = new Map<string, number>();
+  // Scrutiny is a per-tier footprint, NOT a partition: an atom an agent swept and a human
+  // commented counts in both rows, so each tier's sweep total (accounted − commented)
+  // reflects that tier's own engagement and is never eroded by another tier (TN-26-029).
+  // Counts are surface-area like `accounted`: byte-identical hunks share a hash, so a
+  // hash-keyed comment is credited to every occurrence it accounts.
+  const scrutiny = new Map<MarkAuthor["tier"], { accounted: number; commented: number }>();
+  const touch = (tier: MarkAuthor["tier"], commented: boolean): void => {
+    const cell = scrutiny.get(tier) ?? { accounted: 0, commented: 0 };
+    cell.accounted++;
+    if (commented) cell.commented++;
+    scrutiny.set(tier, cell);
+  };
+
   for (const atom of masterList) {
-    if (isAccounted(atom, marks, commentedHashes)) accounted++;
     const record = marks.get(atom.hash);
-    if (record === undefined) continue;
-    addressed++;
-    const { reviewer } = record.author;
-    if (reviewer !== null) byReviewer.set(reviewer, (byReviewer.get(reviewer) ?? 0) + 1);
+    if (record !== undefined) {
+      addressed++;
+      const { reviewer } = record.author;
+      if (reviewer !== null) byReviewer.set(reviewer, (byReviewer.get(reviewer) ?? 0) + 1);
+    }
+    if (!isAccounted(atom, marks, commentedHashes)) continue;
+    accounted++;
+    const commentedBy = commentTiers.get(atom.hash);
+    const tiers = new Set<MarkAuthor["tier"]>(commentedBy);
+    if (record !== undefined) tiers.add(record.author.tier);
+    for (const tier of tiers) touch(tier, commentedBy?.has(tier) ?? false);
   }
 
   const progress: ReviewProgress = {
@@ -255,6 +288,10 @@ export function reviewProgress(
     addressed,
     accounted,
     unaddressed: masterList.length - addressed,
+    scrutiny: (["human", "agent"] as const).flatMap((tier) => {
+      const cell = scrutiny.get(tier);
+      return cell ? [{ tier, ...cell }] : [];
+    }),
   };
   if (byReviewer.size === 0) return progress;
   return {

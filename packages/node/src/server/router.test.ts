@@ -24,7 +24,7 @@ function snapshot(context: string, addressed = 0): ReviewSnapshot {
     review: { chapters: [], masterList: [] },
     marks: [],
     comments: [],
-    progress: { total: 3, addressed, accounted: addressed, unaddressed: 3 - addressed },
+    progress: { total: 3, addressed, accounted: addressed, unaddressed: 3 - addressed, scrutiny: [] },
     completed: false,
     pendingReshape: null,
   };
@@ -34,7 +34,7 @@ function dispatchView(context: string): DispatchView {
   return {
     context: context as ReviewContext,
     comments: [],
-    progress: { total: 3, addressed: 1, accounted: 1, unaddressed: 2 },
+    progress: { total: 3, addressed: 1, accounted: 1, unaddressed: 2, scrutiny: [] },
     reshape: null,
   };
 }

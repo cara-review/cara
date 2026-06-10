@@ -76,7 +76,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
           line: atom ? resolveCommentLine(atom, comment.pointer) : null,
         };
       }),
-      progress: reviewProgress(review.masterList, state.marks, commentedSet(state)),
+      progress: reviewProgress(review.masterList, state.marks, state.comments),
       completed: state.completed,
       pendingReshape: state.pendingReshape,
     };
@@ -132,7 +132,8 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
         openItems.push(toOpenItem(comment, atom, "open"));
       }
 
-      return { context, methodology, methodologyVersion: METHODOLOGY_VERSION, atoms: masterList, openItems };
+      const atoms = masterList.map((atom) => ({ ...atom, removedLines: removedLineCount(atom) }));
+      return { context, methodology, methodologyVersion: METHODOLOGY_VERSION, atoms, openItems };
     },
 
     async presentGrouping(spec, grouping, opts) {
@@ -216,7 +217,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
       const state = project(await deps.store.load(context));
       return {
         gap: buildGapReport(masterList, state),
-        progress: reviewProgress(masterList, state.marks, commentedSet(state)),
+        progress: reviewProgress(masterList, state.marks, state.comments),
       };
     },
 
@@ -243,7 +244,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
       return {
         context,
         comments,
-        progress: reviewProgress(masterList, state.marks, commentedSet(state)),
+        progress: reviewProgress(masterList, state.marks, state.comments),
         reshape: state.pendingReshape,
       };
     },
@@ -313,6 +314,13 @@ function buildGapReport(masterList: readonly Atom[], state: ReviewState): GapRep
     else missing.push({ atomHash: atom.hash, path: atom.path, lineRange: locate(atom) });
   }
   return { total: masterList.length, accounted, missing };
+}
+
+/** Removed-line count of an atom — a mechanical fact of its own diff lines (ADR-0002), for the deletion nudge. */
+function removedLineCount(atom: Atom): number {
+  let count = 0;
+  for (const line of atom.lines) if (line.kind === "removed") count++;
+  return count;
 }
 
 /** An atom's location on the side it lives: head for an edit/add, base for a deletion. */

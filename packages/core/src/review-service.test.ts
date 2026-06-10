@@ -125,6 +125,27 @@ test("getAtoms returns the master list, merged methodology, and version stamp", 
   assert.equal(view.atoms[0]?.lines.length, 1); // atoms carry git-verbatim diff lines
 });
 
+test("getAtoms flags deletion-bearing atoms with a removes count (the deletion nudge, TN-26-029)", async () => {
+  const deletion: RawHunk = {
+    status: "modified",
+    path: "a.ts",
+    previousPath: null,
+    oldStart: 1,
+    oldLines: 2,
+    newStart: 1,
+    newLines: 1,
+    lines: [
+      { kind: "removed", text: "file.lock()" },
+      { kind: "removed", text: "doThing()" },
+      { kind: "added", text: "doThing()" },
+    ],
+  };
+  const { service } = build({ hunks: [deletion, hunk("b.ts", "1")] });
+  const view = await service.getAtoms(WORKTREE);
+  assert.equal(view.atoms[0]?.removedLines, 2); // computed from the atom's own lines (trusted layer)
+  assert.equal(view.atoms[1]?.removedLines, 0); // a pure addition carries no removals
+});
+
 test("getAtoms takes its context from the DiffSource adapter (ADR-0005)", async () => {
   const { service } = build({ resolve: () => "feature/x" });
   assert.equal((await service.getAtoms(WORKTREE)).context, "feature/x");
@@ -189,7 +210,7 @@ test("presentGrouping repairs a good grouping into chapters and returns the snap
   const placed = snap.review.chapters.flatMap((c) => c.sections).flatMap((s) => s.atoms);
   assert.equal(placed.length, 3); // bijection holds — every atom placed exactly once
   assert.equal(snap.review.chapters[0]?.title, "Core");
-  assert.deepEqual(snap.progress, { total: 3, addressed: 0, accounted: 0, unaddressed: 3 });
+  assert.deepEqual(snap.progress, { total: 3, addressed: 0, accounted: 0, unaddressed: 3, scrutiny: [] });
   assert.equal(snap.completed, false);
   assert.equal(snap.pendingReshape, null);
 });
@@ -207,7 +228,7 @@ test("presentGrouping on an empty diff degrades gracefully", async () => {
   const { service } = build({ hunks: [] });
   const snap = await service.presentGrouping(WORKTREE, {});
   assert.deepEqual(snap.review.chapters, []);
-  assert.deepEqual(snap.progress, { total: 0, addressed: 0, accounted: 0, unaddressed: 0 });
+  assert.deepEqual(snap.progress, { total: 0, addressed: 0, accounted: 0, unaddressed: 0, scrutiny: [] });
 });
 
 test("presentGrouping folds previously persisted marks (resume across sessions)", async () => {
@@ -467,7 +488,13 @@ test("dispatch reports full progress over the master list", async () => {
   const { service } = build();
   await service.submit(WORKTREE, { marks: [{ atomHash: HASH(0), disposition: "done" }] }, AGENT);
   const view = await service.dispatch(WORKTREE);
-  assert.deepEqual(view.progress, { total: 3, addressed: 1, accounted: 1, unaddressed: 2 });
+  assert.deepEqual(view.progress, {
+    total: 3,
+    addressed: 1,
+    accounted: 1,
+    unaddressed: 2,
+    scrutiny: [{ tier: "agent", accounted: 1, commented: 0 }],
+  });
   assert.equal(view.reshape, null);
 });
 

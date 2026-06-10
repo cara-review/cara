@@ -70,7 +70,7 @@ test("atoms emits context, methodology, atoms, openItems, and a next hint", asyn
     const out = cap.json();
     assert.ok(typeof out["context"] === "string");
     assert.ok(typeof out["methodology"] === "string" && (out["methodology"] as string).length > 0);
-    assert.equal(out["methodologyVersion"], 3);
+    assert.equal(out["methodologyVersion"], 4);
     assert.equal((out["atoms"] as unknown[]).length, 1);
     assert.deepEqual(out["openItems"], []);
     assert.match(out["next"] as string, /present/);

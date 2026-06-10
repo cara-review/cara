@@ -82,9 +82,21 @@ export interface AtomsView {
   readonly methodology: string;
   readonly methodologyVersion: number;
   /** The canonical master list, atoms carrying their git-verbatim diff lines (ADR-0004 amended). */
-  readonly atoms: readonly Atom[];
+  readonly atoms: readonly AtomView[];
   /** Open comments carried from prior rounds, located against the fresh master list. */
   readonly openItems: readonly OpenItem[];
+}
+
+/**
+ * An atom as the `atoms` verb emits it: the mechanical unit plus a trusted removed-line count.
+ * `removedLines` is computed from the atom's own diff lines (mechanical layer, ADR-0002) —
+ * never agent-supplied — so the methodology's deletion question (v4) can target deletion-
+ * bearing changes. TN-26-029: both arms missed a bug beside a deleted `file.lock()`; surfacing
+ * the removal makes "what guarantee did the deleted lines provide?" answerable per change.
+ */
+export interface AtomView extends Atom {
+  /** Removed-line count of this change; 0 for a pure addition. Surfaces deletion-bearing changes. */
+  readonly removedLines: number;
 }
 
 /** An open comment positioned in the current change: stable id + identity + live location. */

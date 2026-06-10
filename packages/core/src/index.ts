@@ -62,6 +62,7 @@ export type {
   EditorPort,
   LineRange,
   AtomsView,
+  AtomView,
   OpenItem,
   DispatchView,
   CommentView,

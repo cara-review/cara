@@ -136,6 +136,22 @@ export interface ReviewProgress {
   readonly accounted: number;
   readonly unaddressed: number;
   /**
+   * Scrutiny breakdown per author tier (TN-26-029): of the atoms a tier touched (marked or
+   * commented), how many carry a comment from that tier (real engagement) versus a bare
+   * disposition (a sweep). The swept count is `accounted - commented`. Dispositioned ≠
+   * reviewed — a tier that accounts hundreds but comments on a handful has swept, not
+   * scrutinised, them; "471 accounted / 4 commented" is meant to read as the warning it is.
+   * A per-tier footprint, not a partition: an atom one tier swept and another commented
+   * counts in both rows, so no tier's sweep total is masked by another's comment. Counts are
+   * surface-area (per occurrence) like `accounted`. Visibility only: it never gates or
+   * blocks. Tiers with nothing accounted are omitted; entries are ordered [human, agent].
+   */
+  readonly scrutiny: ReadonlyArray<{
+    readonly tier: MarkAuthor["tier"];
+    readonly accounted: number;
+    readonly commented: number;
+  }>;
+  /**
    * Addressed-atom count per agent reviewer label (ADR-0011 §6), present only when at
    * least one mark carries a label. Descriptive metadata within the `agent` tier — it
    * never affects `total`/`addressed`/`unaddressed`.

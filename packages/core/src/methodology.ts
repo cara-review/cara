@@ -10,7 +10,7 @@
 import type { ReviewInstructions } from "./ports.ts";
 
 /** Bumped whenever the grouping schema or these rules change. Stamps the `atoms` response. */
-export const METHODOLOGY_VERSION = 3;
+export const METHODOLOGY_VERSION = 4;
 
 /** The canonical grouping rules + vocabulary every reviewing agent follows. */
 export const SYSTEM_METHODOLOGY: string = [
@@ -43,7 +43,9 @@ export const SYSTEM_METHODOLOGY: string = [
   'terms of Chapters and Sections; never expose internal words like "atom" or "hunk".',
   "",
   "Once the grouping is presented, REVIEW IN TWO STAGES. Every finding — in either stage —",
-  "is a comment on a change, so nothing escapes accounting.",
+  "is a comment on a change. A FINDING THAT IS NOT A COMMENT DOES NOT EXIST: record the",
+  "comment before writing any prose or summary. The engine cannot see prose — only comments",
+  "enter the accounting, so an unrecorded finding is lost. Comment first, narrate after.",
   "",
   "Stage 1 — per-change sweep. Account for every change: judge it on its own, mark it",
   "done or skipped, or attach a comment. This proves coverage — no change goes unseen.",
@@ -62,6 +64,11 @@ export const SYSTEM_METHODOLOGY: string = [
   "Then hunt ABSENCES — what the change should have added but did not: missing input",
   "validation, bounds, timeout, cleanup, or error path. A new long-lived call with no",
   "timeout; a new persisted field no guard checks; a new failure mode with no handler.",
+  "",
+  "DELETIONS are absences too. For any change that removes code, ask: what guarantee did",
+  "the deleted lines provide, and where is it restored? A removed lock, guard, validation,",
+  "or cleanup is a silent gap — e.g. a deleted file.lock() can sit two lines from a bug you",
+  "would otherwise wave through. Comment whenever a deleted guarantee has no replacement.",
   "",
   "Anchor every seam finding as a comment on the nearest relevant change — the one a",
   "reviewer jumps to first. An interaction gets a comment on the change that introduces",

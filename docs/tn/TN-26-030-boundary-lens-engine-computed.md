@@ -16,8 +16,8 @@ tags: [proposal, methodology, evaluation, completeness, seams, architecture]
 > boundary change; any of those would need a human-approved ADR first (CLAUDE.md › Architecture
 > policy).
 
-Hardens the v3 free-text seams pass ([`methodology.ts`](../../packages/core/src/methodology.ts),
-`METHODOLOGY_VERSION` 3) from a prose instruction into an **engine-computed mechanism**: a
+Hardens the free-text seams pass ([`methodology.ts`](../../packages/core/src/methodology.ts);
+introduced at `METHODOLOGY_VERSION` 3, since carried forward) from a prose instruction into an **engine-computed mechanism**: a
 deterministic, path-based view that groups atoms by the boundary they cross, so the reviewer
 is pointed *at the seam* instead of asked to remember to look for it.
 

@@ -46,7 +46,7 @@ test("present --no-open envelope: headless shape + a hint pointing at submit", a
     const out = json(await runBin(["present", "-", "--no-open", "--range", fixture.range], fixture.dir, { input: grouping }));
     assert.deepEqual(shape(out), ["context", "next", "opened", "progress"]);
     assert.equal(out["opened"], false);
-    assert.deepEqual(shape(out["progress"] as Record<string, unknown>), ["accounted", "addressed", "total", "unaddressed"]);
+    assert.deepEqual(shape(out["progress"] as Record<string, unknown>), ["accounted", "addressed", "scrutiny", "total", "unaddressed"]);
     assert.match(out["next"] as string, /submit/);
   } finally {
     await fixture.cleanup();

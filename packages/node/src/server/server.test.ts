@@ -129,7 +129,7 @@ test("callWait round-trips the wait verdict over a live server (done once comple
   const base = stubDeps();
   const service = {
     ...base.service,
-    dispatch: async () => ({ context: "ctx" as never, comments: [], progress: { total: 2, addressed: 2, accounted: 2, unaddressed: 0 }, reshape: null }),
+    dispatch: async () => ({ context: "ctx" as never, comments: [], progress: { total: 2, addressed: 2, accounted: 2, unaddressed: 0, scrutiny: [] }, reshape: null }),
   } as ReviewService;
   const activity = createReviewActivity(fixedClock(0));
   activity.complete();

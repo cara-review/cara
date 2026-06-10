@@ -15,7 +15,7 @@ function snapshot(chapters: ReviewSnapshot["review"]["chapters"], addressed = 0)
     comments: [],
     completed: false,
     pendingReshape: null,
-    progress: { total: masterList.length, addressed, accounted: addressed, unaddressed: masterList.length - addressed },
+    progress: { total: masterList.length, addressed, accounted: addressed, unaddressed: masterList.length - addressed, scrutiny: [] },
   };
 }
 

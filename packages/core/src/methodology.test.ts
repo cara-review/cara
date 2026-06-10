@@ -15,8 +15,18 @@ test("SYSTEM_METHODOLOGY carries the vocabulary and never leaks internal terms t
   assert.match(SYSTEM_METHODOLOGY, /never expose internal words/);
 });
 
-test("METHODOLOGY_VERSION is 3 (mandatory two-stage sweep + seams pass)", () => {
-  assert.equal(METHODOLOGY_VERSION, 3);
+test("METHODOLOGY_VERSION is 4 (findings-as-comments-first + the deletion question)", () => {
+  assert.equal(METHODOLOGY_VERSION, 4);
+});
+
+test("SYSTEM_METHODOLOGY makes findings-as-comments-first a hard rule", () => {
+  assert.match(SYSTEM_METHODOLOGY, /A FINDING THAT IS NOT A COMMENT DOES NOT EXIST/);
+  assert.match(SYSTEM_METHODOLOGY, /Comment first, narrate after/);
+});
+
+test("SYSTEM_METHODOLOGY asks the deletion question, with the file.lock example", () => {
+  assert.match(SYSTEM_METHODOLOGY, /what guarantee did/);
+  assert.match(SYSTEM_METHODOLOGY, /file\.lock\(\)/);
 });
 
 test("SYSTEM_METHODOLOGY mandates a two-stage review with a seams pass over interactions and absences", () => {
