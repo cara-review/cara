@@ -15,6 +15,34 @@ test("SYSTEM_METHODOLOGY carries the vocabulary and never leaks internal terms t
   assert.match(SYSTEM_METHODOLOGY, /never expose internal words/);
 });
 
+test("METHODOLOGY_VERSION is 3 (mandatory two-stage sweep + seams pass)", () => {
+  assert.equal(METHODOLOGY_VERSION, 3);
+});
+
+test("SYSTEM_METHODOLOGY mandates a two-stage review with a seams pass over interactions and absences", () => {
+  assert.match(SYSTEM_METHODOLOGY, /per-change sweep/);
+  assert.match(SYSTEM_METHODOLOGY, /seams pass \(MANDATORY/);
+  assert.match(SYSTEM_METHODOLOGY, /Interactions/);
+  assert.match(SYSTEM_METHODOLOGY, /Propagations/);
+  assert.match(SYSTEM_METHODOLOGY, /Symmetric surfaces/);
+  assert.match(SYSTEM_METHODOLOGY, /hunt ABSENCES/);
+  // the accounting invariant — every seam finding still lands as a comment on a change
+  assert.match(SYSTEM_METHODOLOGY, /Anchor every seam finding as a comment on the nearest relevant change/);
+});
+
+test("SYSTEM_METHODOLOGY sizes by cognitive load with a homogeneous-run exception, not a chapter count", () => {
+  assert.match(SYSTEM_METHODOLOGY, /cognitive load/);
+  assert.match(SYSTEM_METHODOLOGY, /homogeneous runs/);
+  assert.match(SYSTEM_METHODOLOGY, /Never\s+fragment repetition/);
+  // the old count-based rule and the "optional summary" line are gone
+  assert.doesNotMatch(SYSTEM_METHODOLOGY, /2.5 chapters/);
+  assert.doesNotMatch(SYSTEM_METHODOLOGY, /optional one-line aid/);
+});
+
+test("SYSTEM_METHODOLOGY states summaries are required, not optional", () => {
+  assert.match(SYSTEM_METHODOLOGY, /one-line summary — it is required, not optional/);
+});
+
 test("buildMethodology with no guidance is exactly the system text", () => {
   const none: ReviewInstructions = { personal: null, project: null };
   assert.equal(buildMethodology(none), SYSTEM_METHODOLOGY);

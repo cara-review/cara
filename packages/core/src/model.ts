@@ -92,6 +92,18 @@ export interface MarkAuthor {
   readonly reviewer: string | null;
 }
 
+/**
+ * An optional within-hunk pointer for a comment (ADR-0012 §2): a single line by content
+ * + side, never a line number — the same content-addressed identity rule as marks
+ * (ADR-0002). Display metadata only: it never splits an atom, never affects the bijection
+ * or counts. Resolved to a location at read time by `resolveCommentLine`; an edit that
+ * changes the pointed line drops the match and the comment falls back to the hunk end.
+ */
+export interface CommentLinePointer {
+  readonly side: "added" | "removed";
+  readonly text: string;
+}
+
 /** A comment drafted against an atom (you direct, the agent writes). */
 export interface Comment {
   /** Stable id: "c" + ordinal among the context's commented events. Re-derived on each fold. */
@@ -104,11 +116,24 @@ export interface Comment {
   readonly answer: string | null;
   /** Addressed when the reviewed lines were edited away (hash gone) or an answer is attached. */
   readonly status: "open" | "addressed";
+  /** The within-hunk line pointer (ADR-0012 §2), else null. Block-level when null. */
+  readonly pointer: CommentLinePointer | null;
+  /**
+   * The resolved location of `pointer` on the live atom (`resolveCommentLine`), else null —
+   * null for a block-level comment or when the atom is not in hand at fold time.
+   */
+  readonly line: number | null;
 }
 
 export interface ReviewProgress {
   readonly total: number;
   readonly addressed: number;
+  /**
+   * Gap-closed: atoms accounted by a disposition OR a comment (ADR-0012 §f). Wider than
+   * `addressed` (disposition only) — a comment-only atom is accounted yet still unaddressed.
+   * Completion downstream reads `accounted`, so a comment-only atom can reach done.
+   */
+  readonly accounted: number;
   readonly unaddressed: number;
   /**
    * Addressed-atom count per agent reviewer label (ADR-0011 §6), present only when at

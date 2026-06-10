@@ -9,6 +9,7 @@ import type {
   Atom,
   AtomHash,
   Comment,
+  CommentLinePointer,
   Disposition,
   MarkAuthor,
   ReviewProgress,
@@ -36,6 +37,8 @@ export interface CommentedEvent {
   readonly atomHash: AtomHash;
   readonly body: string;
   readonly author: MarkAuthor;
+  /** Optional within-hunk line pointer (ADR-0012 §2); omitted when block-level. */
+  readonly line?: CommentLinePointer;
 }
 
 export interface AnsweredEvent {
@@ -53,12 +56,37 @@ export interface CompletedEvent {
   readonly ts: number;
 }
 
+/**
+ * A review-level reshape request (ADR-0012 §3): the human asks the agent to reorganise
+ * the grouping. Not a comment — no `atomHash`, no author tier. It is a human note by
+ * construction: only the browser channel may call `requestReshape` (the CLI agent never
+ * does), so the channel infers the tier as marks/comments do (ADR-0011 §5). It never affects
+ * counts or the bijection. `body` is the human's free-text note.
+ */
+export interface ReshapeRequestedEvent {
+  readonly type: "reshape-requested";
+  readonly ts: number;
+  readonly body: string;
+}
+
+/**
+ * The log analogue of `present` (the resolution marker for reshape): every `presentGrouping`
+ * appends one. A reshape is pending iff the newest reshape-requested `ts` is strictly greater
+ * than the newest `presented` `ts`, so re-presenting clears a request mechanically.
+ */
+export interface PresentedEvent {
+  readonly type: "presented";
+  readonly ts: number;
+}
+
 export type MarkEvent =
   | MarkedEvent
   | UnmarkedEvent
   | CommentedEvent
   | AnsweredEvent
-  | CompletedEvent;
+  | CompletedEvent
+  | ReshapeRequestedEvent
+  | PresentedEvent;
 
 /** A disposition with its author, so the UI can badge the mark's tier (ADR-0011 §5). */
 export interface MarkRecord {
@@ -72,6 +100,8 @@ export interface ReviewState {
   readonly comments: readonly Comment[];
   /** The human has signalled "done reviewing" (ADR-0011 §4). */
   readonly completed: boolean;
+  /** Body of an unresolved reshape request (ADR-0012 §3), else null. Cleared by the next present. */
+  readonly pendingReshape: string | null;
 }
 
 /**
@@ -88,6 +118,11 @@ export function project(events: readonly MarkEvent[]): ReviewState {
   const indexById = new Map<string, number>();
   let completed = false;
   let ordinal = 0;
+  // Reshape resolution from the log alone (ADR-0012 §3): a request makes it pending; the
+  // next present clears it. Decided by log order, not ts magnitude — so a present and a
+  // request in the same tick resolve by which came last in the log, never dropping a
+  // request that post-dates a present under a fixed clock.
+  let pendingReshape: string | null = null;
 
   for (const event of events) {
     switch (event.type) {
@@ -108,6 +143,8 @@ export function project(events: readonly MarkEvent[]): ReviewState {
           author: event.author,
           answer: null,
           status: "open",
+          pointer: event.line ?? null,
+          line: null, // resolved against the live atom by resolveCommentLine
         });
         break;
       }
@@ -121,10 +158,16 @@ export function project(events: readonly MarkEvent[]): ReviewState {
       case "completed":
         completed = true;
         break;
+      case "reshape-requested":
+        pendingReshape = event.body;
+        break;
+      case "presented":
+        pendingReshape = null;
+        break;
     }
   }
 
-  return { marks, comments, completed };
+  return { marks, comments, completed, pendingReshape };
 }
 
 /**
@@ -137,6 +180,42 @@ export function deriveCommentStatus(
   masterListHashes: ReadonlySet<AtomHash>,
 ): "open" | "addressed" {
   return comment.answer !== null || !masterListHashes.has(comment.atomHash) ? "addressed" : "open";
+}
+
+/**
+ * Resolve a comment's line pointer to a 1-based location on the atom (ADR-0012 §2). Pure;
+ * content-addressed — never a line number from the agent. Matching is by exact `text` on
+ * the pointer's side, first occurrence; the location is the side's start plus the offset
+ * among that side's lines (added → newStart; removed → oldStart).
+ *
+ *  - null pointer            → null (block-level comment).
+ *  - pointer matches a line  → that line's number on its side.
+ *  - pointer set, no match   → end-of-hunk fallback (last head line, or oldStart for a pure
+ *                              deletion), so a changed line never resolves to a wrong line.
+ */
+export function resolveCommentLine(atom: Atom, pointer: CommentLinePointer | null): number | null {
+  if (pointer === null) return null;
+  const start = pointer.side === "added" ? atom.newStart : atom.oldStart;
+  let offset = 0;
+  for (const line of atom.lines) {
+    if (line.kind !== pointer.side) continue;
+    if (line.text === pointer.text) return start + offset;
+    offset++;
+  }
+  return atom.newLines > 0 ? atom.newStart + atom.newLines - 1 : atom.oldStart;
+}
+
+/**
+ * Gap-closed accounting (ADR-0012 §f, ADR-0011): an atom is accounted by a disposition OR a
+ * comment, keyed by hash (ADR-0002 identity). The single home for the rule — both
+ * `reviewProgress.accounted` and `buildGapReport` derive from it, so they agree by construction.
+ */
+export function isAccounted(
+  atom: Atom,
+  marks: ReadonlyMap<AtomHash, MarkRecord>,
+  commentedHashes: ReadonlySet<AtomHash>,
+): boolean {
+  return marks.has(atom.hash) || commentedHashes.has(atom.hash);
 }
 
 /** A Section completes when every atom in it is addressed (done or skipped). */
@@ -157,10 +236,13 @@ export function isSectionComplete(
 export function reviewProgress(
   masterList: readonly Atom[],
   marks: ReadonlyMap<AtomHash, MarkRecord>,
+  commentedHashes: ReadonlySet<AtomHash>,
 ): ReviewProgress {
   let addressed = 0;
+  let accounted = 0;
   const byReviewer = new Map<string, number>();
   for (const atom of masterList) {
+    if (isAccounted(atom, marks, commentedHashes)) accounted++;
     const record = marks.get(atom.hash);
     if (record === undefined) continue;
     addressed++;
@@ -171,6 +253,7 @@ export function reviewProgress(
   const progress: ReviewProgress = {
     total: masterList.length,
     addressed,
+    accounted,
     unaddressed: masterList.length - addressed,
   };
   if (byReviewer.size === 0) return progress;

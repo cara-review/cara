@@ -1,7 +1,7 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { buildMasterList } from "./master-list.ts";
-import { repairGrouping } from "./grouping.ts";
+import { findMissingSummaries, repairGrouping, SummariesRequiredError } from "./grouping.ts";
 import type { Atom, RawHunk, Review } from "./model.ts";
 
 function hunk(path: string, text: string): RawHunk {
@@ -144,4 +144,70 @@ test("two identical-payload atoms distribute across two sections (index bijectio
 test("masterList is carried through unchanged", () => {
   const review = repairGrouping(master, { chapters: [] });
   assert.equal(review.masterList, master);
+});
+
+// --- findMissingSummaries (ADR-0012 §1) -------------------------------------
+
+test("all chapters and sections summarised → no missing entries", () => {
+  const missing = findMissingSummaries({
+    chapters: [{ title: "C", summary: "c", sections: [{ title: "S", summary: "s", atomHashes: [h(0)] }] }],
+  });
+  assert.deepEqual(missing, []);
+});
+
+test("a chapter without a summary is reported with section null", () => {
+  const missing = findMissingSummaries({
+    chapters: [{ title: "C", sections: [{ title: "S", summary: "s", atomHashes: [h(0)] }] }],
+  });
+  assert.deepEqual(missing, [{ chapter: 0, section: null }]);
+});
+
+test("a section without a summary is reported by its chapter/section index", () => {
+  const missing = findMissingSummaries({
+    chapters: [{ title: "C", summary: "c", sections: [{ title: "S", atomHashes: [h(0)] }] }],
+  });
+  assert.deepEqual(missing, [{ chapter: 0, section: 0 }]);
+});
+
+test("a blank/whitespace summary counts as missing (same coercion as repair)", () => {
+  const missing = findMissingSummaries({
+    chapters: [{ title: "C", summary: "   ", sections: [{ title: "S", summary: "", atomHashes: [h(0)] }] }],
+  });
+  assert.deepEqual(missing, [
+    { chapter: 0, section: null },
+    { chapter: 0, section: 0 },
+  ]);
+});
+
+test("missing entries span multiple chapters and sections, indexed by position", () => {
+  const missing = findMissingSummaries({
+    chapters: [
+      { title: "C0", summary: "ok", sections: [{ title: "S0", atomHashes: [h(0)] }] },
+      { title: "C1", sections: [{ title: "S0", summary: "ok", atomHashes: [h(1)] }, { title: "S1", atomHashes: [h(2)] }] },
+    ],
+  });
+  assert.deepEqual(missing, [
+    { chapter: 0, section: 0 },
+    { chapter: 1, section: null },
+    { chapter: 1, section: 1 },
+  ]);
+});
+
+test("the engine-swept floor is never in scope: a proposal with no chapters has no gaps", () => {
+  assert.deepEqual(findMissingSummaries({ chapters: [] }), []);
+  assert.deepEqual(findMissingSummaries({}), []);
+  assert.deepEqual(findMissingSummaries(null), []);
+});
+
+test("malformed (non-object) chapters and sections raise no summary gap (repair drops them)", () => {
+  const missing = findMissingSummaries({ chapters: [42, { title: "C", summary: "c", sections: ["bad"] }] });
+  assert.deepEqual(missing, []);
+});
+
+test("SummariesRequiredError carries the missing list and a count-aware message", () => {
+  const one = new SummariesRequiredError([{ chapter: 0, section: null }]);
+  assert.match(one.message, /1 required summary\b/);
+  const two = new SummariesRequiredError([{ chapter: 0, section: null }, { chapter: 0, section: 0 }]);
+  assert.match(two.message, /2 required summaries/);
+  assert.equal(two.missing.length, 2);
 });

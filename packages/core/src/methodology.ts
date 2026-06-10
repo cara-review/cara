@@ -10,7 +10,7 @@
 import type { ReviewInstructions } from "./ports.ts";
 
 /** Bumped whenever the grouping schema or these rules change. Stamps the `atoms` response. */
-export const METHODOLOGY_VERSION = 1;
+export const METHODOLOGY_VERSION = 3;
 
 /** The canonical grouping rules + vocabulary every reviewing agent follows. */
 export const SYSTEM_METHODOLOGY: string = [
@@ -25,15 +25,49 @@ export const SYSTEM_METHODOLOGY: string = [
   "- Sections: curated groups of related change within a chapter, ordered by relevance",
   "  — group by theme and intent, not by file or by position in the diff.",
   "",
-  "Stay lean: aim for about 2–5 chapters with a few sections each. Never one chapter or",
-  "section per file; merge trivia. Titles are a tight noun phrase — a few words, no file",
-  "lists. Summaries are an optional one-line aid.",
+  "Size by cognitive load, not by count. A Section holds as much varied change as a",
+  "reviewer can grasp at once — roughly one to two pages of diff. Force the reviewer to",
+  "track more than one idea, split it; restate one idea across Sections, merge them. There",
+  "is no target number of Chapters or Sections; let the change decide. Exception —",
+  "homogeneous runs: a long run of near-identical change (the same mechanical edit across",
+  "many files) belongs in ONE Section however large — one idea to verify, not many. Never",
+  "fragment repetition; never let varied change run long. Titles are a tight noun phrase —",
+  "a few words, no file lists.",
+  "",
+  "Give every Chapter and every Section a one-line summary — it is required, not optional.",
   "",
   "Reference every change by its exact id, drawn only from the supplied set. You may",
   "arrange and describe, never define or alter the change: never invent, omit, or",
   "duplicate one (the engine repairs any grouping back to the canonical set regardless).",
   "Titles and summaries are display aids, never a replacement for the diff. Speak in",
   'terms of Chapters and Sections; never expose internal words like "atom" or "hunk".',
+  "",
+  "Once the grouping is presented, REVIEW IN TWO STAGES. Every finding — in either stage —",
+  "is a comment on a change, so nothing escapes accounting.",
+  "",
+  "Stage 1 — per-change sweep. Account for every change: judge it on its own, mark it",
+  "done or skipped, or attach a comment. This proves coverage — no change goes unseen.",
+  "",
+  "Stage 2 — seams pass (MANDATORY, after the sweep). The sweep is blind to anything",
+  "between changes: the worst defects live in no single change. Trace the seams:",
+  "- Interactions — a changed caller and its changed callee across files: do the new",
+  "  contract, types, and assumptions still line up end to end?",
+  "- Propagations — a value, flag, or invariant set in one changed component and consumed",
+  "  in another: is it honoured on every path? (e.g. a default applied where a value is",
+  "  produced but not where it is consumed; a flag respected on the success path, dropped",
+  "  on the error path.)",
+  "- Symmetric surfaces — when one side of a matched pair changed, did its mirror? (a",
+  "  writer's new field with no reader; a guard added on one branch, missing on its twin;",
+  "  a new cap on one field, absent on its sibling.)",
+  "Then hunt ABSENCES — what the change should have added but did not: missing input",
+  "validation, bounds, timeout, cleanup, or error path. A new long-lived call with no",
+  "timeout; a new persisted field no guard checks; a new failure mode with no handler.",
+  "",
+  "Anchor every seam finding as a comment on the nearest relevant change — the one a",
+  "reviewer jumps to first. An interaction gets a comment on the change that introduces",
+  "the mismatch; add a second on the consuming end only when responsibility is genuinely",
+  "shared. An absence gets a comment on the change that should have carried the missing",
+  "guard. The finding is cross-cutting; its home in the accounting is a concrete change.",
 ].join("\n");
 
 /**

@@ -16,23 +16,33 @@ export type {
   Disposition,
   MarkAuthor,
   Comment,
+  CommentLinePointer,
   ReviewProgress,
 } from "./model.ts";
 export { reviewContext } from "./model.ts";
 
 export { atomPayload, hashAtom } from "./identity.ts";
 export { buildMasterList } from "./master-list.ts";
-export { repairGrouping } from "./grouping.ts";
+export {
+  repairGrouping,
+  findMissingSummaries,
+  SummariesRequiredError,
+  type MissingSummary,
+} from "./grouping.ts";
 export {
   project,
   deriveCommentStatus,
   isSectionComplete,
+  isAccounted,
+  resolveCommentLine,
   reviewProgress,
   type MarkedEvent,
   type UnmarkedEvent,
   type CommentedEvent,
   type AnsweredEvent,
   type CompletedEvent,
+  type ReshapeRequestedEvent,
+  type PresentedEvent,
   type MarkEvent,
   type MarkRecord,
   type ReviewState,

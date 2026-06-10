@@ -19,6 +19,8 @@ import type { Atom, Chapter, Review, Section } from "./model.ts";
 
 const OTHER_CHANGES = "Other changes";
 
+// Shape coercion shared with the summary gate (findMissingSummaries) so "blank" means
+// identically the same thing in both — one parser, no drift (ADR-0012 §1).
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -34,9 +36,54 @@ function title(value: unknown, fallback: string): string {
   return text.length > 0 ? text : fallback;
 }
 
+/** A summary present and non-blank, else null. The single coercion both repair and the gate use. */
 function summary(value: unknown): string | null {
   const text = typeof value === "string" ? value.trim() : "";
   return text.length > 0 ? text : null;
+}
+
+/** A chapter (and optionally one of its sections) whose summary is absent or blank (ADR-0012 §1). */
+export interface MissingSummary {
+  /** 0-based index in the proposed `chapters` array. */
+  readonly chapter: number;
+  /** 0-based index in the chapter's `sections` array, or null for the chapter's own summary. */
+  readonly section: number | null;
+}
+
+/**
+ * Summaries are mandatory (ADR-0012 §1): walk the raw proposal (pre-repair, so the
+ * engine-swept "Other changes" chapter is never in scope) and list every chapter and
+ * section lacking a non-empty summary. Shares the shape coercion with `repairGrouping`,
+ * so "blank" is defined once. Malformed (non-object) chapters/sections are skipped — repair
+ * drops them, so they raise no summary gap.
+ */
+export function findMissingSummaries(proposed: unknown): readonly MissingSummary[] {
+  const missing: MissingSummary[] = [];
+  asArray(asRecord(proposed)?.["chapters"]).forEach((rawChapter, chapterIndex) => {
+    const chapter = asRecord(rawChapter);
+    if (!chapter) return;
+    if (summary(chapter["summary"]) === null) missing.push({ chapter: chapterIndex, section: null });
+    asArray(chapter["sections"]).forEach((rawSection, sectionIndex) => {
+      const section = asRecord(rawSection);
+      if (!section) return;
+      if (summary(section["summary"]) === null) missing.push({ chapter: chapterIndex, section: sectionIndex });
+    });
+  });
+  return missing;
+}
+
+/**
+ * Thrown by `presentGrouping` when an agent-authored grouping omits a required summary
+ * (ADR-0012 §1). Carries the missing list so the adapter can tell the agent exactly what to
+ * add. The git-order floor opts out (`requireSummaries: false`) and never raises this.
+ */
+export class SummariesRequiredError extends Error {
+  readonly missing: readonly MissingSummary[];
+  constructor(missing: readonly MissingSummary[]) {
+    super(`Grouping is missing ${missing.length} required summar${missing.length === 1 ? "y" : "ies"}.`);
+    this.name = "SummariesRequiredError";
+    this.missing = missing;
+  }
 }
 
 /** Repair an untrusted proposal against the canonical master list. */

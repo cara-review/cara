@@ -12,6 +12,8 @@
 // for the browser session, so mark/unmark/comment/answer re-fold marks without
 // re-diffing. The stateless agent verbs (`getAtoms`/`submit`/`dispatch`) recompute
 // the master list from git each call — deterministic across processes (ADR-0002).
+// `presentGrouping` recomputes likewise but additionally appends a `presented` marker
+// (ADR-0012 §3), so it alone among the agent verbs is log-writing.
 
 import type { Atom, AtomHash, Comment, Review, ReviewContext } from "./model.ts";
 import type {
@@ -29,9 +31,16 @@ import type {
   ReviewStore,
 } from "./ports.ts";
 import { buildMasterList } from "./master-list.ts";
-import { repairGrouping } from "./grouping.ts";
+import { findMissingSummaries, repairGrouping, SummariesRequiredError } from "./grouping.ts";
 import { buildMethodology, METHODOLOGY_VERSION } from "./methodology.ts";
-import { deriveCommentStatus, project, reviewProgress, type ReviewState } from "./marks.ts";
+import {
+  deriveCommentStatus,
+  isAccounted,
+  project,
+  resolveCommentLine,
+  reviewProgress,
+  type ReviewState,
+} from "./marks.ts";
 
 /** The driven ports the service orchestrates. Manual constructor injection, no DI framework. */
 export interface ReviewServiceDeps {
@@ -50,6 +59,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
   async function buildSnapshot(context: ReviewContext, review: Review): Promise<ReviewSnapshot> {
     const state = project(await deps.store.load(context));
     const masterHashes = hashSet(review.masterList);
+    const byHash = atomsByHash(review.masterList);
     return {
       context,
       review,
@@ -58,12 +68,17 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
         disposition: record.disposition,
         author: record.author,
       })),
-      comments: state.comments.map((comment) => ({
-        ...comment,
-        status: deriveCommentStatus(comment, masterHashes),
-      })),
-      progress: reviewProgress(review.masterList, state.marks),
+      comments: state.comments.map((comment) => {
+        const atom = byHash.get(comment.atomHash);
+        return {
+          ...comment,
+          status: deriveCommentStatus(comment, masterHashes),
+          line: atom ? resolveCommentLine(atom, comment.pointer) : null,
+        };
+      }),
+      progress: reviewProgress(review.masterList, state.marks, commentedSet(state)),
       completed: state.completed,
+      pendingReshape: state.pendingReshape,
     };
   }
 
@@ -74,10 +89,12 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
   }
 
   /**
-   * The stateless recompute the agent verbs (`getAtoms`/`presentGrouping`/`submit`/
-   * `dispatch`) share: resolve the context and rebuild the canonical master list from
+   * The shared recompute the agent verbs (`getAtoms`/`presentGrouping`/`submit`/
+   * `dispatch`) use: resolve the context and rebuild the canonical master list from
    * git. Deterministic across processes (ADR-0002), so each verb is self-contained and
    * one source of identity drives both the event log (context) and the atoms (spec).
+   * The recompute itself reads only git; `presentGrouping` additionally appends a
+   * `PresentedEvent` (ADR-0012 §3) so reshape resolution is observable from the log.
    */
   async function freshReview(
     spec: DiffSpec,
@@ -118,11 +135,21 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
       return { context, methodology, methodologyVersion: METHODOLOGY_VERSION, atoms: masterList, openItems };
     },
 
-    async presentGrouping(spec, grouping) {
+    async presentGrouping(spec, grouping, opts) {
       const { context, masterList } = await freshReview(spec);
+      if (opts?.requireSummaries !== false) {
+        const missing = findMissingSummaries(grouping);
+        if (missing.length > 0) throw new SummariesRequiredError(missing);
+      }
       const review = repairGrouping(masterList, grouping);
       reviews.set(context, review);
+      // Log-writing (ADR-0012 §3): the marker reshape resolution reads from the event log.
+      await deps.store.append(context, { type: "presented", ts: deps.clock.now() });
       return buildSnapshot(context, review);
+    },
+
+    async requestReshape(context, body) {
+      return appendToReview(context, { type: "reshape-requested", ts: deps.clock.now(), body });
     },
 
     async snapshot(context) {
@@ -143,13 +170,14 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
       return appendToReview(context, { type: "unmarked", ts: deps.clock.now(), atomHash, author });
     },
 
-    async comment(context, atomHash, body, author) {
+    async comment(context, atomHash, body, author, line) {
       return appendToReview(context, {
         type: "commented",
         ts: deps.clock.now(),
         atomHash,
         body,
         author,
+        ...(line ? { line } : {}),
       });
     },
 
@@ -172,6 +200,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
           atomHash: c.atomHash,
           body: c.body,
           author,
+          ...(c.line ? { line: c.line } : {}),
         });
       }
       for (const a of batch.answers ?? []) {
@@ -185,7 +214,10 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
       }
 
       const state = project(await deps.store.load(context));
-      return { gap: buildGapReport(masterList, state), progress: reviewProgress(masterList, state.marks) };
+      return {
+        gap: buildGapReport(masterList, state),
+        progress: reviewProgress(masterList, state.marks, commentedSet(state)),
+      };
     },
 
     async dispatch(spec) {
@@ -208,7 +240,12 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
         });
       }
 
-      return { context, comments, progress: reviewProgress(masterList, state.marks) };
+      return {
+        context,
+        comments,
+        progress: reviewProgress(masterList, state.marks, commentedSet(state)),
+        reshape: state.pendingReshape,
+      };
     },
 
     async markComplete(context) {
@@ -226,17 +263,31 @@ function hashSet(masterList: readonly Atom[]): ReadonlySet<AtomHash> {
   return new Set(masterList.map((atom) => atom.hash));
 }
 
+/**
+ * Index atoms by hash for locating a comment against the live change. When byte-identical
+ * hunks share a hash (ADR-0002 identity), the FIRST in git order wins — a comment is
+ * hash-keyed (occurrence-agnostic), so its location must be deterministic; git order is the
+ * atoms' permanent order, and `repairGrouping` likewise claims the lowest duplicate index first.
+ */
 function atomsByHash(masterList: readonly Atom[]): ReadonlyMap<AtomHash, Atom> {
-  return new Map(masterList.map((atom) => [atom.hash, atom]));
+  const byHash = new Map<AtomHash, Atom>();
+  for (const atom of masterList) if (!byHash.has(atom.hash)) byHash.set(atom.hash, atom);
+  return byHash;
 }
 
-/** Project a folded comment onto its live atom as a located OpenItem. */
+/** The hashes of every atom carrying a comment — the comment side of accounted (ADR-0012 §f). */
+function commentedSet(state: ReviewState): ReadonlySet<AtomHash> {
+  return new Set(state.comments.map((comment) => comment.atomHash));
+}
+
+/** Project a folded comment onto its live atom as a located OpenItem (line pointer resolved). */
 function toOpenItem(comment: Comment, atom: Atom, status: "open" | "addressed"): OpenItem {
   return {
     id: comment.id,
     atomHash: comment.atomHash,
     path: atom.path,
     lineRange: locate(atom),
+    line: resolveCommentLine(atom, comment.pointer),
     body: comment.body,
     answer: comment.answer,
     status,
@@ -254,11 +305,11 @@ function toOpenItem(comment: Comment, atom: Atom, status: "open" | "addressed"):
  * rule. `total` still counts every occurrence (master-list surface area, ADR-0004).
  */
 function buildGapReport(masterList: readonly Atom[], state: ReviewState): GapReport {
-  const commented = new Set<AtomHash>(state.comments.map((comment) => comment.atomHash));
+  const commented = commentedSet(state);
   const missing: GapReport["missing"][number][] = [];
   let accounted = 0;
   for (const atom of masterList) {
-    if (state.marks.has(atom.hash) || commented.has(atom.hash)) accounted++;
+    if (isAccounted(atom, state.marks, commented)) accounted++;
     else missing.push({ atomHash: atom.hash, path: atom.path, lineRange: locate(atom) });
   }
   return { total: masterList.length, accounted, missing };

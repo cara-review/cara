@@ -6,6 +6,7 @@ import type {
   Atom,
   AtomHash,
   Comment,
+  CommentLinePointer,
   Disposition,
   MarkAuthor,
   RawHunk,
@@ -92,6 +93,8 @@ export interface OpenItem {
   readonly atomHash: AtomHash;
   readonly path: string;
   readonly lineRange: LineRange;
+  /** Resolved within-hunk line pointer (ADR-0012 §2), else null (block-level comment). */
+  readonly line: number | null;
   readonly body: string;
   readonly answer: string | null;
   readonly status: "open" | "addressed";
@@ -102,6 +105,8 @@ export interface DispatchView {
   readonly context: ReviewContext;
   readonly comments: readonly CommentView[];
   readonly progress: ReviewProgress;
+  /** A pending human reshape request (ADR-0012 §3), else null — the agent re-presents to clear it. */
+  readonly reshape: string | null;
 }
 
 /** An OpenItem with its author tier + reviewer label, for the agent to triage by lens. */
@@ -113,7 +118,12 @@ export interface CommentView extends OpenItem {
 /** The `submit` payload (agent → core): dispositions and/or comments and/or answers, batched. */
 export interface SubmitBatch {
   readonly marks?: readonly { readonly atomHash: AtomHash; readonly disposition: Disposition }[];
-  readonly comments?: readonly { readonly atomHash: AtomHash; readonly body: string }[];
+  readonly comments?: readonly {
+    readonly atomHash: AtomHash;
+    readonly body: string;
+    /** Optional within-hunk line pointer (ADR-0012 §2): content + side, never a number. */
+    readonly line?: CommentLinePointer;
+  }[];
   readonly answers?: readonly { readonly commentId: string; readonly answer: string }[];
 }
 
@@ -178,6 +188,8 @@ export interface ReviewSnapshot {
   readonly progress: ReviewProgress;
   /** The human has signalled "done reviewing" (ADR-0011 §4). */
   readonly completed: boolean;
+  /** A pending human reshape request (ADR-0012 §3), else null. */
+  readonly pendingReshape: string | null;
 }
 
 /**
@@ -200,8 +212,21 @@ export interface ReviewSnapshot {
 export interface ReviewService {
   /** `atoms` (ADR-0011): master list + merged methodology + carried-over open items. No grouping. */
   getAtoms(spec: DiffSpec): Promise<AtomsView>;
-  /** `present` (ADR-0011): repair the untrusted inbound grouping into the review, return its snapshot. */
-  presentGrouping(spec: DiffSpec, grouping: unknown): Promise<ReviewSnapshot>;
+  /**
+   * `present` (ADR-0011): repair the untrusted inbound grouping into the review, return its
+   * snapshot. Validates that every agent-authored chapter/section carries a summary
+   * (ADR-0012 §1) unless `requireSummaries: false` (the git-order floor opt-out) — a missing
+   * summary throws `SummariesRequiredError`. Appends a `PresentedEvent` so a reshape request
+   * resolves from the event log alone (it is therefore log-writing, not stateless — N presents
+   * append N events; the fold reads only the latest, so duplicates are harmless).
+   */
+  presentGrouping(
+    spec: DiffSpec,
+    grouping: unknown,
+    opts?: { readonly requireSummaries?: boolean },
+  ): Promise<ReviewSnapshot>;
+  /** `reshape` request (ADR-0012 §3): record a human review-level note; returns the refreshed snapshot. */
+  requestReshape(context: ReviewContext, body: string): Promise<ReviewSnapshot>;
   /** The current snapshot for an in-process (browser) review — boot load and re-poll read. */
   snapshot(context: ReviewContext): Promise<ReviewSnapshot>;
   mark(
@@ -216,6 +241,7 @@ export interface ReviewService {
     atomHash: AtomHash,
     body: string,
     author: MarkAuthor,
+    line?: CommentLinePointer,
   ): Promise<ReviewSnapshot>;
   /** `submit` (ADR-0011): apply a batch of marks/comments/answers, return the gap report. */
   submit(spec: DiffSpec, batch: SubmitBatch, author: MarkAuthor): Promise<SubmitResult>;
