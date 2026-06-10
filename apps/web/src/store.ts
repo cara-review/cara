@@ -5,10 +5,12 @@
 //
 // Grouping is fixed for the session by the CLI `present` verb before the browser boots;
 // the browser loads the review snapshot at boot via a one-shot query (no streaming).
+// On every reconnect the snapshot is re-queried — a reshape broadcast arrives as a
+// reconnect-broadcast (ADR-0012 §4); the browser picks up the new grouping on reconnect.
 // Chapters/Sections have no domain id — focus is an index path within the snapshot.
 
 import type { Backend, ConnectionStatus } from "./backend.ts";
-import type { AtomHash, Disposition, FileSide, ReviewContext, ReviewSnapshot } from "./protocol.ts";
+import type { AtomHash, CommentLinePointer, Disposition, FileSide, ReviewContext, ReviewSnapshot } from "./protocol.ts";
 
 export type Connection = "connecting" | "open" | "reconnecting" | "closed";
 
@@ -38,6 +40,8 @@ export class AppStore {
   private state: AppState = INITIAL;
   private readonly listeners = new Set<() => void>();
   private context: ReviewContext | null = null;
+  /** Monotonic counter: incremented on each loadReview call; stale responses are dropped. */
+  private loadGeneration = 0;
 
   constructor(backend: Backend) {
     this.backend = backend;
@@ -66,8 +70,9 @@ export class AppStore {
   private onConnection(status: ConnectionStatus): void {
     if (status === "open") {
       this.patch({ connection: "open" });
-      // Re-load snapshot on reconnect only if we have no snapshot yet (first connect).
-      if (this.state.snapshot === null && this.context !== null) {
+      // Every reconnect reloads the snapshot (ADR-0012 §4): a reshape broadcast arrives
+      // as a reconnect-broadcast and the browser picks up the new grouping on re-query.
+      if (this.context !== null) {
         void this.loadReview(this.context);
       }
     } else {
@@ -76,10 +81,18 @@ export class AppStore {
   }
 
   private async loadReview(context: ReviewContext): Promise<void> {
+    const gen = ++this.loadGeneration;
     try {
       const snapshot = await this.backend.loadSnapshot(context);
-      this.patch({ snapshot, error: null, ...initialFocus(snapshot) });
+      // Drop stale responses: a newer reconnect fired while this request was in flight.
+      if (gen !== this.loadGeneration) return;
+      const focus =
+        this.state.snapshot !== null
+          ? preserveFocus(snapshot, this.state.activeSection)
+          : initialFocus(snapshot);
+      this.patch({ snapshot, error: null, ...focus });
     } catch (error: unknown) {
+      if (gen !== this.loadGeneration) return;
       this.patch({ error: error instanceof Error ? error.message : "Failed to load review.", snapshot: null });
     }
   }
@@ -96,10 +109,23 @@ export class AppStore {
     return snapshot;
   }
 
-  async comment(atomHash: AtomHash, body: string): Promise<ReviewSnapshot> {
-    const snapshot = await this.backend.comment(this.requireContext(), atomHash, body);
+  /**
+   * Post a comment on an atom. The optional `pointer` pins it to a specific within-hunk
+   * line by content + side (ADR-0012 §2). Absent → block-level comment.
+   */
+  async comment(atomHash: AtomHash, body: string, pointer?: CommentLinePointer): Promise<ReviewSnapshot> {
+    const snapshot = await this.backend.comment(this.requireContext(), atomHash, body, pointer);
     this.patch({ snapshot });
     return snapshot;
+  }
+
+  /**
+   * Human reshape request (ADR-0012 §3): records a note for the agent to regroup.
+   * The snapshot carries `pendingReshape` until the agent re-presents (which clears it).
+   */
+  async requestReshape(body: string): Promise<void> {
+    const snapshot = await this.backend.requestReshape(this.requireContext(), body);
+    this.patch({ snapshot });
   }
 
   /** Signal "done reviewing" — the human synchroniser for `dispatch --wait`. */
@@ -143,4 +169,22 @@ function initialFocus(snapshot: ReviewSnapshot): Pick<AppState, "activeSection" 
   const chapter = snapshot.review.chapters.findIndex((c) => c.sections.length > 0);
   if (chapter === -1) return { activeSection: null, expandedChapters: new Set() };
   return { activeSection: { chapter, section: 0 }, expandedChapters: new Set([chapter]) };
+}
+
+/**
+ * On reconnect, keep the existing focus when the path still exists in the new grouping;
+ * otherwise fall back to `initialFocus`. Prevents the scroll-reset that would occur if
+ * the agent re-presents a structurally identical or similar grouping.
+ */
+function preserveFocus(
+  snapshot: ReviewSnapshot,
+  active: SectionPath | null,
+): Pick<AppState, "activeSection" | "expandedChapters"> {
+  if (active !== null) {
+    const ch = snapshot.review.chapters[active.chapter];
+    if (ch !== undefined && ch.sections[active.section] !== undefined) {
+      return { activeSection: active, expandedChapters: new Set([active.chapter]) };
+    }
+  }
+  return initialFocus(snapshot);
 }

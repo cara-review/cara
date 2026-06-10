@@ -14,7 +14,8 @@ function snapshot(chapters: ReviewSnapshot["review"]["chapters"], addressed = 0)
     marks: [],
     comments: [],
     completed: false,
-    progress: { total: masterList.length, addressed, unaddressed: masterList.length - addressed },
+    pendingReshape: null,
+    progress: { total: masterList.length, addressed, accounted: addressed, unaddressed: masterList.length - addressed },
   };
 }
 
@@ -126,6 +127,17 @@ test("comment sends the context and patches the snapshot", async () => {
   assert.deepEqual(backend.calls.at(-1), "comment:ctx:a:looks good");
 });
 
+test("comment with a line pointer passes it through to the backend", async () => {
+  const { store, backend } = harness();
+  backend.reply = snapshot([chapter("C", [SECTION])]);
+  store.connect(CTX);
+  await Promise.resolve();
+
+  backend.reply = snapshot([chapter("C", [SECTION])]);
+  await store.comment("a" as AtomHash, "looks good", { side: "added", text: "const x = 1;" });
+  assert.deepEqual(backend.calls.at(-1), "comment:ctx:a:looks good:added:const x = 1;");
+});
+
 test("markComplete sends the active context", async () => {
   const { store, backend } = harness();
   backend.reply = snapshot([chapter("C", [SECTION])]);
@@ -159,6 +171,18 @@ test("openInEditor and readFile pass through to the backend", async () => {
   assert.deepEqual(backend.calls.at(-1), "readFile:f.ts:head");
 });
 
+test("requestReshape calls backend and patches snapshot", async () => {
+  const { store, backend } = harness();
+  backend.reply = snapshot([chapter("C", [SECTION])]);
+  store.connect(CTX);
+  await Promise.resolve();
+
+  backend.reply = snapshot([chapter("C", [SECTION])]);
+  await store.requestReshape("group by subsystem");
+  assert.deepEqual(backend.calls.at(-1), "requestReshape:ctx:group by subsystem");
+  assert.ok(store.getState().snapshot !== null);
+});
+
 test("connection lifecycle drives the connection status", () => {
   const { store, backend } = harness();
   store.connect(null); // null = no snapshot load
@@ -169,4 +193,91 @@ test("connection lifecycle drives the connection status", () => {
 
   backend.fireConnection("reconnecting");
   assert.equal(store.getState().connection, "reconnecting");
+});
+
+test("every reconnect reloads the snapshot (live-refresh)", async () => {
+  const { store, backend } = harness();
+  backend.reply = snapshot([chapter("C", [SECTION])]);
+  store.connect(CTX);
+  // Initial connect
+  backend.fireConnection("open");
+  await Promise.resolve();
+  assert.equal(store.getState().snapshot?.progress.addressed, 0);
+
+  // Second connect: snapshot updated (addressed=1)
+  backend.reply = snapshot([chapter("C", [SECTION])], 1);
+  backend.fireConnection("reconnecting");
+  backend.fireConnection("open");
+  await Promise.resolve();
+  assert.equal(store.getState().snapshot?.progress.addressed, 1);
+});
+
+test("reconnect reload preserves activeSection when the path still exists", async () => {
+  const sec2 = section("S2", ["b"]);
+  const { store, backend } = harness();
+  backend.reply = snapshot([chapter("C", [SECTION, sec2])]);
+  store.connect(CTX);
+  backend.fireConnection("open");
+  await Promise.resolve();
+  store.setActiveSection({ chapter: 0, section: 1 });
+
+  // Reconnect with same structure
+  backend.reply = snapshot([chapter("C", [SECTION, sec2])]);
+  backend.fireConnection("reconnecting");
+  backend.fireConnection("open");
+  await Promise.resolve();
+  assert.deepEqual(store.getState().activeSection, { chapter: 0, section: 1 });
+});
+
+test("reconnect reload falls back to initialFocus when the path no longer exists", async () => {
+  const { store, backend } = harness();
+  backend.reply = snapshot([chapter("C", [SECTION, section("S2", ["b"])])]);
+  store.connect(CTX);
+  backend.fireConnection("open");
+  await Promise.resolve();
+  store.setActiveSection({ chapter: 0, section: 1 });
+
+  // Reconnect with grouping that has only one section
+  backend.reply = snapshot([chapter("C", [SECTION])]);
+  backend.fireConnection("reconnecting");
+  backend.fireConnection("open");
+  await Promise.resolve();
+  // section 1 no longer exists → falls back to section 0
+  assert.deepEqual(store.getState().activeSection, { chapter: 0, section: 0 });
+});
+
+test("concurrent reconnects: stale load result is dropped when a newer load is in flight", async () => {
+  const { store, backend } = harness();
+  backend.reply = snapshot([chapter("C", [SECTION])]);
+  store.connect(CTX);
+  backend.fireConnection("open");
+  await Promise.resolve();
+  assert.equal(store.getState().snapshot?.progress.addressed, 0);
+
+  // Override loadSnapshot to return controllable deferred promises.
+  const deferreds: Array<{ resolve: (s: ReviewSnapshot) => void; promise: Promise<ReviewSnapshot> }> = [];
+  backend.loadSnapshot = () => {
+    let resolve!: (s: ReviewSnapshot) => void;
+    const promise = new Promise<ReviewSnapshot>((r) => { resolve = r; });
+    deferreds.push({ resolve, promise });
+    return promise;
+  };
+
+  // Two rapid reconnect open events → two loadReview calls in flight simultaneously.
+  backend.fireConnection("reconnecting");
+  backend.fireConnection("open"); // load A (older request)
+  backend.fireConnection("reconnecting");
+  backend.fireConnection("open"); // load B (newer request)
+
+  assert.equal(deferreds.length, 2);
+
+  // B (newer) resolves first with addressed=2; A (older) resolves last with addressed=1.
+  deferreds[1]!.resolve(snapshot([chapter("C", [SECTION])], 2));
+  await deferreds[1]!.promise;
+  deferreds[0]!.resolve(snapshot([chapter("C", [SECTION])], 1));
+  await deferreds[0]!.promise;
+  await Promise.resolve();
+
+  // Store must reflect the newest request (addressed=2), not the stale one.
+  assert.equal(store.getState().snapshot?.progress.addressed, 2);
 });

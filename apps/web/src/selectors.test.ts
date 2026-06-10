@@ -18,8 +18,9 @@ function snapshot(
       author: { tier: "human" as const, reviewer: null },
     })),
     comments: [],
-    progress: { total: masterList.length, addressed: marks.length, unaddressed: masterList.length - marks.length },
+    progress: { total: masterList.length, addressed: marks.length, accounted: marks.length, unaddressed: masterList.length - marks.length },
     completed: false,
+    pendingReshape: null,
   };
 }
 

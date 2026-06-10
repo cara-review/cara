@@ -17,8 +17,9 @@ function snapshot(chapters: ReviewSnapshot["review"]["chapters"]): ReviewSnapsho
     review: { chapters, masterList },
     marks: [],
     comments: [],
-    progress: { total: masterList.length, addressed: 0, unaddressed: masterList.length },
+    progress: { total: masterList.length, addressed: 0, accounted: 0, unaddressed: masterList.length },
     completed: false,
+    pendingReshape: null,
   };
 }
 

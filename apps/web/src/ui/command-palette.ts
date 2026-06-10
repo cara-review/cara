@@ -10,6 +10,7 @@ import type { AppState, AppStore } from "../store.ts";
 import { focusSection } from "./controller.ts";
 import type { DiffSurface } from "./diff-surface.ts";
 import { DIFF_ACTIONS } from "./keyboard.ts";
+import { openReshapeDialog } from "./reshape.ts";
 
 export interface Command {
   readonly id: string;
@@ -29,6 +30,11 @@ export function buildCommands(state: AppState, store: AppStore, surface: DiffSur
     hint: action.key,
     run: () => action.run({ store, surface }),
   }));
+
+  // Reshape command — hidden when a request is already pending (no point queuing another).
+  if (snapshot.pendingReshape === null) {
+    commands.push({ id: "reshape", title: "Reshape this review…", run: () => openReshapeDialog(store) });
+  }
 
   navTree(snapshot).forEach((chapter, chapterIndex) => {
     chapter.sections.forEach((section, sectionIndex) => {

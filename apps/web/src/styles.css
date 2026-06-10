@@ -669,6 +669,120 @@ kbd {
   color: var(--text-muted);
 }
 
+/* --- Reshape affordance ---------------------------------------------------- */
+
+/* .reshape-btn intentionally uses the base .go style with no additional colour (secondary). */
+
+.reshape-pending {
+  font-size: 12px;
+  color: var(--warn);
+  padding: 4px var(--space-3);
+  border: var(--hairline) solid color-mix(in srgb, var(--warn) 40%, transparent);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+/* Centred modal — same overlay approach as the palette. */
+.reshape-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: color-mix(in srgb, #000 40%, transparent);
+}
+
+.reshape-dialog__panel {
+  width: min(480px, 90vw);
+  background: var(--bg-panel);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.reshape-dialog__title {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.reshape-dialog__hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.reshape-dialog__input {
+  font: inherit;
+  color: inherit;
+  background: var(--bg-main);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  resize: vertical;
+  min-height: 80px;
+}
+
+.reshape-dialog__input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.reshape-dialog__actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+/* --- Comment zones — line anchor affordances ------------------------------ */
+
+.cd-comment__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: 2px;
+}
+
+.cd-comment__line {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--accent);
+  padding: 1px 5px;
+  border: var(--hairline) solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: var(--radius-sm);
+}
+
+.cd-composer__line-pick {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: var(--space-1);
+}
+
+.cd-composer__line-select {
+  font: inherit;
+  font-size: 12px;
+  color: inherit;
+  background: var(--bg-main);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-2);
+  max-width: 260px;
+}
+
+.cd-composer__line-select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
 /* --- Toast (non-blocking failure feedback) -------------------------------- */
 
 .toast-host {

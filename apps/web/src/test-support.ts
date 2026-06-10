@@ -1,6 +1,6 @@
 // Shared test fixtures (imported only by *.test.ts; never by the app bundle).
 import type { Backend, ConnectionStatus } from "./backend.ts";
-import type { Atom, AtomHash, FileSide, ReviewContext, ReviewSnapshot, Section } from "./protocol.ts";
+import type { Atom, AtomHash, CommentLinePointer, FileSide, ReviewContext, ReviewSnapshot, Section } from "./protocol.ts";
 
 /**
  * An in-memory Backend: record the actions issued, and drive the connection lifecycle
@@ -37,8 +37,13 @@ export class FakeBackend implements Backend {
     this.calls.push(`unmark:${context}:${atomHash}`);
     return Promise.resolve(this.requireReply());
   }
-  comment(context: string, atomHash: string, body: string): Promise<ReviewSnapshot> {
-    this.calls.push(`comment:${context}:${atomHash}:${body}`);
+  comment(context: string, atomHash: string, body: string, pointer?: CommentLinePointer): Promise<ReviewSnapshot> {
+    const lineStr = pointer !== undefined ? `:${pointer.side}:${pointer.text}` : "";
+    this.calls.push(`comment:${context}:${atomHash}:${body}${lineStr}`);
+    return Promise.resolve(this.requireReply());
+  }
+  requestReshape(context: string, body: string): Promise<ReviewSnapshot> {
+    this.calls.push(`requestReshape:${context}:${body}`);
     return Promise.resolve(this.requireReply());
   }
   markComplete(context: string): Promise<void> {
