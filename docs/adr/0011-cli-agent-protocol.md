@@ -1,11 +1,20 @@
 ---
 status: accepted
 amends: [0003, 0004]
+amended-by: [0012]
 supersedes: 0009
 supersedes-in-part: 0007
 ---
 
 # CLI agent protocol: four verbs, self-narrating, dual-mode, channel-inferred mark tiers
+
+> **Amended by [ADR-0012](0012-field-test-amendments.md) (2026-06-10, Refs #47).** Three
+> field-test additions: **line-anchored comments** (a comment anchors to its atom plus an
+> optional within-hunk line pointer stored by content+side, display-only); **Reshape** (a
+> review-level, non-atom-anchored request routed to the agent via `dispatch`, answered as a
+> re-presented grouping; the comment stream stays code-only); **one live server per context**
+> (`present` live-refreshes the existing server over WS, never boots a sibling). See the
+> amendment at the foot of this ADR.
 
 Background: TN-26-026. Owner-approved in-session 2026-06-09 (Refs #47). This ADR ratifies the pivot's cross-boundary channel and carries the ADR-0003/0004 amendments and the ADR-0009 supersession it depends on.
 
@@ -106,3 +115,11 @@ No LLM/transport concept enters domain types or names. The core cannot tell whic
 - **Mark-tier override flag** — any override hands an agent a channel to impersonate a human; channel inference is the only structural guarantee.
 - **Yield/resume protocol with heartbeats** — a state machine where a human "done" and a blocking `--wait` suffice; the idle state self-extinguishes abandoned reviews without one.
 - **A shipped skill / manual** — the binary self-describes via `instructions` + `next`; a shipped manual would only drift.
+
+## Amendment (2026-06-10): line-anchored comments, Reshape, single-server lifecycle
+
+Background: TN-26-026, Refs #47. Owner-approved in-session 2026-06-10 (field-testing). Ratified by [ADR-0012](0012-field-test-amendments.md). Three additions to the protocol:
+
+- **Line-anchored comments.** A comment anchors to its atom (by hash — unchanged) plus an **optional within-hunk line pointer**, stored by **line content + side** (never a line number — the ADR-0002 identity rule). It is **display metadata only**: never a mechanical unit, never affecting the bijection or counts. **Marks stay block-level.** Fallback when the pinned line is absent from the payload: render at the end of the hunk (effectively never fires in-session).
+- **Reshape.** A **review-level, non-atom-anchored** request channel: the human describes a desired view in natural language; the engine routes it to the agent via `dispatch`; the agent **re-presents** a new grouping (marks ride along free, ADR-0002). Covers regrouping, filtering (a focused chapter + a trailing "Rest of the change" swept by the bijection), and question-answered-as-a-view (the summary carries the verdict). The **comment stream stays code-only** — Reshape is a separate channel, not a comment.
+- **One live server per context.** `present` routes a new grouping into the **existing live server** (live-refresh over WS, marks intact) instead of booting a sibling. Stale servers are replaced, never left to coexist.

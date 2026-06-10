@@ -1,6 +1,6 @@
 ---
 status: accepted
-amended-by: [0009, 0011]
+amended-by: [0009, 0011, 0012]
 ---
 
 # Agent layer: untrusted, with a canonical master atom list
@@ -23,6 +23,14 @@ amended-by: [0009, 0011]
 > *write* — the master list stays canonical, the grouping path (`AgentPort`) stays
 > diff-blind, and the agent still cannot add, remove, hide, or edit an atom. Q&A output
 > is untrusted overlay text under the same rendering discipline as summaries (below).
+
+> **Amended by [ADR-0012](0012-field-test-amendments.md) (2026-06-10, Refs #47).**
+> **"Repair, don't retry" is narrowed to structure.** The engine repairs grouping
+> *structure* (the bijection) but cannot author *semantics*: **summaries are now mandatory**
+> — `present` rejects a grouping missing a non-empty summary on any chapter/section
+> (gap-report style; the agent completes and re-presents). The engine-generated git-order
+> floor is **exempt** (it claims no semantics), so the never-broken guarantee holds. See the
+> amendment at the foot of this ADR.
 
 The LLM that groups atoms into Chapters and Sections is the only port whose output can't
 be trusted. A reviewer must never approve a diff where a change was silently hidden or
@@ -109,3 +117,14 @@ The pivot makes the agent an external caller over a CLI (ADR-0011). Three change
   `human` tier and never affects counts or the bijection.
 
 Counts and completion still derive from the canonical master list, never the grouping.
+
+## Amendment (2026-06-10): repair structure, validate summaries
+
+Background: TN-26-026, Refs #47. Owner-approved in-session 2026-06-10 (field-testing). Ratified by [ADR-0012](0012-field-test-amendments.md).
+
+"Repair, don't retry" (above) is a **structural** guarantee, not a semantic one:
+
+- The engine repairs grouping **structure** — the bijection back to the master list — but **cannot author semantics**. The prose that orients a reviewer is the agent's to write.
+- **Summaries are mandatory.** `present` **rejects** a grouping with a missing or empty summary on any chapter/section, returning the missing list (gap-report style); the agent completes the summaries and re-presents. This supersedes "optional descriptive summaries" above.
+- The **engine-generated git-order floor is exempt** — it claims no semantics, carries no summaries, and is never rejected, so the never-broken / always-usable guarantee is intact. Validation gates only agent-authored groupings.
+- Rule: **repair structure, validate summaries.**
