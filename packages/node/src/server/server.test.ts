@@ -21,6 +21,7 @@ function stubDeps(service?: ReviewService): RpcDeps {
   const full: ReviewService = service ?? {
     getAtoms: unused,
     presentGrouping: unused,
+    requestReshape: unused,
     snapshot: unused,
     mark: unused,
     unmark: unused,
@@ -84,12 +85,51 @@ test("WS round-trip: snapshot query, mark, and readFile over a real repo", async
   }
 });
 
+test("reshape handover re-presents on the live server and returns the new grouping", async () => {
+  const repo = await makeTestRepo();
+  await repo.write("a.ts", "one\n");
+  const base = await repo.commit("base");
+  await repo.write("a.ts", "one\ntwo\n");
+  const head = await repo.commit("add line");
+
+  const spec = { kind: "range", base, head } as const;
+  const backend = await compose({
+    cwd: repo.dir,
+    spec,
+    stateDir: join(repo.dir, ".state"),
+    config: { load: () => Promise.resolve({ editorCommand: "true" }) },
+  });
+  // Boot the browser against an initial (ungrouped) review the CLI present cached.
+  const presented = await backend.service.presentGrouping(spec, { chapters: [] });
+  const hash = presented.review.masterList[0]!.hash;
+
+  const server = await startServer(backend);
+  const { trpc, close } = connect(server.url);
+  try {
+    // The CLI present-client hands a fresh, fully-summarised grouping to the live server.
+    const grouping = {
+      chapters: [
+        { title: "Core", summary: "the core change", sections: [{ title: "Edit", summary: "the edit", atomHashes: [hash] }] },
+      ],
+    };
+    // The mutation re-presents on the server and returns the now-current snapshot — proof
+    // the live server's cached review is updated (a reconnecting browser reads this).
+    const refreshed = await trpc.reshape.mutate({ context: presented.context, grouping });
+    assert.equal(refreshed.review.chapters[0]?.title, "Core");
+    assert.equal(refreshed.progress.total, 1);
+  } finally {
+    close();
+    await server.close();
+    await repo.cleanup();
+  }
+});
+
 test("callWait round-trips the wait verdict over a live server (done once complete)", async () => {
   const { callWait } = await import("../cli/wait.ts");
   const base = stubDeps();
   const service = {
     ...base.service,
-    dispatch: async () => ({ context: "ctx" as never, comments: [], progress: { total: 2, addressed: 2, unaddressed: 0 } }),
+    dispatch: async () => ({ context: "ctx" as never, comments: [], progress: { total: 2, addressed: 2, accounted: 2, unaddressed: 0 }, reshape: null }),
   } as ReviewService;
   const activity = createReviewActivity(fixedClock(0));
   activity.complete();

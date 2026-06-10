@@ -9,19 +9,21 @@ import { mkdir, writeFile } from "node:fs/promises";
 import type {
   AtomHash,
   ClockPort,
+  CommentLinePointer,
   ConfigPort,
   Disposition,
   DiffSpec,
   ReviewContext,
   SubmitBatch,
 } from "@clear-diff/core";
-import { buildMethodology } from "@clear-diff/core";
+import { buildMethodology, SummariesRequiredError } from "@clear-diff/core";
 import { FileInstructions } from "../instructions.ts";
 import { composeCore, composeOverrides } from "../server/compose.ts";
 import { emit, NEXT, parseJson, readPayload, VERB_REFERENCE, type CliIo } from "./output.ts";
 import { CliError, reviewerSlug, type DispatchCommand, type PresentCommand, type SubmitCommand } from "./parse.ts";
-import { groupingPath, isAlive, readDiscovery } from "./discovery.ts";
+import { groupingPath, isAlive, readDiscovery, removeDiscovery } from "./discovery.ts";
 import { spawnDetachedServer } from "./serve.ts";
+import { handReshapeToServer } from "./reshape-client.ts";
 import { callWait } from "./wait.ts";
 
 export interface VerbContext {
@@ -33,7 +35,18 @@ export interface VerbContext {
   readonly config?: ConfigPort;
   readonly clock?: ClockPort;
   /** Boot the browser server for `present` (injected in tests; default = detached spawn). */
-  readonly bootServer?: (cmd: PresentCommand, context: ReviewContext) => Promise<{ url: string }>;
+  readonly bootServer?: (
+    cmd: PresentCommand,
+    context: ReviewContext,
+    requireSummaries: boolean,
+  ) => Promise<{ url: string }>;
+  /** Hand a new grouping to a live server for `present` (injected in tests; default = WS client). */
+  readonly handoff?: (
+    url: string,
+    context: ReviewContext,
+    grouping: unknown,
+    requireSummaries: boolean,
+  ) => Promise<void>;
 }
 
 /** The composition config for a verb, threading test overrides without `undefined` keys. */
@@ -51,7 +64,21 @@ export async function runPresent(cmd: PresentCommand, ctx: VerbContext): Promise
   const { service } = await composeCore(coreConfig(ctx, cmd.spec));
   const raw = await readPayload(cmd.grouping, ctx.io);
   const grouping = parseJson(raw);
-  const snapshot = await service.presentGrouping(cmd.spec, grouping);
+
+  // The summary gate (ADR-0012 §1) runs here, before any boot/hand-off, so a
+  // grouping missing a summary is rejected with no browser churn — exit code stays
+  // boring (a usage envelope, not a failure). The live-server path re-validates as a
+  // backstop on the untrusted handover, but a valid grouping never reaches it short.
+  let snapshot;
+  try {
+    snapshot = await service.presentGrouping(cmd.spec, grouping);
+  } catch (error) {
+    if (error instanceof SummariesRequiredError) {
+      emit(ctx.io, { error: "summaries_required", missing: error.missing, next: NEXT.summariesRequired });
+      return;
+    }
+    throw error;
+  }
   const context = snapshot.context;
 
   // Persist the raw grouping so the detached server (or a record) can replay it.
@@ -62,11 +89,30 @@ export async function runPresent(cmd: PresentCommand, ctx: VerbContext): Promise
     emit(ctx.io, { context, opened: false, progress: snapshot.progress, next: NEXT.presentNoOpen });
     return;
   }
+
+  // Single server per context (ADR-0012 §4): a live server gets the new grouping
+  // (live-refresh, marks intact) rather than a sibling; a stale record is cleaned and
+  // we boot; with no record we boot. Never two servers for one context. The check→act is
+  // lock-free: two simultaneous presents racing the empty state may both boot (last
+  // writer's discovery wins) — accepted (TN-26-028 edge cases), as marks are
+  // order-independent (ADR-0005) and the handover is idempotent.
+  // An agent `present` is always summary-gated above (line 64), so a grouping that reaches a
+  // re-present here has already passed — the floor exemption is internal to the porcelain
+  // (review.ts), never the agent verb. Thread `true` so the serving process re-gates identically.
+  const info = await readDiscovery(ctx.stateDir, context);
+  if (info !== null && isAlive(info.pid)) {
+    const handoff = ctx.handoff ?? handReshapeToServer;
+    await handoff(info.url, context, grouping, true);
+    emit(ctx.io, { context, opened: true, reshaped: true, url: info.url, progress: snapshot.progress, next: NEXT.presentReshaped });
+    return;
+  }
+  if (info !== null) await removeDiscovery(ctx.stateDir, context);
+
   const boot =
     ctx.bootServer ??
-    ((c: PresentCommand, id: ReviewContext) =>
-      spawnDetachedServer({ cmd: c, context: id, stateDir: ctx.stateDir, cwd: ctx.cwd }));
-  const { url } = await boot(cmd, context);
+    ((c: PresentCommand, id: ReviewContext, requireSummaries: boolean) =>
+      spawnDetachedServer({ cmd: c, context: id, stateDir: ctx.stateDir, cwd: ctx.cwd, requireSummaries }));
+  const { url } = await boot(cmd, context, true);
   emit(ctx.io, { context, opened: true, url, progress: snapshot.progress, next: NEXT.presentOpened });
 }
 
@@ -75,7 +121,7 @@ export async function runDispatch(cmd: DispatchCommand, ctx: VerbContext): Promi
 
   if (!cmd.wait) {
     const view = await service.dispatch(cmd.spec);
-    emit(ctx.io, { ...view, next: NEXT.dispatch });
+    emit(ctx.io, { ...view, next: dispatchNext(view.reshape) });
     return;
   }
 
@@ -83,9 +129,18 @@ export async function runDispatch(cmd: DispatchCommand, ctx: VerbContext): Promi
   const info = await readDiscovery(ctx.stateDir, context);
   if (info === null || !isAlive(info.pid)) {
     // No live browser session to wait on — autonomous, or the human already closed.
+    // A dead pid is a stale record; clean it so the next caller doesn't re-probe it.
+    if (info !== null) await removeDiscovery(ctx.stateDir, context);
     // Settle from the store immediately (ADR-0011 §4).
     const view = await service.dispatch(cmd.spec);
-    emit(ctx.io, { state: "done", context, comments: view.comments, progress: view.progress, next: NEXT.waitDone });
+    emit(ctx.io, {
+      state: "done",
+      context,
+      comments: view.comments,
+      progress: view.progress,
+      reshape: view.reshape,
+      next: view.reshape !== null ? NEXT.reshape(view.reshape) : NEXT.waitDone,
+    });
     return;
   }
 
@@ -97,7 +152,14 @@ export async function runDispatch(cmd: DispatchCommand, ctx: VerbContext): Promi
   if (cmd.idleThresholdS !== null) opts.idleMs = Math.max(1, Math.round(cmd.idleThresholdS * 1000));
   const result = await callWait(info.url, context, opts);
   if (result.state === "done") {
-    emit(ctx.io, { state: "done", context, comments: result.comments, progress: result.progress, next: NEXT.waitDone });
+    emit(ctx.io, {
+      state: "done",
+      context,
+      comments: result.comments,
+      progress: result.progress,
+      reshape: result.reshape,
+      next: result.reshape !== null ? NEXT.reshape(result.reshape) : NEXT.waitDone,
+    });
   } else if (result.state === "reviewInProgress") {
     emit(ctx.io, { state: "reviewInProgress", context, progress: result.progress, next: NEXT.waitInProgress });
   } else {
@@ -127,6 +189,11 @@ export async function runInstructions(ctx: VerbContext): Promise<void> {
   ctx.io.write(`${buildMethodology(instructions)}\n\n${VERB_REFERENCE}\n`);
 }
 
+/** `dispatch`'s next hint: a pending human Reshape redirects the agent to re-present. */
+function dispatchNext(reshape: string | null): string {
+  return reshape !== null ? NEXT.reshape(reshape) : NEXT.dispatch;
+}
+
 // --- Batch coercion: trust nothing the agent sends, fail loudly ----------------
 
 function asObject(value: unknown, label: string): Record<string, unknown> {
@@ -146,16 +213,43 @@ function asString(value: unknown, label: string): string {
   return value;
 }
 
+/** Max length for a free-text body/answer, mirroring the browser channel's cap (router.ts). */
+const MAX_BODY = 4000;
+
+function asBoundedString(value: unknown, label: string): string {
+  const text = asString(value, label);
+  if (text.length > MAX_BODY) throw new CliError(`${label} is too long (max ${MAX_BODY} characters).`);
+  return text;
+}
+
 function asDisposition(value: unknown, label: string): Disposition {
   if (value !== "done" && value !== "skipped") throw new CliError(`${label} must be "done" or "skipped".`);
   return value;
+}
+
+/** Max length for a line pointer's content — one source line, bounded like the browser channel. */
+const MAX_LINE_TEXT = 1000;
+
+/**
+ * Coerce an optional within-hunk line pointer (ADR-0012 §2): content + side, never a number.
+ * The agent's pointer is first-class — validated here so a documented port capability is no
+ * longer silently dropped. Absent → undefined; malformed → fail loudly (the file's contract).
+ */
+function asLinePointer(value: unknown, label: string): CommentLinePointer | undefined {
+  if (value === undefined) return undefined;
+  const r = asObject(value, label);
+  const side = r["side"];
+  if (side !== "added" && side !== "removed") throw new CliError(`${label}.side must be "added" or "removed".`);
+  const text = asString(r["text"], `${label}.text`);
+  if (text.length > MAX_LINE_TEXT) throw new CliError(`${label}.text is too long (max ${MAX_LINE_TEXT} characters).`);
+  return { side, text };
 }
 
 /** Coerce untrusted agent JSON into a SubmitBatch, validating every field. */
 function coerceBatch(record: Record<string, unknown>): SubmitBatch {
   const batch: {
     marks?: { atomHash: AtomHash; disposition: Disposition }[];
-    comments?: { atomHash: AtomHash; body: string }[];
+    comments?: { atomHash: AtomHash; body: string; line?: CommentLinePointer }[];
     answers?: { commentId: string; answer: string }[];
   } = {};
 
@@ -171,9 +265,11 @@ function coerceBatch(record: Record<string, unknown>): SubmitBatch {
   if (record["comments"] !== undefined) {
     batch.comments = asArray(record["comments"], "comments").map((c, i) => {
       const r = asObject(c, `comments[${i}]`);
+      const line = asLinePointer(r["line"], `comments[${i}].line`);
       return {
         atomHash: asString(r["atomHash"], `comments[${i}].atomHash`) as AtomHash,
-        body: asString(r["body"], `comments[${i}].body`),
+        body: asBoundedString(r["body"], `comments[${i}].body`),
+        ...(line ? { line } : {}),
       };
     });
   }
@@ -182,7 +278,7 @@ function coerceBatch(record: Record<string, unknown>): SubmitBatch {
       const r = asObject(a, `answers[${i}]`);
       return {
         commentId: asString(r["commentId"], `answers[${i}].commentId`),
-        answer: asString(r["answer"], `answers[${i}].answer`),
+        answer: asBoundedString(r["answer"], `answers[${i}].answer`),
       };
     });
   }

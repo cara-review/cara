@@ -6,10 +6,13 @@
 // the web↔node seam (type-only, runtime-erased) without dragging server code into
 // the web bundle. The node:http + ws wiring that carries this router lives in server.ts.
 //
-// Author tier is channel-inferred (ADR-0011 §5): every mutation over this router is a
-// browser session, so `ctx.author` is the fixed human tier — no input can forge it.
-// The CLI agent never reaches this router for writes; it submits over the `submit`
-// verb, which stamps the agent tier (server/compose path, not here).
+// Author tier is channel-inferred (ADR-0011 §5). Two classes of write live here:
+//   - Tier-bearing writes (mark/unmark/comment/done/reshapeRequest): a browser session,
+//     so `ctx.author` is the fixed human tier — no input can forge it. The CLI agent never
+//     reaches these; it submits over the `submit` verb, stamped agent (compose path).
+//   - Tier-neutral operations (the `reshape` grouping handover, ADR-0012 §4): a grouping
+//     carries no author, so `present`'s live-server handover client may call it from the
+//     CLI channel with no tier-forgery surface — `presentGrouping` reads no author at all.
 
 import { initTRPC } from "@trpc/server";
 import { z } from "zod";
@@ -21,7 +24,7 @@ import type {
   ReviewService,
   WorkspaceReader,
 } from "@clear-diff/core";
-import { reviewContext } from "@clear-diff/core";
+import { reviewContext, SummariesRequiredError } from "@clear-diff/core";
 import { UserFacingError } from "../user-facing-error.ts";
 import { classifyWait, type ReviewActivity } from "./activity.ts";
 
@@ -34,6 +37,13 @@ export interface RpcDeps {
   readonly activity: ReviewActivity;
   /** The clock the `wait` decision compares against — fixed in tests. */
   readonly clock: ClockPort;
+  /**
+   * Tell connected browsers to reconnect (ADR-0012 §4) — the `reshape` handover's
+   * live-refresh: on reconnect the browser re-runs the `snapshot` query and picks up the
+   * new grouping. Wired by the transport (server.ts) over the existing tRPC-ws handler;
+   * no new streaming channel (stays within ADR-0008's query/mutation contract).
+   */
+  readonly broadcastReconnect?: () => void;
 }
 
 /** Per-connection context. A browser session is always the human tier (ADR-0011 §5). */
@@ -116,10 +126,84 @@ export function createAppRouter(deps: RpcDeps) {
       }),
 
     comment: t.procedure
-      .input(z.object({ context: contextSchema, atomHash: atomHashSchema, body: z.string().min(1, "comment body must not be empty") }))
+      .input(
+        z.object({
+          context: contextSchema,
+          atomHash: atomHashSchema,
+          body: z.string().min(1, "comment body must not be empty").max(4000, "comment body is too long"),
+          /** Optional within-hunk line pointer (ADR-0012 §2): content + side, never a number. */
+          line: z
+            .object({
+              side: z.enum(["added", "removed"]),
+              // Bounded like `body` (CWE-770): a pointer is one source line, persisted verbatim
+              // into the append-only log on every comment — the one free-text field that escaped
+              // the cap. 1000 chars covers the longest plausible diff line.
+              text: z.string().min(1, "line text must not be empty").max(1000, "line text is too long"),
+            })
+            .optional(),
+        }),
+      )
       .mutation(({ input, ctx }) => {
         deps.activity.touch();
-        return deps.service.comment(reviewContext(input.context), input.atomHash as AtomHash, input.body, ctx.author);
+        return deps.service.comment(
+          reviewContext(input.context),
+          input.atomHash as AtomHash,
+          input.body,
+          ctx.author,
+          input.line,
+        );
+      }),
+
+    /**
+     * The `present` live-server handover (ADR-0012 §4): the CLI present-client hands a new
+     * grouping to this running server so a re-present refreshes the live review rather than
+     * booting a sibling. Tier-neutral — `presentGrouping` reads no author (it carries none),
+     * so this is the one write that may arrive from the CLI channel. The grouping is untrusted
+     * (repair + the summary gate are the backstop). On success, reconnect-broadcast tells
+     * connected browsers to re-load the now-current snapshot. `spec` (boot-fixed) is
+     * authoritative; `context` is the addressing key the client matched in discovery.
+     *
+     * `requireSummaries` carries the gate decision the present-client already made
+     * (ADR-0012 §1): true for an agent-authored grouping, false for the engine's git-order
+     * floor — which is exempt and must never be rejected, here or anywhere. Defaults true so
+     * an omitting caller still gets the gate. A `SummariesRequiredError` (the one rejection
+     * this handover backstops) is surfaced via `UserFacingError`, never masked to "Internal
+     * error.".
+     */
+    reshape: t.procedure
+      .input(z.object({ context: contextSchema, grouping: z.unknown(), requireSummaries: z.boolean().optional() }))
+      .mutation(async ({ input }) => {
+        let snapshot;
+        try {
+          snapshot = await deps.service.presentGrouping(deps.spec, input.grouping, {
+            requireSummaries: input.requireSummaries ?? true,
+          });
+        } catch (error) {
+          if (error instanceof SummariesRequiredError) throw new UserFacingError(error.message);
+          throw error;
+        }
+        deps.broadcastReconnect?.();
+        return snapshot;
+      }),
+
+    /**
+     * A human Reshape request (ADR-0012 §3): a review-level note asking the agent to
+     * regroup. Human-only by channel (this router serves the browser) — never invoked from
+     * the CLI, which has no present-client method for it. The agent reads it on `dispatch`
+     * and responds by re-presenting; re-presenting clears it (a fresh `presented` marker).
+     */
+    reshapeRequest: t.procedure
+      .input(
+        z.object({
+          context: contextSchema,
+          // Bounded so a loopback page can't bloat the append-only log (CWE-770), matching
+          // the reviewer-label / wait-window bounds elsewhere. A reshape note is short prose.
+          body: z.string().min(1, "reshape body must not be empty").max(2000, "reshape body is too long"),
+        }),
+      )
+      .mutation(({ input }) => {
+        deps.activity.touch();
+        return deps.service.requestReshape(reviewContext(input.context), input.body);
       }),
 
     /**

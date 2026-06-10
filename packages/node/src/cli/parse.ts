@@ -61,6 +61,8 @@ export interface ServeCommand {
   readonly spec: DiffSpec;
   readonly groupingPath: string;
   readonly openBrowser: boolean;
+  /** The summary-gate decision the parent made (ADR-0012 §1); `--floor` exempts the git-order floor. */
+  readonly requireSummaries: boolean;
 }
 
 export type Command =
@@ -221,7 +223,7 @@ export function parseCommand(argv: readonly string[]): Command {
     }
     case "serve": {
       const flags = splitFlags(args, new Set(["range", "grouping"]));
-      rejectUnknownBool(flags.bool, new Set(["open-browser"]));
+      rejectUnknownBool(flags.bool, new Set(["open-browser", "floor"]));
       const groupingPath = flags.value.get("grouping");
       if (groupingPath === undefined) throw new CliError("serve needs --grouping <path>.");
       return {
@@ -229,6 +231,7 @@ export function parseCommand(argv: readonly string[]): Command {
         spec: specFromRange(flags),
         groupingPath,
         openBrowser: flags.bool.has("open-browser"),
+        requireSummaries: !flags.bool.has("floor"),
       };
     }
     default:

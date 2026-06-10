@@ -30,7 +30,11 @@ const HOST = "127.0.0.1";
 const MAX_PAYLOAD = 1 << 20; // 1 MiB: cap WS frames against a local memory DoS.
 
 export async function startServer(deps: RpcDeps, options: ServerOptions = {}): Promise<RunningServer> {
-  const router = createAppRouter(deps);
+  // The router's `reshape` handover needs to reconnect-broadcast (ADR-0012 §4), but the
+  // ws handler that does the broadcasting is created below, after the router. Bridge the
+  // cycle with a holder the router calls through; wired the moment the handler exists.
+  let broadcastReconnect: () => void = () => {};
+  const router = createAppRouter({ ...deps, broadcastReconnect: () => broadcastReconnect() });
 
   const httpServer = createServer((request, response) => {
     // DNS-rebinding defence: a non-loopback Host is refused outright.
@@ -53,6 +57,10 @@ export async function startServer(deps: RpcDeps, options: ServerOptions = {}): P
     // Log the full error server-side; the router's errorFormatter masks what reaches the peer.
     onError: ({ error }) => console.error("clear-diff RPC error:", error),
   });
+  // Defer to a macrotask so the `reshape` mutation's own result is flushed to its caller
+  // (the CLI present-client) BEFORE the reconnect notification tears that socket down —
+  // otherwise the handover would race its own response and fail "connection not open".
+  broadcastReconnect = () => void setTimeout(() => handler.broadcastReconnectNotification(), 0);
 
   httpServer.on("upgrade", (request, socket, head) => {
     // Host (DNS-rebinding) + Origin (CSRF) must both be loopback to upgrade. Upgrades
@@ -72,6 +80,8 @@ export async function startServer(deps: RpcDeps, options: ServerOptions = {}): P
   return {
     url: `http://${HOST}:${port}`,
     close: async () => {
+      // Synchronous here (unlike the deferred reshape path): the server is shutting down,
+      // so there is no in-flight mutation response on these sockets left to protect.
       handler.broadcastReconnectNotification();
       wss.close();
       await new Promise<void>((res) => {

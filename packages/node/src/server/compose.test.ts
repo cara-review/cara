@@ -23,7 +23,7 @@ test("composeCore wires an LLM-free service over the git adapters", async () => 
     const core = await composeCore({ cwd: repo.dir, spec, stateDir: join(repo.dir, ".state"), config });
     const atoms = await core.service.getAtoms(spec);
     assert.ok(atoms.atoms.length >= 1);
-    assert.equal(atoms.methodologyVersion, 1);
+    assert.equal(atoms.methodologyVersion, 3);
     assert.equal(await core.workspace.readFile("a.ts", "head"), "one\ntwo\n");
     assert.equal(await core.diffSource.resolveContext(spec), atoms.context);
   } finally {

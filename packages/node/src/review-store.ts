@@ -47,6 +47,12 @@ function isMarkEvent(value: unknown): value is MarkEvent {
       return typeof event["commentId"] === "string" && typeof event["body"] === "string" && isAuthor(event["author"]);
     case "completed":
       return true;
+    // Review-level markers (ADR-0012 §3): no atom, no author tier (the browser channel is
+    // implicitly human for a request; `presented` is engine-stamped).
+    case "presented":
+      return true;
+    case "reshape-requested":
+      return typeof event["body"] === "string";
     default:
       return false;
   }

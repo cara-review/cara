@@ -30,12 +30,30 @@ test("append then load round-trips every event type in append order", async () =
   const events: MarkEvent[] = [
     { type: "marked", ts: 1, atomHash: atom("a"), disposition: "done", author: human },
     { type: "commented", ts: 2, atomHash: atom("a"), body: "looks off", author: agent },
-    { type: "answered", ts: 3, commentId: "c0", body: "fixed", author: human },
-    { type: "unmarked", ts: 4, atomHash: atom("a"), author: human },
-    { type: "completed", ts: 5 },
+    { type: "commented", ts: 3, atomHash: atom("a"), body: "this line", author: human, line: { side: "added", text: "x" } },
+    { type: "answered", ts: 4, commentId: "c0", body: "fixed", author: human },
+    { type: "unmarked", ts: 5, atomHash: atom("a"), author: human },
+    { type: "reshape-requested", ts: 6, body: "split the tests out" },
+    { type: "presented", ts: 7 },
+    { type: "completed", ts: 8 },
   ];
   for (const event of events) await store.append(context, event);
   assert.deepEqual(await store.load(context), events);
+});
+
+test("the new review-level events fold to pending-reshape state after a round-trip", async () => {
+  const store = await freshStore();
+  const context = ctx("worktree:reshape");
+  await store.append(context, { type: "presented", ts: 1 });
+  await store.append(context, { type: "reshape-requested", ts: 2, body: "regroup by subsystem" });
+  assert.equal(project(await store.load(context)).pendingReshape, "regroup by subsystem");
+});
+
+test("a reshape-requested line missing its body is rejected as corrupt", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "clear-diff-store-"));
+  const context = ctx("worktree:feature/x");
+  await writeFile(fileFor(dir, context), `${JSON.stringify({ type: "reshape-requested", ts: 1 })}\n`, "utf8");
+  await assert.rejects(new JsonlReviewStore(dir).load(context), /Corrupt event log line/);
 });
 
 test("the loaded log folds to current marks, carrying author", async () => {

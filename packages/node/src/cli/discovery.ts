@@ -43,7 +43,10 @@ export async function readDiscovery(stateDir: string, context: ReviewContext): P
   }
   try {
     const parsed = JSON.parse(raw) as ServerInfo;
-    if (typeof parsed.url === "string" && typeof parsed.pid === "number") return parsed;
+    // A positive integer pid only: `isAlive` feeds this to `process.kill(pid, 0)`, where
+    // pid 0 / negatives address a *process group* (POSIX). A corrupt record is treated as
+    // no server, not a group probe.
+    if (typeof parsed.url === "string" && Number.isInteger(parsed.pid) && parsed.pid > 0) return parsed;
     return null;
   } catch {
     return null;

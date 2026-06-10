@@ -20,6 +20,7 @@ export type {
   Chapter,
   Review,
   Comment,
+  CommentLinePointer,
   MarkAuthor,
   ReviewProgress,
   ReviewSnapshot,

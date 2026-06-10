@@ -56,7 +56,11 @@ function openApp(url: string): void {
 export async function runServe(cmd: ServeCommand, ctx: ServeContext): Promise<void> {
   const backend = await compose({ cwd: ctx.cwd, spec: cmd.spec, stateDir: ctx.stateDir, ...composeOverrides(ctx) });
   const grouping = parseJson(await readFile(cmd.groupingPath, "utf8"));
-  const snapshot = await backend.service.presentGrouping(cmd.spec, grouping);
+  // The parent already gated this grouping (ADR-0012 §1); re-present under the same decision so
+  // the git-order floor (exempt, `requireSummaries: false`) is never rejected on boot.
+  const snapshot = await backend.service.presentGrouping(cmd.spec, grouping, {
+    requireSummaries: cmd.requireSummaries,
+  });
   const context = snapshot.context;
 
   const webRoot = resolveWebRoot();
@@ -98,6 +102,8 @@ export async function spawnDetachedServer(args: {
   readonly context: ReviewContext;
   readonly stateDir: string;
   readonly cwd: string;
+  /** The gate decision (ADR-0012 §1); `false` for the exempt git-order floor (passes `--floor`). */
+  readonly requireSummaries: boolean;
 }): Promise<{ url: string }> {
   const path = groupingPath(args.stateDir, args.context);
   const child = spawn(
@@ -109,6 +115,7 @@ export async function spawnDetachedServer(args: {
       path,
       ...rangeArgs(args.cmd.spec),
       ...(args.cmd.open ? ["--open-browser"] : []),
+      ...(args.requireSummaries ? [] : ["--floor"]),
     ],
     { detached: true, stdio: "ignore", cwd: args.cwd },
   );

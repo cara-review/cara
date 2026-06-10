@@ -10,7 +10,9 @@ import type {
   ReviewSnapshot,
   WorkspaceReader,
 } from "@clear-diff/core";
+import { SummariesRequiredError } from "@clear-diff/core";
 import { fixedClock } from "../clock.ts";
+import { UserFacingError } from "../user-facing-error.ts";
 import { createReviewActivity, type ReviewActivity } from "./activity.ts";
 import { createAppRouter, type RpcContext, type RpcDeps } from "./router.ts";
 
@@ -22,13 +24,19 @@ function snapshot(context: string, addressed = 0): ReviewSnapshot {
     review: { chapters: [], masterList: [] },
     marks: [],
     comments: [],
-    progress: { total: 3, addressed, unaddressed: 3 - addressed },
+    progress: { total: 3, addressed, accounted: addressed, unaddressed: 3 - addressed },
     completed: false,
+    pendingReshape: null,
   };
 }
 
 function dispatchView(context: string): DispatchView {
-  return { context: context as ReviewContext, comments: [], progress: { total: 3, addressed: 1, unaddressed: 2 } };
+  return {
+    context: context as ReviewContext,
+    comments: [],
+    progress: { total: 3, addressed: 1, accounted: 1, unaddressed: 2 },
+    reshape: null,
+  };
 }
 
 /** A service that records the calls the router makes, with controllable returns. */
@@ -38,7 +46,14 @@ function fakeService(calls: string[]): ReviewService {
   };
   return {
     getAtoms: unused,
-    presentGrouping: unused,
+    presentGrouping: async (spec, grouping, opts) => {
+      calls.push(`presentGrouping:${spec.kind}:${JSON.stringify(grouping)}:requireSummaries=${opts?.requireSummaries ?? true}`);
+      return snapshot("ctx");
+    },
+    requestReshape: async (context, body) => {
+      calls.push(`requestReshape:${context}:${body}`);
+      return snapshot(context);
+    },
     snapshot: async (context) => {
       calls.push(`snapshot:${context}`);
       return snapshot(context);
@@ -75,7 +90,7 @@ const workspace: WorkspaceReader = {
 
 function caller(
   calls: string[],
-  opts: { activity?: ReviewActivity; clock?: ClockPort; author?: MarkAuthor } = {},
+  opts: { activity?: ReviewActivity; clock?: ClockPort; author?: MarkAuthor; broadcastReconnect?: () => void } = {},
 ) {
   const deps: RpcDeps = {
     service: fakeService(calls),
@@ -83,6 +98,7 @@ function caller(
     spec: { kind: "worktree" },
     activity: opts.activity ?? createReviewActivity(fixedClock(1000)),
     clock: opts.clock ?? fixedClock(1000),
+    ...(opts.broadcastReconnect ? { broadcastReconnect: opts.broadcastReconnect } : {}),
   };
   const ctx: RpcContext = { author: opts.author ?? human };
   return createAppRouter(deps).createCaller(ctx);
@@ -116,6 +132,74 @@ test("a mutation bumps the activity tracker", async () => {
   t = 9000;
   await caller([], { activity }).comment({ context: "c", atomHash: "h", body: "x" });
   assert.equal(activity.state().lastActivityTs, 9000);
+});
+
+// --- reshape: the agent grouping handover + the human request (ADR-0012) ------
+
+test("reshape runs presentGrouping over the boot spec, then reconnect-broadcasts", async () => {
+  const calls: string[] = [];
+  let broadcasts = 0;
+  const result = await caller(calls, { broadcastReconnect: () => broadcasts++ }).reshape({
+    context: "ctx",
+    grouping: { chapters: [] },
+  });
+  // The boot spec (worktree) is authoritative — the handover does not trust input.context.
+  // An omitted requireSummaries defaults to the gate (true), keeping the agent path validated.
+  assert.deepEqual(calls, ['presentGrouping:worktree:{"chapters":[]}:requireSummaries=true']);
+  assert.equal(broadcasts, 1); // browsers told to re-load the new grouping
+  assert.equal(result.context, "ctx");
+});
+
+test("reshape threads requireSummaries:false so the git-order floor is never re-rejected (ADR-0012 §1)", async () => {
+  const calls: string[] = [];
+  await caller(calls).reshape({ context: "ctx", grouping: { chapters: [] }, requireSummaries: false });
+  // The exempt floor passes the gate decision over the handover — the server must not re-gate it.
+  assert.deepEqual(calls, ['presentGrouping:worktree:{"chapters":[]}:requireSummaries=false']);
+});
+
+test("reshape surfaces a SummariesRequiredError as UserFacingError — never masked to 'Internal error.'", async () => {
+  const service: ReviewService = {
+    ...fakeService([]),
+    presentGrouping: () => Promise.reject(new SummariesRequiredError([{ chapter: 0, section: null }])),
+  };
+  const router = createAppRouter({
+    service,
+    workspace,
+    spec: { kind: "worktree" },
+    activity: createReviewActivity(fixedClock(1000)),
+    clock: fixedClock(1000),
+  });
+  await assert.rejects(
+    () => router.createCaller({ author: human }).reshape({ context: "ctx", grouping: {} }),
+    // The cause is UserFacingError, so the errorFormatter surfaces its message rather than masking it.
+    (err: unknown) => err instanceof Error && err.cause instanceof UserFacingError,
+  );
+});
+
+test("reshapeRequest records the human note (channel-inferred human) and bumps activity", async () => {
+  const calls: string[] = [];
+  const activity = createReviewActivity(fixedClock(1000));
+  const snap = await caller(calls, { activity }).reshapeRequest({ context: "feature/x", body: "split the tests out" });
+  assert.deepEqual(calls, ["requestReshape:feature/x:split the tests out"]);
+  assert.equal(snap.context, "feature/x");
+});
+
+test("reshapeRequest rejects an empty body at the boundary", async () => {
+  await assert.rejects(() => caller([]).reshapeRequest({ context: "c", body: "" }));
+});
+
+test("comment rejects an empty body at the boundary", async () => {
+  await assert.rejects(() => caller([]).comment({ context: "c", atomHash: "h", body: "" }));
+});
+
+test("comment rejects a body over 4000 characters (CWE-770 token-exhaustion guard)", async () => {
+  await assert.rejects(() => caller([]).comment({ context: "c", atomHash: "h", body: "x".repeat(4001) }));
+});
+
+test("comment rejects a line pointer text over 1000 characters (CWE-770 — the field that escaped the cap)", async () => {
+  await assert.rejects(() =>
+    caller([]).comment({ context: "c", atomHash: "h", body: "ok", line: { side: "added", text: "x".repeat(1001) } }),
+  );
 });
 
 // --- wait: the three terminal states, no real sleeping -----------------------

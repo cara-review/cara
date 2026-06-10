@@ -9,7 +9,13 @@ import type { CommentView, ReviewContext, ReviewProgress } from "@clear-diff/cor
 import type { AppRouter } from "../server/router.ts";
 
 export type WaitResult =
-  | { readonly state: "done"; readonly comments: readonly CommentView[]; readonly progress: ReviewProgress }
+  | {
+      readonly state: "done";
+      readonly comments: readonly CommentView[];
+      readonly progress: ReviewProgress;
+      /** A pending human Reshape request (ADR-0012 §3), else null. */
+      readonly reshape: string | null;
+    }
   | { readonly state: "reviewInProgress"; readonly progress: ReviewProgress }
   | { readonly state: "reviewIdle"; readonly progress: ReviewProgress };
 
@@ -28,7 +34,12 @@ export async function callWait(url: string, context: ReviewContext, opts: WaitOp
     if (opts.idleMs !== undefined) input.idleMs = opts.idleMs;
     const result = await trpc.wait.query(input);
     if (result.state === "done") {
-      return { state: "done", comments: result.view.comments, progress: result.view.progress };
+      return {
+        state: "done",
+        comments: result.view.comments,
+        progress: result.view.progress,
+        reshape: result.view.reshape,
+      };
     }
     return result;
   } finally {

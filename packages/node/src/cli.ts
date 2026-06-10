@@ -28,7 +28,18 @@ export interface CliDeps {
   /** ClockPort override for tests; defaults to the system clock. */
   readonly clock?: ClockPort;
   /** Boot the browser server for `present` (injected in tests; default = detached spawn). */
-  readonly bootServer?: (cmd: PresentCommand, context: ReviewContext) => Promise<{ url: string }>;
+  readonly bootServer?: (
+    cmd: PresentCommand,
+    context: ReviewContext,
+    requireSummaries: boolean,
+  ) => Promise<{ url: string }>;
+  /** Hand a new grouping to a live server for `present` (injected in tests; default = WS client). */
+  readonly handoff?: (
+    url: string,
+    context: ReviewContext,
+    grouping: unknown,
+    requireSummaries: boolean,
+  ) => Promise<void>;
   /** Porcelain LLM override for tests (bypasses provider + key resolution). */
   readonly makeLlm?: () => PorcelainLlm;
   /** Porcelain wait override for the human-in-loop poll (injected in tests). */
@@ -77,5 +88,6 @@ function buildContext(cwd: string, deps: CliDeps): VerbContext {
     ...(deps.config ? { config: deps.config } : {}),
     ...(deps.clock ? { clock: deps.clock } : {}),
     ...(deps.bootServer ? { bootServer: deps.bootServer } : {}),
+    ...(deps.handoff ? { handoff: deps.handoff } : {}),
   };
 }
