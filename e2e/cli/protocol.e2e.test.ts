@@ -41,12 +41,12 @@ test("present --no-open envelope: headless shape + a hint pointing at submit", a
   try {
     const atoms = json<{ atoms: { hash: string }[] }>(await runBin(["atoms", "--range", fixture.range], fixture.dir));
     const grouping = JSON.stringify({
-      chapters: [{ title: "All", sections: [{ title: "All", atomHashes: atoms.atoms.map((a) => a.hash) }] }],
+      chapters: [{ title: "All", summary: "every change", sections: [{ title: "All", summary: "all atoms", atomHashes: atoms.atoms.map((a) => a.hash) }] }],
     });
     const out = json(await runBin(["present", "-", "--no-open", "--range", fixture.range], fixture.dir, { input: grouping }));
     assert.deepEqual(shape(out), ["context", "next", "opened", "progress"]);
     assert.equal(out["opened"], false);
-    assert.deepEqual(shape(out["progress"] as Record<string, unknown>), ["addressed", "total", "unaddressed"]);
+    assert.deepEqual(shape(out["progress"] as Record<string, unknown>), ["accounted", "addressed", "total", "unaddressed"]);
     assert.match(out["next"] as string, /submit/);
   } finally {
     await fixture.cleanup();
@@ -77,10 +77,67 @@ test("dispatch envelope: comments + progress shape + a hint pointing at submit/e
     const atoms = json<{ atoms: { hash: string }[] }>(await runBin(["atoms", "--range", fixture.range], fixture.dir));
     await runBin(["submit", JSON.stringify({ comments: [{ atomHash: atoms.atoms[0]!.hash, body: "Look here." }] }), "--range", fixture.range], fixture.dir);
     const out = json(await runBin(["dispatch", "--range", fixture.range], fixture.dir));
-    assert.deepEqual(shape(out), ["comments", "context", "next", "progress"]);
+    assert.deepEqual(shape(out), ["comments", "context", "next", "progress", "reshape"]);
     const comment = (out["comments"] as Record<string, unknown>[])[0]!;
-    assert.deepEqual(shape(comment), ["answer", "atomHash", "body", "id", "lineRange", "path", "reviewer", "status", "tier"]);
+    assert.deepEqual(shape(comment), ["answer", "atomHash", "body", "id", "line", "lineRange", "path", "reviewer", "status", "tier"]);
     assert.match(out["next"] as string, /submit|edit/);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("present summary-rejection round trip: a summary-less grouping is rejected, then accepted once fixed", async () => {
+  const fixture = await makeReviewFixture();
+  try {
+    const atoms = json<{ atoms: { hash: string }[] }>(await runBin(["atoms", "--range", fixture.range], fixture.dir));
+    const hashes = atoms.atoms.map((a) => a.hash);
+
+    // A grouping with no chapter/section summaries → rejected as a usage envelope, no boot.
+    const bare = JSON.stringify({ chapters: [{ title: "All", sections: [{ title: "All", atomHashes: hashes }] }] });
+    const rejected = await runBin(["present", bare, "--no-open", "--range", fixture.range], fixture.dir);
+    assert.equal(rejected.code, 0, "a summary gap is a usage envelope, not a crash — exit stays boring");
+    const out = json(rejected);
+    assert.deepEqual(shape(out), ["error", "missing", "next"]);
+    assert.equal(out["error"], "summaries_required");
+    assert.deepEqual(out["missing"], [
+      { chapter: 0, section: null },
+      { chapter: 0, section: 0 },
+    ]);
+    assert.match(out["next"] as string, /summary/);
+    assert.match(out["next"] as string, /present/);
+
+    // The agent adds the summaries and re-presents → accepted.
+    const fixed = JSON.stringify({
+      chapters: [{ title: "All", summary: "every change", sections: [{ title: "All", summary: "all atoms", atomHashes: hashes }] }],
+    });
+    const accepted = json(await runBin(["present", fixed, "--no-open", "--range", fixture.range], fixture.dir));
+    assert.equal(accepted["opened"], false);
+    assert.deepEqual(shape(accepted), ["context", "next", "opened", "progress"]);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("next hints state exact invocation shapes — payload form, stdin '-', and --range", async () => {
+  const fixture = await makeReviewFixture();
+  try {
+    const atoms = json<{ atoms: { hash: string }[] }>(await runBin(["atoms", "--range", fixture.range], fixture.dir));
+    const hashes = atoms.atoms.map((a) => a.hash);
+
+    // atoms → present hint: the grouping payload grammar is spelled out, never guessed.
+    const atomsOut = json(await runBin(["atoms", "--range", fixture.range], fixture.dir));
+    for (const re of [/'<[^']+>'/, /- for stdin/, /--range/]) assert.match(atomsOut["next"] as string, re);
+
+    // present --no-open → submit hint: same grammar.
+    const grouping = JSON.stringify({
+      chapters: [{ title: "All", summary: "every change", sections: [{ title: "All", summary: "all atoms", atomHashes: hashes }] }],
+    });
+    const presentOut = json(await runBin(["present", grouping, "--no-open", "--range", fixture.range], fixture.dir));
+    for (const re of [/'<[^']+>'/, /- for stdin/, /--range/]) assert.match(presentOut["next"] as string, re);
+
+    // submit gap hint: same grammar.
+    const submitOut = json(await runBin(["submit", "{}", "--range", fixture.range], fixture.dir));
+    for (const re of [/'<[^']+>'/, /- for stdin/, /--range/]) assert.match(submitOut["next"] as string, re);
   } finally {
     await fixture.cleanup();
   }
@@ -97,6 +154,10 @@ test("instructions: plain-text methodology + the verb reference (not JSON)", asy
       assert.ok(run.out.includes(verb), `instructions reference ${verb}`);
     }
     assert.match(run.out, /--timeout|--idle-threshold/); // the wait knobs are self-documented
+    // The payload grammar is spelled out so a cold agent never guesses the arg shape (ADR-0012 §h).
+    assert.match(run.out, /Passing payloads/);
+    assert.match(run.out, /stdin/);
+    assert.match(run.out, /--range <base>\.\.<head>/);
   } finally {
     await fixture.cleanup();
   }

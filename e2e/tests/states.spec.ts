@@ -14,8 +14,9 @@ test("reaching all-done enables Done reviewing and zeroes the remaining count", 
   }
 
   // The completion control (ADR-0011 §4: markComplete only) is enabled and labelled.
-  await expect(page.locator(".go")).toHaveClass(/go--ready/);
-  await expect(page.locator(".go")).toHaveText("Done reviewing");
+  const doneBtn = page.locator(".go--ready");
+  await expect(doneBtn).toBeVisible();
+  await expect(doneBtn).toHaveText("Done reviewing");
   await expect(page.locator(".progress__label")).toHaveText("0 of 5 changes left");
 });
 

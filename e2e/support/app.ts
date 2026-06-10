@@ -13,7 +13,7 @@ import {
   makeSpecialPathsFixture,
   type ReviewFixture,
 } from "./fixture-repo.ts";
-import { bootReal, bootWithAgent, bootWithAnsweredComment, bootWithAgentMarks, type BootedServer } from "./server.ts";
+import { bootReal, bootWithAgent, bootWithAnsweredComment, bootWithAgentMarks, bootWithLineComment, type BootedServer } from "./server.ts";
 
 type Boot = (fixture: ReviewFixture) => Promise<BootedServer>;
 
@@ -66,6 +66,11 @@ export function serveWithAnswer(): () => string {
 /** The review fixture with pre-seeded agent-tier marks on the first section. */
 export function serveAgentMarked(): () => string {
   return serve(makeReviewFixture, (f) => bootWithAgentMarks(f.dir, f.range));
+}
+
+/** The review fixture with a pre-seeded line-anchored comment. */
+export function serveWithLineComment(): () => string {
+  return serve(makeReviewFixture, (f) => bootWithLineComment(f.dir, f.range));
 }
 
 /** Navigate to a review and wait until the nav tree has rendered. */

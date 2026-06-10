@@ -13,7 +13,7 @@
 import { join, dirname, resolve } from "node:path";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import type { Atom, MarkAuthor, ReviewContext } from "@clear-diff/core";
+import type { Atom, CommentLinePointer, MarkAuthor, ReviewContext } from "@clear-diff/core";
 import { parseCommand } from "../../packages/node/src/cli/parse.ts";
 import { compose } from "../../packages/node/src/server/compose.ts";
 import { startServer } from "../../packages/node/src/server/server.ts";
@@ -53,8 +53,8 @@ function defaultGrouping(atoms: readonly Atom[]): unknown {
     if (hashes) hashes.push(atom.hash);
     else byFile.set(atom.path, [atom.hash]);
   }
-  const sections = [...byFile].map(([path, atomHashes]) => ({ title: path, summary: null, atomHashes }));
-  return { chapters: [{ title: "Changes", summary: null, sections }] };
+  const sections = [...byFile].map(([path, atomHashes]) => ({ title: path, summary: `Changes in ${path}.`, atomHashes }));
+  return { chapters: [{ title: "Changes", summary: "All changes in this review.", sections }] };
 }
 
 /** Compose the backend, present a grouping, start the server, return URL + close. */
@@ -121,5 +121,54 @@ export function bootWithAgentMarks(repoDir: string, range: string, reviewer = "s
         await backend.service.mark(context, atom.hash, "done", agentAuthor);
       }
     }
+  });
+}
+
+export interface ReshapeRoundTripServer extends BootedServer {
+  /** The raw server origin (no `?context=`), for the CLI present-handover client. */
+  readonly rawUrl: string;
+  /** The review context the live server serves. */
+  readonly context: ReviewContext;
+  /** The master-list hashes, so a test can build a fresh grouping to re-present. */
+  readonly hashes: readonly string[];
+}
+
+/**
+ * Boot a live server and expose the handles a cross-axis reshape round trip needs: the
+ * browser loads `url`, the human requests a reshape in the UI, then the test drives the
+ * agent's re-present against `rawUrl`/`context` (the CLI present-handover) to prove the
+ * open browser live-refreshes. One server throughout — the single-server invariant.
+ */
+export async function bootReshapeRoundTrip(repoDir: string, range: string): Promise<ReshapeRoundTripServer> {
+  const spec = parseSpec(range);
+  const backend = await compose({ cwd: repoDir, spec, stateDir: join(repoDir, ".agent-state", "reviews") });
+  const atomsView = await backend.service.getAtoms(spec);
+  const snapshot = await backend.service.presentGrouping(spec, defaultGrouping(atomsView.atoms));
+  const { context } = snapshot;
+  const server = await startServer(backend, { webRoot: webRoot() });
+  return {
+    url: `${server.url}?context=${encodeURIComponent(context)}`,
+    rawUrl: server.url,
+    context,
+    hashes: atomsView.atoms.map((a) => a.hash),
+    close: () => server.close(),
+  };
+}
+
+/**
+ * Boot with a pre-seeded line-anchored comment on the first added line of the first
+ * atom that has added lines — for line-anchor rendering tests.
+ */
+export function bootWithLineComment(repoDir: string, range: string): Promise<BootedServer> {
+  return bootSeeded(repoDir, range, defaultGrouping, async (backend, context) => {
+    const atomsView = await backend.service.getAtoms(parseSpec(range));
+    // Find the first atom with at least one added line.
+    const atom = atomsView.atoms.find((a) => a.newLines > 0 && a.lines.some((l) => l.kind === "added"));
+    if (atom === undefined) return;
+    const addedLine = atom.lines.find((l) => l.kind === "added");
+    if (addedLine === undefined) return;
+    const human: MarkAuthor = { tier: "human", reviewer: null };
+    const pointer: CommentLinePointer = { side: "added", text: addedLine.text };
+    await backend.service.comment(context, atom.hash, "This specific line needs review.", human, pointer);
   });
 }
