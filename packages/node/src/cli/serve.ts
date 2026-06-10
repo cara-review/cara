@@ -69,7 +69,12 @@ export async function runServe(cmd: ServeCommand, ctx: ServeContext): Promise<vo
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);
 
-  if (cmd.openBrowser) openApp(server.url);
+  if (cmd.openBrowser) openApp(appUrl(server.url, context));
+}
+
+/** The browser entry URL: `main.ts` reads the review context from `?context=`. */
+export function appUrl(serverUrl: string, context: ReviewContext): string {
+  return `${serverUrl}?context=${encodeURIComponent(context)}`;
 }
 
 /** Poll for the discovery record a freshly-spawned server writes once it is listening. */
