@@ -7,8 +7,15 @@ import type { AnswerRequest, GroupingRequest, LensFindings, LensRequest, Porcela
 
 export class FakeLlm implements PorcelainLlm {
   group(req: GroupingRequest): Promise<unknown> {
+    // Summaries are mandatory (ADR-0012 §1); a compliant LLM supplies one per chapter/section.
     return Promise.resolve({
-      chapters: [{ title: "Review", sections: [{ title: "Changes", atomHashes: req.atoms.map((a) => a.hash) }] }],
+      chapters: [
+        {
+          title: "Review",
+          summary: "All changes in this review.",
+          sections: [{ title: "Changes", summary: "Every change, grouped together.", atomHashes: req.atoms.map((a) => a.hash) }],
+        },
+      ],
     });
   }
 

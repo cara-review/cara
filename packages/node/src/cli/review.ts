@@ -13,15 +13,25 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { AtomHash, CommentView, ConfigPort, ReviewContext, SubmitBatch } from "@clear-diff/core";
+import type {
+  AtomHash,
+  AtomsView,
+  CommentView,
+  ConfigPort,
+  ReviewContext,
+  ReviewSnapshot,
+  SubmitBatch,
+} from "@clear-diff/core";
+import { SummariesRequiredError } from "@clear-diff/core";
 import { composeCore } from "../server/compose.ts";
 import { contextHash } from "../review-store.ts";
 import { loadPorcelainConfig, type PorcelainConfig } from "./config.ts";
-import { AnthropicLlm } from "./llm.ts";
+import { AnthropicLlm, describeMissingSummaries } from "./llm.ts";
 import { FakeLlm } from "./fake-llm.ts";
-import type { LensFindings, PorcelainLlm } from "./llm.ts";
-import { groupingPath, isAlive, readDiscovery } from "./discovery.ts";
+import type { GroupingRequest, LensFindings, PorcelainLlm } from "./llm.ts";
+import { groupingPath, isAlive, readDiscovery, removeDiscovery } from "./discovery.ts";
 import { spawnDetachedServer } from "./serve.ts";
+import { handReshapeToServer } from "./reshape-client.ts";
 import { callWait } from "./wait.ts";
 import { emit } from "./output.ts";
 import { CliError, type PresentCommand, type ReviewCommand } from "./parse.ts";
@@ -52,16 +62,23 @@ const MAX_ROUNDS = 3;
 const MAX_WAIT_ITERS = 100;
 const MAX_BODY = 4_000;
 
+// Each lens runs the methodology's two stages (per-change sweep, then seams) through its own concern.
 const SHIPPED_LENSES: Record<string, string> = {
   security:
-    "Review for security: injection, auth/authz gaps, secret handling, unsafe input, " +
-    "path traversal, and untrusted-data flows. Flag concrete risks; skip the rest.",
+    "Review for security in two stages. Sweep: per change, flag injection, auth/authz gaps, " +
+    "secret handling, unsafe input, path traversal, untrusted-data flows. Seams: trace untrusted " +
+    "data across changed boundaries and hunt missing validation, bounds, or sanitisation the " +
+    "change should have added. Flag concrete risks; skip the rest.",
   architecture:
-    "Review for architecture: layer boundaries, dependency direction, separation of " +
-    "concerns, leaky abstractions, and duplication. Flag structural problems; skip the rest.",
+    "Review for architecture in two stages. Sweep: per change, flag layer-boundary and " +
+    "dependency-direction breaks, leaky abstractions, duplication. Seams: trace contracts between " +
+    "changed components and symmetric surfaces where one side changed but its mirror did not. " +
+    "Flag structural problems; skip the rest.",
   quality:
-    "Review for quality: correctness, clarity, dead code, error handling, and naming. " +
-    "Flag real defects and confusing code; skip the rest.",
+    "Review for quality in two stages. Sweep: per change, flag correctness bugs, unclear code, " +
+    "dead code, error handling, naming. Seams: trace caller↔callee across changed files and hunt " +
+    "missing error paths, cleanup, or timeouts the change should have added. Flag real defects " +
+    "and confusing code; skip the rest.",
 };
 
 export async function runReview(cmd: ReviewCommand, ctx: PorcelainContext): Promise<void> {
@@ -105,6 +122,8 @@ async function runHeadless(cmd: ReviewCommand, ctx: PorcelainContext, config: Po
   if (llm !== null) {
     for (let round = 0; round < MAX_ROUNDS; round++) {
       for (const reviewer of reviewers) {
+        // One review() call covers both methodology stages (sweep + seams) for this lens; findings
+        // land via submit, so cross-cutting seam findings are accounted like any other.
         const lens = await loadLens(ctx.home, reviewer);
         const findings = await llm.review({ atoms: view.atoms, methodology: view.methodology, lens });
         const batch = sanitizeFindings(findings, known);
@@ -151,30 +170,34 @@ async function runHumanLoop(cmd: ReviewCommand, ctx: PorcelainContext, config: P
   const useLlm = config.grouping.mode === "llm" || cmd.fake || ctx.makeLlm !== undefined;
   const llm: PorcelainLlm | null = useLlm ? resolveLlm(cmd, ctx, config) : null;
 
-  const grouping =
-    llm === null
-      ? floorGrouping(view.atoms.map((a) => a.hash))
-      : await llm.group({ atoms: view.atoms, methodology: view.methodology });
-
-  const snapshot = await service.presentGrouping(cmd.spec, grouping);
-  const context = snapshot.context;
-
-  // Persist the grouping so the detached server replays it (same path the `present` verb uses).
-  await mkdir(ctx.stateDir, { recursive: true });
-  await writeFile(groupingPath(ctx.stateDir, context), JSON.stringify(grouping), "utf8");
-
-  const presentCmd: PresentCommand = { verb: "present", spec: cmd.spec, grouping: { kind: "stdin" }, open: true };
-  const boot = ctx.bootServer ?? ((c, id) => spawnDetachedServer({ cmd: c, context: id, stateDir: ctx.stateDir, cwd: ctx.cwd }));
-  await boot(presentCmd, context);
+  const notices: string[] = [];
+  const initial = await buildGrouping(service, cmd, llm, view, null);
+  if (initial.warning) notices.push(initial.warning);
+  const context = initial.snapshot.context;
+  await showGrouping(ctx, cmd, context, initial.grouping, initial.requireSummaries);
 
   const wait: ReviewWait = ctx.waitOnce ?? defaultWait(ctx.stateDir);
   for (let i = 0; i < MAX_WAIT_ITERS; i++) {
     const verdict = await wait(context);
     if (verdict.state === "closed" || verdict.state === "reviewIdle") break;
     if (verdict.state === "reviewInProgress") continue;
-    // done — answer every open comment from its atom's diff, then loop (human may reopen).
+    // done. Only the LLM path acts further (git-order leaves the human to self-answer).
     if (llm === null) break;
-    const open = (await service.dispatch(cmd.spec)).comments.filter((c) => c.status === "open" && c.answer === null);
+    const dispatch = await service.dispatch(cmd.spec);
+
+    // A human reshape request (ADR-0012 §3) takes priority: re-group per their note and
+    // live-refresh the open browser (showGrouping hands off to the live server), which
+    // appends a `presented` event and clears the request. The atoms are unchanged — only
+    // the grouping moves — so reuse `view`. Keep waiting.
+    if (dispatch.reshape !== null) {
+      const reshaped = await buildGrouping(service, cmd, llm, view, dispatch.reshape);
+      if (reshaped.warning) notices.push(reshaped.warning);
+      await showGrouping(ctx, cmd, context, reshaped.grouping, reshaped.requireSummaries);
+      continue;
+    }
+
+    // Otherwise answer every open comment from its atom's diff, then loop (human may reopen).
+    const open = dispatch.comments.filter((c) => c.status === "open" && c.answer === null);
     if (open.length === 0) break;
     const answers: { commentId: string; answer: string }[] = [];
     for (const comment of open) {
@@ -196,8 +219,85 @@ async function runHumanLoop(cmd: ReviewCommand, ctx: PorcelainContext, config: P
     progress: dispatch.progress,
     comments: dispatch.comments.length,
     commentFile: file,
+    ...(notices.length ? { notices } : {}),
     next: "Review complete.",
   });
+}
+
+/**
+ * Build a validated grouping + its snapshot. The git-order floor carries no summaries and is
+ * exempt (ADR-0012 §1). The LLM path must supply them: on a `SummariesRequiredError` it retries
+ * the grouping call once, then falls to the floor with a surfaced notice (no silent loss). A
+ * non-null `reshape` is folded into the grouping prompt as the human's request (ADR-0012 §3).
+ *
+ * Returns the gate decision (`requireSummaries`) the serving process must re-apply: `false`
+ * for the floor (both the no-LLM path and the misses-twice fallback) so it is never re-rejected
+ * on the boot/handoff; `true` for a validated agent grouping.
+ */
+async function buildGrouping(
+  service: Service,
+  cmd: ReviewCommand,
+  llm: PorcelainLlm | null,
+  view: AtomsView,
+  reshape: string | null,
+): Promise<{ grouping: unknown; snapshot: ReviewSnapshot; warning: string | null; requireSummaries: boolean }> {
+  if (llm === null) {
+    const grouping = floorGrouping(view.atoms.map((a) => a.hash));
+    const snapshot = await service.presentGrouping(cmd.spec, grouping, { requireSummaries: false });
+    return { grouping, snapshot, warning: null, requireSummaries: false };
+  }
+  let req: GroupingRequest = { atoms: view.atoms, methodology: view.methodology, ...(reshape !== null ? { reshape } : {}) };
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const grouping = await llm.group(req);
+    try {
+      const snapshot = await service.presentGrouping(cmd.spec, grouping, { requireSummaries: true });
+      return { grouping, snapshot, warning: null, requireSummaries: true };
+    } catch (error) {
+      if (!(error instanceof SummariesRequiredError)) throw error;
+      // Don't resend an identical request — name the chapters/sections left blank so the retry
+      // converges instead of repeating the omission (A/B finding 11). A second miss floors below.
+      req = { ...req, summaryReminder: describeMissingSummaries(grouping, error.missing) };
+    }
+  }
+  const grouping = floorGrouping(view.atoms.map((a) => a.hash));
+  const snapshot = await service.presentGrouping(cmd.spec, grouping, { requireSummaries: false });
+  return {
+    grouping,
+    snapshot,
+    warning: "LLM grouping omitted required summaries twice; fell back to the git-order floor.",
+    requireSummaries: false,
+  };
+}
+
+/**
+ * Persist the grouping and route it to the single server for this context (ADR-0012 §4),
+ * mirroring `runPresent`'s decision tree: a live server gets the new grouping via the
+ * live-refresh hand-off (marks intact); a stale record is cleaned and we boot; with no record
+ * we boot. Never two servers for one context. `requireSummaries` (ADR-0012 §1) rides through both
+ * the handoff and the boot so the floor — exempt — is never rejected by the serving process.
+ */
+async function showGrouping(
+  ctx: PorcelainContext,
+  cmd: ReviewCommand,
+  context: ReviewContext,
+  grouping: unknown,
+  requireSummaries: boolean,
+): Promise<void> {
+  await mkdir(ctx.stateDir, { recursive: true });
+  await writeFile(groupingPath(ctx.stateDir, context), JSON.stringify(grouping), "utf8");
+
+  const info = await readDiscovery(ctx.stateDir, context);
+  if (info !== null && isAlive(info.pid)) {
+    const handoff = ctx.handoff ?? handReshapeToServer;
+    await handoff(info.url, context, grouping, requireSummaries);
+    return;
+  }
+  if (info !== null) await removeDiscovery(ctx.stateDir, context);
+  const presentCmd: PresentCommand = { verb: "present", spec: cmd.spec, grouping: { kind: "stdin" }, open: true };
+  const boot =
+    ctx.bootServer ??
+    ((c, id, gate) => spawnDetachedServer({ cmd: c, context: id, stateDir: ctx.stateDir, cwd: ctx.cwd, requireSummaries: gate }));
+  await boot(presentCmd, context, requireSummaries);
 }
 
 /** Production wait: read server discovery, settle if the browser is gone, else block. */

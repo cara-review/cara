@@ -11,9 +11,13 @@ import { join } from "node:path";
 import { fixedClock } from "../clock.ts";
 import { makeTestRepo, type TestRepo } from "../git/test-repo.ts";
 import { runCli, type CliDeps } from "../cli.ts";
+import { composeCore } from "../server/compose.ts";
+import { JsonlReviewStore } from "../review-store.ts";
 import type { CliIo } from "./output.ts";
 import type { ReviewWait } from "./review.ts";
 import { FakeLlm } from "./fake-llm.ts";
+import { writeDiscovery } from "./discovery.ts";
+import type { AnswerRequest, GroupingRequest, LensRequest, PorcelainLlm } from "./llm.ts";
 
 interface Captured {
   readonly io: CliIo;
@@ -161,6 +165,215 @@ test("git-order mode floors the grouping with no key and no nag", async () => {
     const out = cap.json();
     assert.match(out["next"] as string, /Review complete/);
     assert.equal((out["progress"] as { total: number }).total, 2);
+  } finally {
+    await repo.cleanup();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("git-order floor threads requireSummaries:false to the boot (ADR-0012 §1 — never rejected)", async () => {
+  const { repo, range } = await twoAtomRepo();
+  const home = await makeHome(GIT_ORDER_CONFIG);
+  try {
+    let bootGate: boolean | undefined;
+    const cap = capture();
+    await runCli(["review", "--range", range], {
+      ...base(repo, home, {
+        bootServer: (_cmd, _ctx, requireSummaries) => {
+          bootGate = requireSummaries;
+          return Promise.resolve({ url: "ws://test" });
+        },
+        waitOnce: () => Promise.resolve({ state: "done" }),
+      }),
+      io: cap.io,
+    });
+    assert.equal(bootGate, false); // the exempt floor must boot without the summary gate
+  } finally {
+    await repo.cleanup();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("the misses-twice floor hands off to a live server with requireSummaries:false (ADR-0012 §1)", async () => {
+  const { repo, range } = await twoAtomRepo();
+  const home = await makeHome(LLM_CONFIG);
+  const stateDir = join(repo.dir, ".agent-state", "reviews");
+  const [b, h] = range.split("..");
+  const spec = { kind: "range" as const, base: b!, head: h! };
+  try {
+    // A live server already serves this context, so the floor reaches the handover (path b
+    // from the A/B B1 finding: LLM omits summaries twice mid-session, server always live).
+    const { diffSource } = await composeCore({ cwd: repo.dir, spec, stateDir });
+    const context = await diffSource.resolveContext(spec);
+    await writeDiscovery(stateDir, context, { url: "ws://test", pid: process.pid, ts: 1 });
+
+    let handoffGate: boolean | undefined;
+    const cap = capture();
+    await runCli(["review", "--range", range], {
+      ...base(repo, home, {
+        makeLlm: () => new NoSummaryLlm(),
+        handoff: (_url, _ctx, _grouping, requireSummaries) => {
+          handoffGate = requireSummaries;
+          return Promise.resolve();
+        },
+        waitOnce: () => Promise.resolve({ state: "closed" }),
+      }),
+      io: cap.io,
+    });
+    assert.equal(handoffGate, false); // the floor is never re-gated at the live handover
+  } finally {
+    await repo.cleanup();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+/** A stub that always omits the mandatory summaries, so `presentGrouping` rejects it. */
+class NoSummaryLlm implements PorcelainLlm {
+  groupCalls = 0;
+  readonly #fake = new FakeLlm();
+  group(req: GroupingRequest): Promise<unknown> {
+    this.groupCalls++;
+    return Promise.resolve({ chapters: [{ title: "C", sections: [{ title: "S", atomHashes: req.atoms.map((a) => a.hash) }] }] });
+  }
+  review(req: LensRequest) {
+    return this.#fake.review(req);
+  }
+  answer(req: AnswerRequest) {
+    return this.#fake.answer(req);
+  }
+}
+
+/** Omits summaries on the first group call (so the gate rejects), then complies — recording the
+ *  `summaryReminder` each call received, to prove the retry is not a byte-identical resend. */
+class SummaryRetryLlm extends FakeLlm {
+  readonly reminders: (string | undefined)[] = [];
+  override group(req: GroupingRequest): Promise<unknown> {
+    this.reminders.push(req.summaryReminder);
+    if (this.reminders.length === 1) {
+      return Promise.resolve({
+        chapters: [{ title: "C", sections: [{ title: "S", atomHashes: req.atoms.map((a) => a.hash) }] }],
+      });
+    }
+    return super.group(req); // a fully-summarised grouping → the gate accepts
+  }
+}
+
+/** A compliant stub that records the reshape note passed to each `group` call. */
+class ReshapeRecordingLlm extends FakeLlm {
+  readonly reshapes: (string | undefined)[] = [];
+  override group(req: GroupingRequest): Promise<unknown> {
+    this.reshapes.push(req.reshape);
+    return super.group(req);
+  }
+}
+
+test("a human reshape request drives a re-group and a live hand-off (not a re-boot)", async () => {
+  const { repo, range } = await twoAtomRepo();
+  const home = await makeHome(LLM_CONFIG);
+  const stateDir = join(repo.dir, ".agent-state", "reviews");
+  // A shared advancing clock: the reshape request must land with a ts AFTER the initial
+  // present, so the porcelain sees it as pending when it polls `done`.
+  let tick = 1000;
+  const clock = { now: () => tick++ };
+  const [b, h] = range.split("..");
+  const spec = { kind: "range" as const, base: b!, head: h! };
+  try {
+    const { diffSource } = await composeCore({ cwd: repo.dir, spec, stateDir, clock });
+    const context = await diffSource.resolveContext(spec);
+    // Append the reshape straight to the shared event log (the browser→server path is absent
+    // in this offline test). `dispatch` recomputes from the store, so the porcelain sees it.
+    // Using the shared clock gives it a ts after the initial present and before the re-present.
+    const store = new JsonlReviewStore(stateDir);
+
+    const llm = new ReshapeRecordingLlm();
+    const handoffs: unknown[] = [];
+    let boots = 0;
+    let waitCalls = 0;
+    const waitOnce: ReviewWait = async () => {
+      if (waitCalls++ === 0) {
+        await store.append(context, { type: "reshape-requested", ts: clock.now(), body: "split the tests out" });
+        return { state: "done" };
+      }
+      return { state: "closed" };
+    };
+    const cap = capture();
+    await runCli(["review", "--range", range], {
+      ...base(repo, home, {
+        makeLlm: () => llm,
+        clock,
+        bootServer: async (_cmd, ctxId) => {
+          boots++;
+          await writeDiscovery(stateDir, ctxId, { url: "ws://test", pid: process.pid, ts: 1 });
+          return { url: "ws://test" };
+        },
+        handoff: (_url, _ctx, grouping) => {
+          handoffs.push(grouping);
+          return Promise.resolve();
+        },
+        waitOnce,
+      }),
+      io: cap.io,
+    });
+
+    assert.equal(boots, 1); // booted once, on the initial present
+    assert.equal(handoffs.length, 1); // the reshape re-presented via live hand-off, never a sibling boot
+    assert.equal(llm.reshapes.length, 2); // initial group + one re-group
+    assert.equal(llm.reshapes[1], "split the tests out"); // the re-group carried the human's note
+  } finally {
+    await repo.cleanup();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("LLM grouping that omits summaries retries once, then floors with a surfaced notice", async () => {
+  const { repo, range } = await twoAtomRepo();
+  const home = await makeHome(LLM_CONFIG);
+  try {
+    const llm = new NoSummaryLlm();
+    const cap = capture();
+    await runCli(["review", "--range", range], {
+      ...base(repo, home, {
+        makeLlm: () => llm,
+        bootServer: () => Promise.resolve({ url: "ws://test" }),
+        waitOnce: () => Promise.resolve({ state: "closed" }),
+      }),
+      io: cap.io,
+    });
+    assert.equal(llm.groupCalls, 2); // first attempt + one retry, then the floor
+    const notices = cap.json()["notices"] as string[] | undefined;
+    assert.ok(notices?.some((n) => /summaries/i.test(n)), "floor fallback is surfaced, not silent");
+    assert.equal((cap.json()["progress"] as { total: number }).total, 2); // the floor still covers every atom
+  } finally {
+    await repo.cleanup();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("a summary-gate rejection feeds the missing chapters/sections into the retry (A/B finding 11)", async () => {
+  const { repo, range } = await twoAtomRepo();
+  const home = await makeHome(LLM_CONFIG);
+  try {
+    const llm = new SummaryRetryLlm();
+    const cap = capture();
+    await runCli(["review", "--range", range], {
+      ...base(repo, home, {
+        makeLlm: () => llm,
+        bootServer: () => Promise.resolve({ url: "ws://test" }),
+        waitOnce: () => Promise.resolve({ state: "closed" }),
+      }),
+      io: cap.io,
+    });
+    assert.equal(llm.reminders.length, 2); // first attempt + one retry
+    assert.equal(llm.reminders[0], undefined); // the first request carries no reminder
+    // the retry names the gap (the offending chapter/section), so it is not an identical resend
+    const reminder = llm.reminders[1];
+    assert.ok(typeof reminder === "string", "the retry must carry a summaryReminder");
+    assert.match(reminder, /summar/i);
+    assert.match(reminder, /chapter "C"/);
+    assert.match(reminder, /section "S"/);
+    // it converged on the retry → no floor-fallback notice
+    const notices = cap.json()["notices"] as string[] | undefined;
+    assert.ok(!notices?.some((n) => /summaries/i.test(n)), "retry converged; the floor never fired");
   } finally {
     await repo.cleanup();
     await rm(home, { recursive: true, force: true });
