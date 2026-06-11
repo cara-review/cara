@@ -15,10 +15,15 @@ can we ride an existing standard rather than reinvent? Six fan-out research pass
 attestation standards, git-native review tools, marker/anchor tooling, and the
 compliance/regulated angle.
 
+> **Framing.** CARA is an **open standard with open reference tools** (TN-26-031). This survey
+> reads the field as a *commons to build on and contribute back to*, not a competitive
+> landscape to beat — credit the prior art, adopt its primitives, and where a gap is genuinely
+> open (e.g. in-toto #77), contribute the missing piece upstream rather than fork around it.
+
 > **Verdict:** CARA's exact combination is **unoccupied**, but every *part* worth reusing
 > already exists. We assemble proven primitives; we do not invent crypto, storage, or an
-> envelope. The novel, ownable core is **the atom-payload hash as the attestation subject +
-> decay-on-content-change + the human/agent role tier + the coverage gate**.
+> envelope. The genuinely new contribution is **the atom-payload hash as the attestation
+> subject + decay-on-content-change + the human/agent role tier + the coverage gate**.
 
 ## The field splits in two — CARA is in neither camp
 
@@ -60,9 +65,10 @@ predicate schema + the keying rule + the gate logic.**
 | **Gerrit `copyCondition`** | keeps a +2 if the diff is unchanged | per-patchset diff-*equality*, **includes context lines** (CARA excludes them); not a persistent per-hunk hash |
 | **GitHub per-file "Viewed"** | the one mainstream **decay-on-content** mechanic | whole-file, ephemeral, per-user, no hash; wrongly resets untouched files (community #86527) |
 
-Bonus to position against: **IETF `draft-morrison-identity-attributed-commits`** (May 2026)
-— tier-structured signed trailers, signs the *tree hash not commit id* to survive rebase.
-Same instincts (tiers + sign-content-not-id) but for **authorship, not review**.
+Adjacent prior art to build on and distinguish from: **IETF
+`draft-morrison-identity-attributed-commits`** (May 2026) — tier-structured signed trailers,
+signs the *tree hash not commit id* to survive rebase. Same instincts (tiers +
+sign-content-not-id) but for **authorship, not review**; a natural ally to cite, not a rival.
 
 ## Property matrix
 
@@ -95,16 +101,17 @@ decays **+** gated.
 "A signed review fact bound to the exact change that expires when that change does" is, per
 this survey, currently true of nothing shipped.
 
-## Strategic reads
+## Positioning (as an open standard)
 
-- **Lead positioning with SLSA + Sigstore** ("the primitives are accepted") → then claim the
-  gap. Do **not** claim "no one signs code" — they do (provenance/authorship); claim *review
+- **Build on SLSA + Sigstore** ("the primitives are accepted") → then describe what's new. Do
+  **not** claim "no one signs code" — they do (provenance/authorship); the new part is *review
   semantics + payload-decay*.
-- **Biggest free win: in-toto #77.** Reviving it as the CARA predicate gives an existing
-  standards body, an existing envelope, and a four-year-acknowledged-unsolved problem to own.
-- **Storage substrate is settled prior art:** copy git-appraise's `refs/notes/...` +
-  JSON-per-line + `cat_sort_uniq`. Position explicitly against Gerrit's Change-Id (anti-decay)
-  and GitHub line-anchoring (decays by accident).
+- **Biggest opportunity: in-toto #77.** Contribute `cara.review/v1` upstream as the
+  human-review predicate — joining an existing standards body and envelope and helping close a
+  four-year-open issue, rather than forking a parallel standard around it.
+- **Storage substrate is settled prior art:** adopt git-appraise's `refs/notes/...` pattern +
+  JSON-per-line + `cat_sort_uniq` (Apache-2.0, credit it). Distinguish from Gerrit's Change-Id
+  (anti-decay) and GitHub line-anchoring (decays by accident) — different goals, not rivals.
 
 ## Sources
 
