@@ -35,3 +35,4 @@ Read the `status` field before treating any TN as authoritative: `active` → au
 | [26-028](TN-26-028-polish-pass-implementation-plan.md) | Polish-pass implementation plan — field-test findings on the pivot | plan | active | #47 |
 | [26-029](TN-26-029-ab-eval-scaffolded-vs-freeform.md) | A/B evaluation — scaffolded (clear-diff) vs freeform review (first eval datapoint) | research | active | #47 |
 | [26-030](TN-26-030-boundary-lens-engine-computed.md) | Engine-computed boundary lens — a deterministic between-atom view for the seams pass | proposal | draft | #47 |
+| [26-031](TN-26-031-review-ledger-pivot.md) | Review-ledger pivot — review as a durable, role-attributed, gatable repo fact | proposal | draft | #47 |
