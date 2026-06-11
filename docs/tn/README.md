@@ -37,4 +37,5 @@ Read the `status` field before treating any TN as authoritative: `active` → au
 | [26-030](TN-26-030-boundary-lens-engine-computed.md) | Engine-computed boundary lens — a deterministic between-atom view for the seams pass | proposal | draft | #47 |
 | [26-031](TN-26-031-review-ledger-pivot.md) | Review-ledger pivot — review as a durable, role-attributed, gatable repo fact | proposal | draft | #47 |
 | [26-032](TN-26-032-cara-prior-art-survey.md) | CARA prior-art survey — does a content-addressed review attestation already exist? | research | active | #47 |
+| [26-034](TN-26-034-cara-ledger-implementation-design.md) | CARA ledger — implementation design (git-committed ReviewStore over refs/cara/ledger) | proposal | active | #47 |
 | [26-037](TN-26-037-cara-rename-consolidation-publish-plan.md) | clear-diff → cara: consolidation, two ledger fixes, rename sweep, global install + publish-prep | plan | active | #47 |
