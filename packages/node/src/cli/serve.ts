@@ -54,7 +54,7 @@ function openApp(url: string): void {
  * the process lives on serving the browser until it is signalled or the human closes.
  */
 export async function runServe(cmd: ServeCommand, ctx: ServeContext): Promise<void> {
-  const backend = await compose({ cwd: ctx.cwd, spec: cmd.spec, stateDir: ctx.stateDir, ...composeOverrides(ctx) });
+  const backend = await compose({ cwd: ctx.cwd, spec: cmd.spec, ...composeOverrides(ctx) });
   const grouping = parseJson(await readFile(cmd.groupingPath, "utf8"));
   // The parent already gated this grouping (ADR-0012 §1); re-present under the same decision so
   // the git-order floor (exempt, `requireSummaries: false`) is never rejected on boot.

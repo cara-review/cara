@@ -10,7 +10,7 @@
 //
 // Each returns the live URL + a close(). One server per test keeps runs isolated.
 
-import { join, dirname, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Atom, CommentLinePointer, MarkAuthor, ReviewContext } from "@clear-diff/core";
@@ -65,7 +65,7 @@ async function bootSeeded(
   seed: (backend: RpcDeps, context: ReviewContext) => Promise<void>,
 ): Promise<BootedServer> {
   const spec = parseSpec(range);
-  const backend = await compose({ cwd: repoDir, spec, stateDir: join(repoDir, ".agent-state", "reviews") });
+  const backend = await compose({ cwd: repoDir, spec });
   const atomsView = await backend.service.getAtoms(spec);
   const snapshot = await backend.service.presentGrouping(spec, grouping(atomsView.atoms));
   const { context } = snapshot;
@@ -141,7 +141,7 @@ export interface ReshapeRoundTripServer extends BootedServer {
  */
 export async function bootReshapeRoundTrip(repoDir: string, range: string): Promise<ReshapeRoundTripServer> {
   const spec = parseSpec(range);
-  const backend = await compose({ cwd: repoDir, spec, stateDir: join(repoDir, ".agent-state", "reviews") });
+  const backend = await compose({ cwd: repoDir, spec });
   const atomsView = await backend.service.getAtoms(spec);
   const snapshot = await backend.service.presentGrouping(spec, defaultGrouping(atomsView.atoms));
   const { context } = snapshot;

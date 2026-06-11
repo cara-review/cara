@@ -57,7 +57,6 @@ test("WS round-trip: snapshot query, mark, and readFile over a real repo", async
   const backend = await compose({
     cwd: repo.dir,
     spec,
-    stateDir: join(repo.dir, ".state"),
     config: { load: () => Promise.resolve({ editorCommand: "true" }) },
   });
   // The browser boots against a grouping the CLI `present` has already cached.
@@ -96,7 +95,6 @@ test("reshape handover re-presents on the live server and returns the new groupi
   const backend = await compose({
     cwd: repo.dir,
     spec,
-    stateDir: join(repo.dir, ".state"),
     config: { load: () => Promise.resolve({ editorCommand: "true" }) },
   });
   // Boot the browser against an initial (ungrouped) review the CLI present cached.

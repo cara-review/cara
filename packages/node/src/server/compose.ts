@@ -15,10 +15,10 @@ import { SystemClock } from "../clock.ts";
 import { EnvConfig } from "../config.ts";
 import { SpawnEditor } from "../editor.ts";
 import { GitDiffSource } from "../git/diff-source.ts";
+import { GitLedgerStore } from "../git/ledger-store.ts";
 import { refsForSpec } from "../git/refs.ts";
 import { GitWorkspaceReader } from "../git/workspace-reader.ts";
 import { FileInstructions } from "../instructions.ts";
-import { JsonlReviewStore } from "../review-store.ts";
 import { createReviewActivity, type ReviewActivity } from "./activity.ts";
 import type { RpcDeps } from "./router.ts";
 
@@ -41,8 +41,6 @@ export interface CompositionConfig {
   readonly cwd: string;
   /** What to review, fixed by the CLI at boot. */
   readonly spec: DiffSpec;
-  /** Where the append-only mark log lives (per-clone runtime state, gitignored). */
-  readonly stateDir: string;
   /** ConfigPort override for tests; defaults to EnvConfig over process.env. */
   readonly config?: ConfigPort;
   /** ClockPort override for tests; defaults to the system clock. */
@@ -64,7 +62,7 @@ export async function composeCore(config: CompositionConfig): Promise<CoreBacken
   const diffSource = new GitDiffSource(config.cwd);
   const service = createReviewService({
     diffSource,
-    store: new JsonlReviewStore(config.stateDir),
+    store: new GitLedgerStore(config.cwd),
     instructions: new FileInstructions(homedir(), config.cwd),
     editor: new SpawnEditor(editorCommand ?? "code"),
     clock,

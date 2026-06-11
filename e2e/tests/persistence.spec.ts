@@ -4,8 +4,9 @@ import { makeReviewFixture, type ReviewFixture } from "../support/fixture-repo.t
 import { bootReal, type BootedServer } from "../support/server.ts";
 
 // This spec manages its own server lifecycle (rather than the per-test `serve`
-// helper) because durability is only proven by a *new process* reading the log it
-// did not author: a fresh backend over the same repo + state dir.
+// helper) because durability is only proven by a *new process* reading the ledger
+// it did not author: a fresh backend over the same repo (the CARA ledger lives on
+// the committed orphan ref refs/cara/ledger, TN-26-034).
 
 let fixture: ReviewFixture;
 const servers: BootedServer[] = [];
@@ -26,14 +27,14 @@ test.afterEach(async () => {
   await fixture.cleanup();
 });
 
-/** Boot a fresh backend against the test's repo + state dir. */
+/** Boot a fresh backend against the test's repo (and its committed ledger ref). */
 async function boot(): Promise<string> {
   const server = await bootReal(fixture.dir, fixture.range);
   servers.push(server);
   return server.url;
 }
 
-test("marks survive a backend restart (read back from the JSONL log)", async ({ page }) => {
+test("marks survive a backend restart (read back from the committed CARA ledger)", async ({ page }) => {
   await page.goto(await boot());
   await page.locator(".nav__tree .section").first().waitFor();
 
@@ -42,7 +43,7 @@ test("marks survive a backend restart (read back from the JSONL log)", async ({ 
   await page.keyboard.press("d");
   await expect(sectionRow(page, "src/beta.ts").locator(".glyph")).toHaveClass(/glyph--done/);
 
-  // Restart the backend: a new process must rebuild mark state from disk, not memory.
+  // Restart the backend: a new process must rebuild mark state from the ledger ref, not memory.
   await servers[0]?.close();
   await page.goto(await boot());
   await page.locator(".nav__tree .section").first().waitFor();
