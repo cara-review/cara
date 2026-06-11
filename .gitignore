@@ -13,3 +13,6 @@ test-results/
 
 # Personal Claude Code overrides
 /.claude/settings.local.json
+
+# Transient agent worktrees (Agent tool isolation) — never tracked.
+/.claude/worktrees/
