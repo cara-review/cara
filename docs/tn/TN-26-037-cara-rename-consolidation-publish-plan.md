@@ -18,12 +18,12 @@ Four implementer tasks: **#29 consolidate+fixes → #30 rename sweep → #31 glo
 #32 verify+ship.** Strictly sequential (each pushes `main`; the next pulls).
 
 ## Key facts (owner, in-session)
-- npm package **name = `@paul.grimshaw/cara`** (public scoped — bare `cara` is squatted by a dead
+- npm package **name = `@bounded-dev/cara`** (public scoped — bare `cara` is squatted by a dead
   2018 pkg). Free, no-auth install, and a public proof-of-use for the bare-`cara` dispute. The
-  installed **command stays `cara`** (via `bin.cara`); `npm i -g @paul.grimshaw/cara` installs it.
+  installed **command stays `cara`** (via `bin.cara`); `npm i -g @bounded-dev/cara` installs it.
   **Caveat:** npm scopes may reject the **dot** in `paul.grimshaw`. #31 validates the name locally
-  with `npm pack --dry-run` (no publish) and, if rejected, falls back to `@paulgrimshaw/cara` or
-  `@paul-grimshaw/cara` — owner confirms their exact npm scope. Bake the fallback into #31.
+  with `npm pack --dry-run` (no publish) and, if rejected, falls back to `a non-dotted scope` or
+  `a hyphenated scope` — owner confirms their exact npm scope. Bake the fallback into #31.
 - **Do NOT `npm publish`** — this plan stops at `npm pack`; the owner runs publish.
 - Both fixes were proven live in Worthy bundles; they MUST land in source with regression tests.
 
@@ -156,7 +156,7 @@ regenerate `bun.lock`/`apps/web/dist` mechanically — don't hand-edit generated
 **Packages & imports** (72 sites): `@clear-diff/core|node|web` → `@cara/core|node|web` in every
 `package.json name`/`dependencies` and every import specifier. `bun install` after to regen lock.
 
-**Root `package.json`:** `name` `clear-diff` → **`@paul.grimshaw/cara`** (publish name; #31 may
+**Root `package.json`:** `name` `clear-diff` → **`@bounded-dev/cara`** (publish name; #31 may
 adjust the scope per the dotted-scope caveat); `bin` `{ "clear-diff": "./dist/index.js" }` →
 `{ "cara": "./dist/index.js" }`; `description` reword to cara; `repository` / `homepage` / `bugs`
 URLs — see *Does NOT rename* (leave pointing at the live remote until the owner renames the GitHub
@@ -203,7 +203,7 @@ the literal subject (rare — most mentions are live product references and shou
 - **`refs/cara/ledger`** and the `refs/cara/*` refspec — already cara.
 - **TN/ADR filenames and numbers** — immutable identifiers.
 - **`.agent-state/`** runtime dir (gitignored discovery/grouping scratch; unbranded) — leave.
-- **The npm publish name is `@paul.grimshaw/cara` (scoped), NOT `cara`** — only the *bin/command*
+- **The npm publish name is `@bounded-dev/cara` (scoped), NOT `cara`** — only the *bin/command*
   is `cara`. This asymmetry is intentional; don't "fix" the package name to bare `cara`.
 
 `bun install` → `bun run build:dist` → lint + `bun run test` + `bun run test:e2e` green. Push `main`.
@@ -227,10 +227,10 @@ the literal subject (rare — most mentions are live product references and shou
   `cara --help`.
 
 ### Publish-prep (DO NOT publish)
-- `name` **`@paul.grimshaw/cara`** (public scoped); `bin.cara`; `files` includes `dist` (with `dist/web`).
+- `name` **`@bounded-dev/cara`** (public scoped); `bin.cara`; `files` includes `dist` (with `dist/web`).
 - **Validate the scoped name locally** with `npm pack --dry-run` — it fails fast on an invalid
   package name, **no publish, no auth**. If npm rejects the **dot** in the scope, fall back to
-  `@paulgrimshaw/cara` or `@paul-grimshaw/cara` (owner confirms their exact npm scope); re-run the
+  `a non-dotted scope` or `a hyphenated scope` (owner confirms their exact npm scope); re-run the
   dry-run on the fallback. Record the accepted name in the issue.
 - Bump to **`0.6.0`** (rename + committed-ledger epoch), from whatever `main` carries when #31 runs.
 - `prepublishOnly` = `build:dist` (already present) — keep. For a scoped public package, also set
