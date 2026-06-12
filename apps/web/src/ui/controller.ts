@@ -32,6 +32,12 @@ function autoAdvance(store: AppStore, from: SectionPath): void {
   if (target !== null) focusSection(store, target);
 }
 
+/** True when focus still rests on `path` — the marks ran without the user navigating away. */
+function focusStillOn(store: AppStore, path: SectionPath): boolean {
+  const active = store.getState().activeSection;
+  return active !== null && active.chapter === path.chapter && active.section === path.section;
+}
+
 function activeSectionAtoms(
   state: AppState,
 ): { path: SectionPath; atoms: readonly Atom[]; marks: ReturnType<typeof marksMap> } | null {
@@ -48,7 +54,10 @@ async function markActiveSection(store: AppStore, disposition: Disposition): Pro
   for (const atom of active.atoms) {
     if (active.marks.get(atom.hash) !== disposition) await store.mark(atom.hash, disposition);
   }
-  autoAdvance(store, active.path);
+  // The marks are async; if the user selected another Section meanwhile, that newer focus
+  // wins — auto-advance must not clobber it. Only advance when focus is still on the marked
+  // Section.
+  if (focusStillOn(store, active.path)) autoAdvance(store, active.path);
 }
 
 /** `D`: mark the focused Section done and advance. */
@@ -84,7 +93,11 @@ export async function toggleFile(store: AppStore, atoms: readonly Atom[]): Promi
   const after = store.getState().snapshot;
   if (after === null) return;
   const section = sectionAt(after, active);
-  if (section !== null && sectionRollup(section, marksMap(after)).state !== "unreviewed") {
+  if (
+    section !== null &&
+    sectionRollup(section, marksMap(after)).state !== "unreviewed" &&
+    focusStillOn(store, active)
+  ) {
     autoAdvance(store, active);
   }
 }
