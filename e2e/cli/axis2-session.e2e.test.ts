@@ -42,7 +42,7 @@ function specOf(range: string) {
 async function bootSession() {
   const fixture = await makeReviewFixture();
   const spec = specOf(fixture.range);
-  const backend = await compose({ cwd: fixture.dir, spec, stateDir: join(fixture.dir, ".agent-state", "reviews") });
+  const backend = await compose({ cwd: fixture.dir, spec });
   const snapshot = await backend.service.presentGrouping(spec, trivialGrouping(await firstHashes(backend, spec)));
   const server = await startServer(backend);
   const human = humanClient(server.url);

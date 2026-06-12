@@ -24,7 +24,7 @@ import type {
 } from "@clear-diff/core";
 import { SummariesRequiredError } from "@clear-diff/core";
 import { composeCore } from "../server/compose.ts";
-import { contextHash } from "../review-store.ts";
+import { contextHash } from "../context-hash.ts";
 import { loadPorcelainConfig, type PorcelainConfig } from "./config.ts";
 import { AnthropicLlm, describeMissingSummaries } from "./llm.ts";
 import { FakeLlm } from "./fake-llm.ts";
@@ -87,7 +87,6 @@ export async function runReview(cmd: ReviewCommand, ctx: PorcelainContext): Prom
   const { service } = await composeCore({
     cwd: ctx.cwd,
     spec: cmd.spec,
-    stateDir: ctx.stateDir,
     config: configPort,
     ...(ctx.clock ? { clock: ctx.clock } : {}),
   });

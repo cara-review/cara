@@ -2,7 +2,7 @@
 // Depends on core to prove the dependency direction (node → core).
 import { buildMasterList, type RawHunk } from "@clear-diff/core";
 
-export { JsonlReviewStore, contextHash } from "./review-store.ts";
+export { contextHash } from "./context-hash.ts";
 
 export const PACKAGE_ID = "@clear-diff/node";
 
@@ -19,6 +19,7 @@ export { FileInstructions } from "./instructions.ts";
 
 // Driven adapters over git (ADR-0003).
 export { GitDiffSource } from "./git/diff-source.ts";
+export { GitLedgerStore, LEDGER_REF } from "./git/ledger-store.ts";
 export { GitWorkspaceReader } from "./git/workspace-reader.ts";
 export { refsForSpec, type GitRef, type SpecRefs } from "./git/refs.ts";
 
