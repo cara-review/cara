@@ -18,6 +18,17 @@ export function isAuthor(value: unknown): boolean {
   return tierOk && reviewerOk;
 }
 
+/**
+ * A well-formed descriptive `meta` (ADR-0015): absent, or a flat string→string map. Shape only
+ * on read-back — bounds are input-hardening at `coerceBatch` (ADR-0015 §3), and `author` is
+ * validated independently (below), so `meta` can never carry or override the author tier.
+ */
+function isOptionalMeta(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  return Object.values(value as Record<string, unknown>).every((v) => typeof v === "string");
+}
+
 export function isMarkEvent(value: unknown): value is MarkEvent {
   if (typeof value !== "object" || value === null) return false;
   const event = value as Record<string, unknown>;
@@ -27,14 +38,25 @@ export function isMarkEvent(value: unknown): value is MarkEvent {
       return (
         typeof event["atomHash"] === "string" &&
         (event["disposition"] === "done" || event["disposition"] === "skipped") &&
-        isAuthor(event["author"])
+        isAuthor(event["author"]) &&
+        isOptionalMeta(event["meta"])
       );
     case "unmarked":
       return typeof event["atomHash"] === "string" && isAuthor(event["author"]);
     case "commented":
-      return typeof event["atomHash"] === "string" && typeof event["body"] === "string" && isAuthor(event["author"]);
+      return (
+        typeof event["atomHash"] === "string" &&
+        typeof event["body"] === "string" &&
+        isAuthor(event["author"]) &&
+        isOptionalMeta(event["meta"])
+      );
     case "answered":
-      return typeof event["commentId"] === "string" && typeof event["body"] === "string" && isAuthor(event["author"]);
+      return (
+        typeof event["commentId"] === "string" &&
+        typeof event["body"] === "string" &&
+        isAuthor(event["author"]) &&
+        isOptionalMeta(event["meta"])
+      );
     case "completed":
       return true;
     // Review-level markers (ADR-0012 §3): no atom, no author tier (the browser channel is

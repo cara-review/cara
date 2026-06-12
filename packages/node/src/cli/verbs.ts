@@ -13,6 +13,7 @@ import type {
   ConfigPort,
   Disposition,
   DiffSpec,
+  FactMeta,
   ReviewContext,
   SubmitBatch,
 } from "@clear-diff/core";
@@ -245,13 +246,46 @@ function asLinePointer(value: unknown, label: string): CommentLinePointer | unde
   return { side, text };
 }
 
+/** Bounds on descriptive `meta` (ADR-0015 §3): input-hardening so an audit field can't bloat or forge a log line. */
+const MAX_META_ENTRIES = 12;
+const MAX_META_KEY = 40;
+const MAX_META_VALUE = 200;
+
+/**
+ * Coerce an optional batch-level `meta` (ADR-0015): a flat string→string map, bounded, with
+ * slug keys and printable values (no control characters — values reach terminal/CI logs).
+ * Empty ⇒ undefined (omit the field). Never interpreted by core; never gate-trusted.
+ */
+function coerceMeta(value: unknown): FactMeta | undefined {
+  if (value === undefined) return undefined;
+  const record = asObject(value, "meta");
+  const entries = Object.entries(record);
+  if (entries.length === 0) return undefined;
+  if (entries.length > MAX_META_ENTRIES) throw new CliError(`meta has too many entries (max ${MAX_META_ENTRIES}).`);
+  const out: Record<string, string> = {};
+  for (const [key, raw] of entries) {
+    if (!/^[a-z0-9-]+$/.test(key) || key.length > MAX_META_KEY) {
+      throw new CliError(`meta key "${key}" must be a lowercase slug (a-z, 0-9, -) up to ${MAX_META_KEY} chars.`);
+    }
+    if (typeof raw !== "string") throw new CliError(`meta.${key} must be a string.`);
+    if (raw.length > MAX_META_VALUE) throw new CliError(`meta.${key} is too long (max ${MAX_META_VALUE} characters).`);
+    if ([...raw].some((ch) => ch.charCodeAt(0) < 0x20 || ch.charCodeAt(0) === 0x7f)) {
+      throw new CliError(`meta.${key} must not contain control characters.`);
+    }
+    out[key] = raw;
+  }
+  return out;
+}
+
 /** Coerce untrusted agent JSON into a SubmitBatch, validating every field. */
 function coerceBatch(record: Record<string, unknown>): SubmitBatch {
+  const meta = coerceMeta(record["meta"]);
   const batch: {
     marks?: { atomHash: AtomHash; disposition: Disposition }[];
     comments?: { atomHash: AtomHash; body: string; line?: CommentLinePointer }[];
     answers?: { commentId: string; answer: string }[];
-  } = {};
+    meta?: FactMeta;
+  } = { ...(meta ? { meta } : {}) };
 
   if (record["marks"] !== undefined) {
     batch.marks = asArray(record["marks"], "marks").map((m, i) => {

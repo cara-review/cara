@@ -184,6 +184,8 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
 
     async submit(spec, batch, author) {
       const { context, masterList } = await freshReview(spec);
+      // Batch-level descriptive metadata (ADR-0015), stamped on every fact; never gate-trusted.
+      const meta = batch.meta ? { meta: batch.meta } : {};
 
       for (const m of batch.marks ?? []) {
         await deps.store.append(context, {
@@ -192,6 +194,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
           atomHash: m.atomHash,
           disposition: m.disposition,
           author,
+          ...meta,
         });
       }
       for (const c of batch.comments ?? []) {
@@ -202,6 +205,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
           body: c.body,
           author,
           ...(c.line ? { line: c.line } : {}),
+          ...meta,
         });
       }
       for (const a of batch.answers ?? []) {
@@ -211,6 +215,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
           commentId: a.commentId,
           body: a.answer,
           author,
+          ...meta,
         });
       }
 
@@ -238,6 +243,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
           ...toOpenItem(comment, atom, deriveCommentStatus(comment, masterHashes)),
           tier: comment.author.tier,
           reviewer: comment.author.reviewer,
+          ...(comment.meta ? { meta: comment.meta } : {}),
         });
       }
 

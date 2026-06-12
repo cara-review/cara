@@ -15,6 +15,7 @@ export type {
   Review,
   Disposition,
   MarkAuthor,
+  FactMeta,
   Comment,
   CommentLinePointer,
   ReviewProgress,

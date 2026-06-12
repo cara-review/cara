@@ -93,6 +93,16 @@ export interface MarkAuthor {
 }
 
 /**
+ * Self-reported descriptive metadata of a fact (ADR-0015): model, thinking-mode, tool, …
+ * A bounded string→string map, agent-supplied, **never gate-trusted** — core never
+ * interprets it and no coverage path reads it. Distinct from a `summary` (an AI prose
+ * overlay about the change): `meta` is structured key/values about how a fact was produced.
+ * Untrusted overlay (ADR-0004): escaped on render, never actionable. Bounds live at the
+ * adapter boundary; the domain type is unbounded.
+ */
+export type FactMeta = Readonly<Record<string, string>>;
+
+/**
  * An optional within-hunk pointer for a comment (ADR-0012 §2): a single line by content
  * + side, never a line number — the same content-addressed identity rule as marks
  * (ADR-0002). Display metadata only: it never splits an atom, never affects the bijection
@@ -123,6 +133,8 @@ export interface Comment {
    * null for a block-level comment or when the atom is not in hand at fold time.
    */
   readonly line: number | null;
+  /** Self-reported descriptive metadata of the commenting fact (ADR-0015); omitted when none. */
+  readonly meta?: FactMeta;
 }
 
 export interface ReviewProgress {

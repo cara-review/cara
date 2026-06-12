@@ -8,6 +8,7 @@ import type {
   Comment,
   CommentLinePointer,
   Disposition,
+  FactMeta,
   MarkAuthor,
   RawHunk,
   Review,
@@ -125,6 +126,8 @@ export interface DispatchView {
 export interface CommentView extends OpenItem {
   readonly tier: "human" | "agent";
   readonly reviewer: string | null;
+  /** Self-reported descriptive metadata of the comment fact (ADR-0015); omitted when none. */
+  readonly meta?: FactMeta;
 }
 
 /** The `submit` payload (agent → core): dispositions and/or comments and/or answers, batched. */
@@ -137,6 +140,8 @@ export interface SubmitBatch {
     readonly line?: CommentLinePointer;
   }[];
   readonly answers?: readonly { readonly commentId: string; readonly answer: string }[];
+  /** Self-reported descriptive metadata (ADR-0015) stamped on every fact in the batch; never gate-trusted. */
+  readonly meta?: FactMeta;
 }
 
 /** Completeness accounting over the master list: every atom must carry a disposition or a comment. */
