@@ -19,8 +19,12 @@ Every other AI reviewer puts the LLM **inside** the trust boundary — it both r
 ## Quickstart
 
 ```bash
-# Standalone, once published:
-npx cara review            # in any git repo with uncommitted changes
+# Install (the package is scoped; the command is `cara`):
+npm i -g @bounded-dev/cara
+cara review                # in any git repo with uncommitted changes
+
+# …or one-off without installing:
+npx @bounded-dev/cara review
 ```
 
 `cara review` calls an LLM to group the diff, then opens the review in a browser. It needs `~/.cara/config.toml` (below) and the configured API key in your environment.
