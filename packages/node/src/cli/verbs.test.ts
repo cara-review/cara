@@ -276,6 +276,59 @@ test("gate is vacuously met on an empty diff (nothing to review)", async () => {
   }
 });
 
+test("submit stamps batch meta on every fact, surfaces it on dispatch, and never lets it credit a gate (ADR-0015)", async () => {
+  const { repo, range } = await oneAtomRepo();
+  try {
+    const hash = await atomHash(repo, range);
+    const meta = { model: "claude-opus-4-8", thinking: "high" };
+    const batch = JSON.stringify({
+      marks: [{ atomHash: hash, disposition: "done" }],
+      comments: [{ atomHash: hash, body: "validate this" }],
+      meta,
+    });
+    const sub = capture(batch);
+    await runCli(["submit", "-", "--reviewer", "security", "--range", range], { ...deps(repo), io: sub.io });
+    const context = sub.json()["context"];
+
+    // Persisted on the fact.
+    const events = await new GitLedgerStore(repo.dir).load(context as never);
+    const marked = events.find((e) => e.type === "marked");
+    assert.deepEqual(marked && "meta" in marked ? marked.meta : null, meta);
+
+    // Surfaced on dispatch's CommentView (descriptive, for the agent to triage).
+    const disp = capture();
+    await runCli(["dispatch", "--range", range], { ...deps(repo), io: disp.io });
+    assert.deepEqual((disp.json()["comments"] as { meta?: unknown }[])[0]!.meta, meta);
+
+    // Never gate-trusted: a meta key is not a predicate role — it credits nothing, so the gate fails.
+    const gate = capture();
+    await assert.rejects(
+      runCli(["gate", "--require", "model=100%", "--range", range], { ...deps(repo), io: gate.io }),
+      GateNotMetError,
+    );
+    assert.equal((gate.json()["coverage"] as Record<string, number>)["model"], 0);
+  } finally {
+    await repo.cleanup();
+  }
+});
+
+test("submit rejects malformed meta (non-slug key, control char, over-long value, too many entries)", async () => {
+  const { repo, range } = await oneAtomRepo();
+  try {
+    const hash = await atomHash(repo, range);
+    const mark = { atomHash: hash, disposition: "done" };
+    const bad = (meta: unknown) => JSON.stringify({ marks: [mark], meta });
+    const run = (payload: string) => runCli(["submit", "-", "--range", range], { ...deps(repo), io: capture(payload).io });
+    await assert.rejects(run(bad({ Model: "x" })), /lowercase slug/);
+    await assert.rejects(run(bad({ model: "ab" })), /control characters/);
+    await assert.rejects(run(bad({ model: "x".repeat(201) })), /too long/);
+    const many = Object.fromEntries(Array.from({ length: 13 }, (_, i) => [`k${i}`, "v"]));
+    await assert.rejects(run(bad(many)), /too many entries/);
+  } finally {
+    await repo.cleanup();
+  }
+});
+
 test("instructions prints the methodology plus the verb reference, as plain text", async () => {
   const repo = await makeTestRepo();
   try {

@@ -11,6 +11,7 @@ import type {
   Comment,
   CommentLinePointer,
   Disposition,
+  FactMeta,
   MarkAuthor,
   ReviewProgress,
   Section,
@@ -22,6 +23,8 @@ export interface MarkedEvent {
   readonly atomHash: AtomHash;
   readonly disposition: Disposition;
   readonly author: MarkAuthor;
+  /** Self-reported descriptive metadata (ADR-0015); never gate-trusted. Omitted when none. */
+  readonly meta?: FactMeta;
 }
 
 export interface UnmarkedEvent {
@@ -39,6 +42,8 @@ export interface CommentedEvent {
   readonly author: MarkAuthor;
   /** Optional within-hunk line pointer (ADR-0012 §2); omitted when block-level. */
   readonly line?: CommentLinePointer;
+  /** Self-reported descriptive metadata (ADR-0015); never gate-trusted. Omitted when none. */
+  readonly meta?: FactMeta;
 }
 
 export interface AnsweredEvent {
@@ -48,6 +53,8 @@ export interface AnsweredEvent {
   readonly commentId: string;
   readonly body: string;
   readonly author: MarkAuthor;
+  /** Self-reported descriptive metadata (ADR-0015); never gate-trusted. Omitted when none. */
+  readonly meta?: FactMeta;
 }
 
 /** A context-level "done reviewing" marker (ADR-0011 §4). Persisted so a fresh process reads it. */
@@ -92,6 +99,8 @@ export type MarkEvent =
 export interface MarkRecord {
   readonly disposition: Disposition;
   readonly author: MarkAuthor;
+  /** Self-reported descriptive metadata (ADR-0015); never gate-trusted. Omitted when none. */
+  readonly meta?: FactMeta;
 }
 
 export interface ReviewState {
@@ -127,7 +136,11 @@ export function project(events: readonly MarkEvent[]): ReviewState {
   for (const event of events) {
     switch (event.type) {
       case "marked":
-        marks.set(event.atomHash, { disposition: event.disposition, author: event.author });
+        marks.set(event.atomHash, {
+          disposition: event.disposition,
+          author: event.author,
+          ...(event.meta ? { meta: event.meta } : {}),
+        });
         break;
       case "unmarked":
         marks.delete(event.atomHash);
@@ -145,6 +158,7 @@ export function project(events: readonly MarkEvent[]): ReviewState {
           status: "open",
           pointer: event.line ?? null,
           line: null, // resolved against the live atom by resolveCommentLine
+          ...(event.meta ? { meta: event.meta } : {}),
         });
         break;
       }

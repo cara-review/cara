@@ -120,5 +120,7 @@ export const VERB_REFERENCE: string = [
   "",
   "Every verb prints JSON with a `next` hint. Your submissions are recorded as the agent tier",
   "(--reviewer <label> to distinguish lenses, or a `reviewer` field in the batch object —",
-  "same lowercase-slug rule); the browser human is the human tier.",
+  "same lowercase-slug rule); the browser human is the human tier. Optionally attach a `meta`",
+  "object to a submit batch (e.g. {\"model\":\"…\",\"thinking\":\"…\"}) — descriptive audit only,",
+  "never gate-trusted.",
 ].join("\n");

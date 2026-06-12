@@ -425,3 +425,18 @@ test("a commented event with no pointer folds to a block-level comment", () => {
   const { comments } = project([{ type: "commented", ts: 1, atomHash: h(0), body: "b", author: HUMAN }]);
   assert.equal(comments[0]?.pointer, null);
 });
+
+test("project carries fact meta onto the mark record and the comment (ADR-0015)", () => {
+  const meta = { model: "claude-opus-4-8", thinking: "high" };
+  const state = project([
+    { type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: SECURITY, meta },
+    { type: "commented", ts: 2, atomHash: h(0), body: "check input", author: SECURITY, meta },
+  ]);
+  assert.deepEqual(state.marks.get(h(0))?.meta, meta);
+  assert.deepEqual(state.comments[0]?.meta, meta);
+});
+
+test("a fact with no meta folds to a record with the field absent (no dedupe churn)", () => {
+  const state = project([{ type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: HUMAN }]);
+  assert.equal("meta" in (state.marks.get(h(0)) ?? {}), false);
+});
