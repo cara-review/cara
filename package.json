@@ -13,13 +13,13 @@
     "local-first",
     "hexagonal"
   ],
-  "homepage": "https://github.com/clear-diff/clear-diff#readme",
+  "homepage": "https://github.com/clear-diff/cara#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/clear-diff/clear-diff.git"
+    "url": "git+https://github.com/clear-diff/cara.git"
   },
   "bugs": {
-    "url": "https://github.com/clear-diff/clear-diff/issues"
+    "url": "https://github.com/clear-diff/cara/issues"
   },
   "type": "module",
   "workspaces": [

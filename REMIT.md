@@ -9,9 +9,9 @@ cara — local-first, diff-first conversational code reviewer. Node CLI. The age
 ## In scope
 
 - Anything in this repo.
-- Trunk-based work on `main` or a `clear-diff-worktrees/<issue>-<slug>` worktree, tracked by a `clear-diff/clear-diff` GitHub issue.
+- Trunk-based work on `main` or a `clear-diff-worktrees/<issue>-<slug>` worktree, tracked by a `clear-diff/cara` GitHub issue.
 - Code change + its matching `docs/` update, together.
-- Git operations on this repo — `git` (status, diff, add, commit, push, worktree, etc.) and `gh` for issues/projects/PRs on `clear-diff/clear-diff`. These are normal work here, not out-of-scope side effects.
+- Git operations on this repo — `git` (status, diff, add, commit, push, worktree, etc.) and `gh` for issues/projects/PRs on `clear-diff/cara`. These are normal work here, not out-of-scope side effects.
 
 ## Out of scope
 

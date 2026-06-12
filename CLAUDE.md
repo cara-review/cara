@@ -87,7 +87,7 @@ Agents push directly to `main`. No feature branches for review, no PRs to merge.
 - `/do-ship` — deliver to `main`.
 - `/start-team` — parallel agents picking up Ready issues.
 - Pre-push hook is the quality gate. **Never `--no-verify`.**
-- Issues: `clear-diff/clear-diff` GitHub Project. Reference with `Refs #N` (or `Closes #N` to auto-close).
+- Issues: `clear-diff/cara` GitHub Project. Reference with `Refs #N` (or `Closes #N` to auto-close).
 
 ## Architecture policy
 
