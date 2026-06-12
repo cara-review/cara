@@ -37,6 +37,7 @@ export {
   isAccounted,
   resolveCommentLine,
   reviewProgress,
+  repoProgress,
   type MarkedEvent,
   type UnmarkedEvent,
   type CommentedEvent,

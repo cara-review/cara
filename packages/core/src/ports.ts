@@ -58,6 +58,13 @@ export interface ReviewInstructions {
 export interface ReviewStore {
   load(context: ReviewContext): Promise<readonly MarkEvent[]>;
   append(context: ReviewContext, event: MarkEvent): Promise<void>;
+  /**
+   * Every fact across **all** contexts (ADR-0014), for repo-wide coverage. **Unordered** —
+   * contexts have independent topologies and no global order exists — so it is consumable
+   * ONLY by order-independent folds (`repoProgress`); it must never be passed to `project()`.
+   * That ordering difference from `load()` is the whole reason it is a distinct method.
+   */
+  loadAll(): Promise<readonly MarkEvent[]>;
 }
 
 /** Open a file at a line in the user's editor (spawn `code` / `zed`). */
@@ -167,6 +174,15 @@ export interface SubmitResult {
   readonly progress: ReviewProgress;
 }
 
+/** The `gate --repo` view (ADR-0014): repo-wide role coverage of a range's master list. */
+export interface RepoCoverage {
+  readonly context: ReviewContext;
+  /** Aggregate role coverage over the whole range, folded by existence across all contexts. */
+  readonly progress: ReviewProgress;
+  /** Per-file role coverage — the dark-matter map. A file with `accounted === 0` is unseen. */
+  readonly byFile: ReadonlyArray<{ readonly path: string; readonly progress: ReviewProgress }>;
+}
+
 export interface AppConfig {
   /** Command used to open files, e.g. "code" or "zed". Null when unset. */
   readonly editorCommand: string | null;
@@ -262,6 +278,12 @@ export interface ReviewService {
   ): Promise<ReviewSnapshot>;
   /** `submit` (ADR-0011): apply a batch of marks/comments/answers, return the gap report. */
   submit(spec: DiffSpec, batch: SubmitBatch, author: MarkAuthor): Promise<SubmitResult>;
+  /**
+   * `gate --repo` (ADR-0014): repo-wide role coverage of `spec`'s master list against the
+   * cross-context fact union (`ReviewStore.loadAll`), aggregate + per-file. Read-only;
+   * existence-folded, so it credits content reviewed under any context.
+   */
+  repoCoverage(spec: DiffSpec): Promise<RepoCoverage>;
   /**
    * `dispatch` (ADR-0011): every located comment with lifecycle + author, recomputed
    * from git. Context is derived from `spec` (one source of identity) — there is no

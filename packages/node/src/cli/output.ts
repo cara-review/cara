@@ -89,6 +89,8 @@ export const NEXT = {
   gatePass: "Review gate met — every required role cleared its bar. Safe to proceed / merge.",
   gateFail: (roles: readonly string[]) =>
     `Review gate not met: ${roles.join(", ")} below bar. Have the missing role(s) review the unaddressed atoms, then re-run: clear-diff gate.`,
+  gateIndeterminate:
+    "Repo gate over an empty range — no introduced content to measure. Pass --range <baseline>..<target> (the adoption baseline → HEAD).",
 } as const;
 
 /** The `instructions` verb's verb-reference block, appended after the merged methodology. */

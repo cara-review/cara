@@ -7,6 +7,7 @@ import {
   isSectionComplete,
   resolveCommentLine,
   reviewProgress,
+  repoProgress,
   type MarkEvent,
 } from "./marks.ts";
 import { buildMasterList } from "./master-list.ts";
@@ -439,4 +440,32 @@ test("project carries fact meta onto the mark record and the comment (ADR-0015)"
 test("a fact with no meta folds to a record with the field absent (no dedupe churn)", () => {
   const state = project([{ type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: HUMAN }]);
   assert.equal("meta" in (state.marks.get(h(0)) ?? {}), false);
+});
+
+test("repoProgress folds by existence across the whole ledger, not last-writer (ADR-0014)", () => {
+  // Two labels disposition h(0); h(1) only commented; h(2) untouched. Existence credits BOTH
+  // labels for h(0) — unlike reviewProgress, whose last-write-wins map keeps one writer.
+  const events: MarkEvent[] = [
+    { type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: SECURITY },
+    { type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: PERF },
+    { type: "commented", ts: 1, atomHash: h(1), body: "x", author: AGENT },
+  ];
+  const p = repoProgress(master, events);
+  assert.equal(p.total, 3);
+  assert.equal(p.addressed, 1); // only h(0) dispositioned
+  assert.equal(p.accounted, 2); // h(0) dispositioned + h(1) commented
+  assert.deepEqual(
+    new Map((p.byReviewer ?? []).map((r) => [r.reviewer, r.addressed])),
+    new Map([["security", 1], ["perf", 1]]),
+  );
+  const agent = p.scrutiny.find((s) => s.tier === "agent");
+  assert.deepEqual({ accounted: agent?.accounted, commented: agent?.commented }, { accounted: 2, commented: 1 });
+});
+
+test("repoProgress ignores unmarked — no global order to net against (ADR-0014 §7)", () => {
+  const events: MarkEvent[] = [
+    { type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: HUMAN },
+    { type: "unmarked", ts: 2, atomHash: h(0), author: HUMAN },
+  ];
+  assert.equal(repoProgress(master, events).addressed, 1);
 });

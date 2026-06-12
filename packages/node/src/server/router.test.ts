@@ -75,6 +75,7 @@ function fakeService(calls: string[]): ReviewService {
       calls.push(`dispatch:${spec.kind}`);
       return dispatchView("ctx");
     },
+    repoCoverage: async () => ({ context: "ctx" as never, progress: { total: 0, addressed: 0, accounted: 0, unaddressed: 0, scrutiny: [] }, byFile: [] }),
     markComplete: async (context) => {
       calls.push(`markComplete:${context}`);
     },

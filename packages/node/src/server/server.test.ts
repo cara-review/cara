@@ -28,6 +28,7 @@ function stubDeps(service?: ReviewService): RpcDeps {
     comment: unused,
     submit: unused,
     dispatch: unused,
+    repoCoverage: unused,
     markComplete: unused,
     openInEditor: unused,
   };

@@ -69,11 +69,27 @@ test("gate parses comma-separated --require predicates (both = and >= mean 'at l
       { role: "human", threshold: 50 },
       { role: "addressed", threshold: 80 },
     ],
+    repo: false,
+    byFile: false,
   });
 });
 
 test("gate without --require is a coverage readout (no requirements)", () => {
-  assert.deepEqual(parseCommand(["gate"]), { verb: "gate", spec: { kind: "worktree" }, requirements: [] });
+  assert.deepEqual(parseCommand(["gate"]), {
+    verb: "gate",
+    spec: { kind: "worktree" },
+    requirements: [],
+    repo: false,
+    byFile: false,
+  });
+});
+
+test("gate --repo enables the cross-context fold; --by-file implies --repo", () => {
+  const repo = parseCommand(["gate", "--repo", "--require", "security=100%"]);
+  assert.equal(repo.verb === "gate" ? repo.repo : null, true);
+  assert.equal(repo.verb === "gate" ? repo.byFile : null, false);
+  const byFile = parseCommand(["gate", "--by-file"]);
+  assert.deepEqual(byFile, { verb: "gate", spec: { kind: "worktree" }, requirements: [], repo: true, byFile: true });
 });
 
 test("gate rejects malformed predicates, an over-100 percent, a non-slug role, and positionals", () => {
@@ -88,6 +104,8 @@ test("gate accepts a <tier>:commented scrutiny role and rejects :commented on a 
     verb: "gate",
     spec: { kind: "worktree" },
     requirements: [{ role: "agent:commented", threshold: 30 }],
+    repo: false,
+    byFile: false,
   });
   assert.throws(() => parseCommand(["gate", "--require", "security:commented=100%"]), /applies only to human or agent/);
 });

@@ -61,6 +61,9 @@ class FakeStore implements ReviewStore {
     log.push(event);
     this.logs.set(context, log);
   }
+  async loadAll(): Promise<readonly MarkEvent[]> {
+    return [...this.logs.values()].flat();
+  }
 }
 
 function fakeInstructions(value: ReviewInstructions = { personal: null, project: null }): InstructionsSource {
