@@ -51,7 +51,7 @@ export interface VerbContext {
 
 /** The composition config for a verb, threading test overrides without `undefined` keys. */
 function coreConfig(ctx: VerbContext, spec: DiffSpec) {
-  return { cwd: ctx.cwd, spec, stateDir: ctx.stateDir, ...composeOverrides(ctx) };
+  return { cwd: ctx.cwd, spec, ...composeOverrides(ctx) };
 }
 
 export async function runAtoms(spec: DiffSpec, ctx: VerbContext): Promise<void> {

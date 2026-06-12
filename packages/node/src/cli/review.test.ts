@@ -12,7 +12,7 @@ import { fixedClock } from "../clock.ts";
 import { makeTestRepo, type TestRepo } from "../git/test-repo.ts";
 import { runCli, type CliDeps } from "../cli.ts";
 import { composeCore } from "../server/compose.ts";
-import { JsonlReviewStore } from "../review-store.ts";
+import { GitLedgerStore } from "../git/ledger-store.ts";
 import type { CliIo } from "./output.ts";
 import type { ReviewWait } from "./review.ts";
 import { FakeLlm } from "./fake-llm.ts";
@@ -203,7 +203,7 @@ test("the misses-twice floor hands off to a live server with requireSummaries:fa
   try {
     // A live server already serves this context, so the floor reaches the handover (path b
     // from the A/B B1 finding: LLM omits summaries twice mid-session, server always live).
-    const { diffSource } = await composeCore({ cwd: repo.dir, spec, stateDir });
+    const { diffSource } = await composeCore({ cwd: repo.dir, spec });
     const context = await diffSource.resolveContext(spec);
     await writeDiscovery(stateDir, context, { url: "ws://test", pid: process.pid, ts: 1 });
 
@@ -278,12 +278,12 @@ test("a human reshape request drives a re-group and a live hand-off (not a re-bo
   const [b, h] = range.split("..");
   const spec = { kind: "range" as const, base: b!, head: h! };
   try {
-    const { diffSource } = await composeCore({ cwd: repo.dir, spec, stateDir, clock });
+    const { diffSource } = await composeCore({ cwd: repo.dir, spec, clock });
     const context = await diffSource.resolveContext(spec);
     // Append the reshape straight to the shared event log (the browser→server path is absent
     // in this offline test). `dispatch` recomputes from the store, so the porcelain sees it.
     // Using the shared clock gives it a ts after the initial present and before the re-present.
-    const store = new JsonlReviewStore(stateDir);
+    const store = new GitLedgerStore(repo.dir);
 
     const llm = new ReshapeRecordingLlm();
     const handoffs: unknown[] = [];

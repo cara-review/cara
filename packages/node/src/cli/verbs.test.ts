@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { fixedClock } from "../clock.ts";
 import { makeTestRepo, type TestRepo } from "../git/test-repo.ts";
-import { JsonlReviewStore } from "../review-store.ts";
+import { GitLedgerStore } from "../git/ledger-store.ts";
 import { runCli } from "../cli.ts";
 import { NEXT, VERB_REFERENCE, type CliIo } from "./output.ts";
 import { readDiscovery, writeDiscovery } from "./discovery.ts";
@@ -126,9 +126,7 @@ test("submit returns a gap report and stamps the agent tier with the reviewer la
     assert.match(out["next"] as string, /Review complete/);
 
     // Channel-inferred tier: the persisted event is the agent tier with the label.
-    const events = await new JsonlReviewStore(join(repo.dir, ".agent-state", "reviews")).load(
-      out["context"] as never,
-    );
+    const events = await new GitLedgerStore(repo.dir).load(out["context"] as never);
     const marked = events.find((e) => e.type === "marked");
     assert.deepEqual(marked && "author" in marked ? marked.author : null, { tier: "agent", reviewer: "security" });
   } finally {
@@ -400,7 +398,7 @@ test("dispatch surfaces a pending human reshape with a re-present hint", async (
   try {
     const context = await contextFor(repo, range);
     // A human reshape note in the log, with no later `presented` marker → still pending.
-    await new JsonlReviewStore(stateDirOf(repo)).append(context as never, {
+    await new GitLedgerStore(repo.dir).append(context as never, {
       type: "reshape-requested",
       ts: 5000,
       body: "split the tests out",

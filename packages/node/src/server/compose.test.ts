@@ -1,6 +1,5 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import { join } from "node:path";
 import type { DiffSpec } from "@clear-diff/core";
 import { fixedClock } from "../clock.ts";
 import { makeTestRepo } from "../git/test-repo.ts";
@@ -20,7 +19,7 @@ async function oneAtomRepo() {
 test("composeCore wires an LLM-free service over the git adapters", async () => {
   const { repo, spec } = await oneAtomRepo();
   try {
-    const core = await composeCore({ cwd: repo.dir, spec, stateDir: join(repo.dir, ".state"), config });
+    const core = await composeCore({ cwd: repo.dir, spec, config });
     const atoms = await core.service.getAtoms(spec);
     assert.ok(atoms.atoms.length >= 1);
     assert.equal(atoms.methodologyVersion, 4);
@@ -37,7 +36,6 @@ test("compose adds the activity tracker + clock the server router carries", asyn
     const backend = await compose({
       cwd: repo.dir,
       spec,
-      stateDir: join(repo.dir, ".state"),
       config,
       clock: fixedClock(4242),
     });
