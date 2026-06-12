@@ -83,6 +83,15 @@ test("gate rejects malformed predicates, an over-100 percent, a non-slug role, a
   assert.throws(() => parseCommand(["gate", "extra"]), /no positional/);
 });
 
+test("gate accepts a <tier>:commented scrutiny role and rejects :commented on a non-tier role", () => {
+  assert.deepEqual(parseCommand(["gate", "--require", "agent:commented>=30%"]), {
+    verb: "gate",
+    spec: { kind: "worktree" },
+    requirements: [{ role: "agent:commented", threshold: 30 }],
+  });
+  assert.throws(() => parseCommand(["gate", "--require", "security:commented=100%"]), /applies only to human or agent/);
+});
+
 test("present reads its grouping from an inline object, a file, or stdin", () => {
   assert.deepEqual(parseCommand(["present", '{"chapters":[]}']), {
     verb: "present",

@@ -24,9 +24,10 @@ Coverage is `met / total` over the master list recomputed live from `DiffSource`
 | `addressed` | atoms with any disposition (done/skipped) |
 | `accounted` | atoms dispositioned **or** commented |
 | `human` / `agent` | that tier's accounted footprint (per-tier, not a partition — TN-26-029) |
+| `<tier>:commented` | atoms that tier *commented* on (substance over a bare disposition sweep) |
 | `<label>` | atoms a labelled reviewer dispositioned (`byReviewer`, last-writer attribution) |
 
-All four already exist in `ReviewProgress`; the gate adds no new core metric.
+All exist in `ReviewProgress` (coverage + `scrutiny`); the gate adds no new core metric. `:commented` is the anti-rubber-stamp lever (TN-26-031 Risk 1): `agent:commented>=30%` fails a sweep that dispositioned everything but examined nothing.
 
 ### 4. Predicate language
 
@@ -39,7 +40,7 @@ All four already exist in `ReviewProgress`; the gate adds no new core metric.
 ## Deferred (fast-follow)
 
 - **Signing + a `signed-human` predicate** — the irreducible "proof" core (TN-26-031 §B).
-- **Scrutiny predicates** — `accounted − commented` (a bare-disposition sweep) is recorded in `progress.scrutiny` and surfaced, but not yet gateable; the anti-rubber-stamp predicate (e.g. `agent:commented>=50%`) is the obvious next step.
+- **Per-label scrutiny** — `<tier>:commented` ships (above); a per-reviewer-label commented breakdown (`security:commented`) needs `byReviewer` to carry comment counts, not just dispositions.
 - **Repo-wide coverage** — per-diff first (this ADR); the blame-attributed dark-matter map is later (TN-26-031).
 - **Fact metadata** (model, thinking-mode) — descriptive, never gate-trusted.
 
