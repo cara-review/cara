@@ -1,6 +1,6 @@
 // The `cara` CLI dispatcher (driving adapter, ADR-0011). Parse argv into a typed
-// command and route it to its verb. The agent's whole protocol is these verbs; the bare
-// invocation is the `review` porcelain. Transport/composition live in
+// command and route it to its verb. The agent's whole protocol is these verbs; a bare
+// invocation prints the help banner. Transport/composition live in
 // the verb modules — this file only wires argv → verb.
 
 import { homedir } from "node:os";
@@ -8,7 +8,7 @@ import { join } from "node:path";
 import type { ClockPort, ConfigPort, ReviewContext } from "@cara/core";
 import { parseCommand, type PresentCommand } from "./cli/parse.ts";
 import { systemIo, type CliIo } from "./cli/output.ts";
-import { runAtoms, runDispatch, runInstructions, runPresent, runSubmit, type VerbContext } from "./cli/verbs.ts";
+import { runAtoms, runDispatch, runHelp, runInstructions, runPresent, runSubmit, type VerbContext } from "./cli/verbs.ts";
 import { runGate } from "./cli/gate.ts";
 import { runServe } from "./cli/serve.ts";
 import { composeOverrides } from "./server/compose.ts";
@@ -64,6 +64,8 @@ export async function runCli(argv: readonly string[], deps: CliDeps = {}): Promi
       return runSubmit(cmd, ctx);
     case "instructions":
       return runInstructions(ctx);
+    case "help":
+      return runHelp(cmd.topic, ctx);
     case "gate":
       return runGate(cmd, ctx);
     case "serve":

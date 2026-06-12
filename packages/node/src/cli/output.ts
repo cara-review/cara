@@ -126,3 +126,67 @@ export const VERB_REFERENCE: string = [
   "object to a submit batch (e.g. {\"model\":\"…\",\"thinking\":\"…\"}) — descriptive audit only,",
   "never gate-trusted.",
 ].join("\n");
+
+// --- Help surfaces: the entry door for a cold agent (bare `cara` / `--help`) ---
+// The banner names every verb and points at `cara instructions` (the full protocol +
+// grouping rubric). Per-verb usage is a terse synopsis — the deep doc stays in
+// `instructions`, so the two never duplicate the methodology.
+
+/** The root banner: bare `cara`, `cara help`, `cara --help`. Orientation, then the signpost. */
+export const HELP: string = [
+  "cara — local-first, completeness-gated code review. git owns the changes; you (the agent)",
+  "group them and drive the review. No API key needed for the protocol verbs.",
+  "",
+  "Usage: cara <verb> [args]",
+  "",
+  "Review protocol (run in order):",
+  "  atoms                  the change set + the grouping methodology — the start of every review",
+  "  present '<grouping>'   persist your Chapter/Section grouping; open the human's browser",
+  "  dispatch [--wait]      open comments + any human reshape request; --wait blocks for the human",
+  "  submit '<batch>'       apply marks / comments / answers; returns a gap report",
+  "",
+  "Other:",
+  "  gate [--require …]     role coverage as a CI pass/fail bar (exits non-zero when unmet)",
+  "  instructions           the full agent protocol + grouping rubric — read this first",
+  "  review                 porcelain: cara groups and reviews for you (the only API-key path)",
+  "",
+  "Run `cara instructions` for the complete protocol, or `cara <verb> --help` for one verb.",
+].join("\n");
+
+/** Per-verb usage for `cara <verb> --help` / `cara help <verb>`. A synopsis, not the methodology. */
+export const USAGE: Record<string, string> = {
+  atoms: [
+    `cara atoms [<base>..<head>] ${SPEC}`,
+    "Emit the change set plus the grouping methodology — the first step of every review.",
+    "Defaults to the worktree vs origin/main. Next: group, then cara present.",
+  ].join("\n"),
+  present: [
+    `cara present '<grouping>' [--no-open] ${SPEC}`,
+    "Persist your Chapter/Section grouping and boot the human's browser (--no-open stays headless).",
+    `Every Chapter and Section needs a one-line summary. Payload: ${PAYLOAD}.`,
+  ].join("\n"),
+  dispatch: [
+    `cara dispatch [--wait] [--timeout <seconds>] [--idle-threshold <seconds>] ${SPEC}`,
+    "Every open comment (lifecycle + author) and any human reshape request.",
+    "--wait blocks for the human and returns done / reviewInProgress / reviewIdle.",
+  ].join("\n"),
+  submit: [
+    `cara submit '<batch>' [--reviewer <label>] ${SPEC}`,
+    "Apply marks / comments / answers; returns a gap report. Resubmit until every atom is accounted.",
+    `Recorded as the agent tier; --reviewer <label> distinguishes lenses. Payload: ${PAYLOAD}.`,
+  ].join("\n"),
+  gate: [
+    `cara gate [--require <role>=<percent>%,…] [--repo] [--by-file] ${SPEC}`,
+    "Role coverage as a pass/fail bar — exits non-zero when unmet; no --require prints coverage only.",
+    "Roles: addressed, accounted, human, agent, or a reviewer label (e.g. security=100%,human>=50%).",
+  ].join("\n"),
+  instructions: [
+    "cara instructions",
+    "Print the full agent protocol and the Chapter/Section grouping rubric. No arguments.",
+  ].join("\n"),
+  review: [
+    `cara review [<base>..<head>] [--headless] [--reviewer <label>]… [--fake]`,
+    "Porcelain: cara groups and drives the review itself — the only path that uses an API key.",
+    "--headless is autonomous (no browser); --reviewer adds a labelled lens; --fake uses the stub LLM.",
+  ].join("\n"),
+};

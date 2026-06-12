@@ -1,4 +1,4 @@
-// `cara review` — the porcelain (ADR-0011). The bare invocation. It drives the
+// `cara review` — the porcelain (ADR-0011), reached by `cara review` or a leading range. It drives the
 // SAME LLM-free plumbing an external agent drives (getAtoms → grouping → present →
 // dispatch/submit), but supplies the one LLM itself. Two modes:
 //

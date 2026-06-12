@@ -1,8 +1,9 @@
 // argv → a typed command (ADR-0011). The CLI is the agent's whole
 // protocol surface: five plumbing verbs (`atoms`/`present`/`dispatch`/`submit`/`gate`),
-// the `instructions` reference, the `review` porcelain (bare invocation), and the
-// internal `serve` boot the `present` verb spawns. Parsing is pure — no IO, no
-// composition — so every verb's argument grammar is unit-testable in isolation.
+// the `instructions` reference, the `help` banner (bare invocation / `--help`), the
+// `review` porcelain (a leading range), and the internal `serve` the `present` verb
+// spawns. Parsing is pure — no IO, no composition — so every verb's argument grammar is
+// unit-testable in isolation.
 
 import type { DiffSpec } from "@cara/core";
 
@@ -44,6 +45,11 @@ export interface SubmitCommand {
 }
 export interface InstructionsCommand {
   readonly verb: "instructions";
+}
+export interface HelpCommand {
+  readonly verb: "help";
+  /** A verb name for per-verb usage, or null for the root banner. */
+  readonly topic: string | null;
 }
 /** A single gate predicate: a role must cover at least `threshold` percent of the master list. */
 export interface GateRequirement {
@@ -88,11 +94,15 @@ export type Command =
   | DispatchCommand
   | SubmitCommand
   | InstructionsCommand
+  | HelpCommand
   | GateCommand
   | ReviewCommand
   | ServeCommand;
 
 const VERBS = new Set(["atoms", "present", "dispatch", "submit", "instructions", "gate", "review", "serve"]);
+
+/** Verbs a `cara <verb> --help` / `cara help <verb>` topic may name (serve is internal). */
+const HELP_TOPICS = new Set(["atoms", "present", "dispatch", "submit", "instructions", "gate", "review"]);
 
 /** Split argv into options (`--flag` / `--flag value`) and positionals, per a flag spec. */
 interface Flags {
@@ -214,12 +224,27 @@ function validateRole(role: string): string {
 
 /**
  * argv (without node/script) → a Command. The first token is the verb; a bare
- * invocation (or a leading range) is the `review` porcelain. `--pr` is rejected.
+ * invocation, `help`, or `--help`/`-h` is the help banner; a leading range is the
+ * `review` porcelain. `--pr` is rejected.
  */
 export function parseCommand(argv: readonly string[]): Command {
   const [first, ...rest] = argv;
-  const verb = first !== undefined && VERBS.has(first) ? first : null;
+
+  // A cold agent that runs `cara`, `cara help`, or `cara --help` gets the banner — the
+  // one hop to discovery. Only the explicit `cara help <verb>` form narrows to one verb;
+  // a leading `--help`/`-h` is the "orient me" signal and always shows the root banner.
+  if (first === undefined || first === "help" || first === "--help" || first === "-h") {
+    const topic = first === "help" ? rest[0] : undefined;
+    return { verb: "help", topic: topic !== undefined && HELP_TOPICS.has(topic) ? topic : null };
+  }
+
+  const verb = VERBS.has(first) ? first : null;
   const args = verb === null ? argv : rest;
+
+  // `cara <verb> --help` / `-h` prints that verb's usage instead of running it.
+  if (verb !== null && HELP_TOPICS.has(verb) && (args.includes("--help") || args.includes("-h"))) {
+    return { verb: "help", topic: verb };
+  }
 
   switch (verb) {
     case "atoms": {
@@ -297,7 +322,7 @@ export function parseCommand(argv: readonly string[]): Command {
       };
     }
     default:
-      // Explicit `cara review …`, or a bare `cara [<base>..<head>]` → the
+      // Explicit `cara review …`, or a leading range `cara <base>..<head>` → the
       // porcelain. `args` already drops a leading `review` verb token.
       return parseReview(args);
   }

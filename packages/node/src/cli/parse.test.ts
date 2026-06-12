@@ -2,14 +2,30 @@ import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { CliError, parseCommand } from "./parse.ts";
 
-test("bare invocation is the review porcelain over the worktree", () => {
-  assert.deepEqual(parseCommand([]), {
-    verb: "review",
-    spec: { kind: "worktree" },
-    headless: false,
-    reviewers: [],
-    fake: false,
-  });
+test("bare invocation is the help banner (the cold-agent entry door)", () => {
+  assert.deepEqual(parseCommand([]), { verb: "help", topic: null });
+});
+
+test("help / --help / -h all route to the root banner", () => {
+  for (const argv of [["help"], ["--help"], ["-h"]]) {
+    assert.deepEqual(parseCommand(argv), { verb: "help", topic: null });
+  }
+});
+
+test("help narrows to a verb topic, both as `help <verb>` and `<verb> --help`", () => {
+  assert.deepEqual(parseCommand(["help", "present"]), { verb: "help", topic: "present" });
+  assert.deepEqual(parseCommand(["present", "--help"]), { verb: "help", topic: "present" });
+  assert.deepEqual(parseCommand(["gate", "-h"]), { verb: "help", topic: "gate" });
+});
+
+test("a leading --help/-h is always the root banner — only `help <verb>` narrows", () => {
+  assert.deepEqual(parseCommand(["--help", "atoms"]), { verb: "help", topic: null });
+  assert.deepEqual(parseCommand(["-h", "gate"]), { verb: "help", topic: null });
+});
+
+test("an unknown help topic falls back to the root banner", () => {
+  assert.deepEqual(parseCommand(["help", "bogus"]), { verb: "help", topic: null });
+  assert.deepEqual(parseCommand(["help", "serve"]), { verb: "help", topic: null });
 });
 
 test("a leading range is the porcelain over that range", () => {

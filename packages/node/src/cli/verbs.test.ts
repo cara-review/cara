@@ -344,11 +344,11 @@ test("instructions prints the methodology plus the verb reference, as plain text
   }
 });
 
-test("the bare review porcelain fails loudly when no config exists", async () => {
+test("the review porcelain fails loudly when no config exists", async () => {
   const repo = await makeTestRepo();
   try {
     // Point home at an empty dir so no config.toml is found; the error pastes a sample.
-    await assert.rejects(runCli([], { ...deps(repo), home: repo.dir, io: capture().io }), /No cara config/);
+    await assert.rejects(runCli(["review"], { ...deps(repo), home: repo.dir, io: capture().io }), /No cara config/);
   } finally {
     await repo.cleanup();
   }

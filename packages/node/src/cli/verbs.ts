@@ -20,7 +20,7 @@ import type {
 import { buildMethodology, SummariesRequiredError } from "@cara/core";
 import { FileInstructions } from "../instructions.ts";
 import { composeCore, composeOverrides } from "../server/compose.ts";
-import { emit, NEXT, parseJson, readPayload, VERB_REFERENCE, type CliIo } from "./output.ts";
+import { emit, HELP, NEXT, parseJson, readPayload, USAGE, VERB_REFERENCE, type CliIo } from "./output.ts";
 import { CliError, reviewerSlug, type DispatchCommand, type PresentCommand, type SubmitCommand } from "./parse.ts";
 import { groupingPath, isAlive, readDiscovery, removeDiscovery } from "./discovery.ts";
 import { spawnDetachedServer } from "./serve.ts";
@@ -188,6 +188,11 @@ export async function runSubmit(cmd: SubmitCommand, ctx: VerbContext): Promise<v
 export async function runInstructions(ctx: VerbContext): Promise<void> {
   const instructions = await new FileInstructions(homedir(), ctx.cwd).load();
   ctx.io.write(`${buildMethodology(instructions)}\n\n${VERB_REFERENCE}\n`);
+}
+
+/** The help banner (`topic` null) or one verb's usage. Plain text, like `instructions`. */
+export function runHelp(topic: string | null, ctx: VerbContext): void {
+  ctx.io.write(`${topic !== null ? (USAGE[topic] ?? HELP) : HELP}\n`);
 }
 
 /** `dispatch`'s next hint: a pending human Reshape redirects the agent to re-present. */
