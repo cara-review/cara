@@ -59,6 +59,30 @@ test("atoms defaults to the worktree and accepts a range positional", () => {
   assert.deepEqual(parseCommand(["atoms", "a..b"]), { verb: "atoms", spec: { kind: "range", base: "a", head: "b" } });
 });
 
+test("gate parses comma-separated --require predicates (both = and >= mean 'at least')", () => {
+  const cmd = parseCommand(["gate", "--require", "security=100%,human>=50%,addressed=80", "--range", "a..b"]);
+  assert.deepEqual(cmd, {
+    verb: "gate",
+    spec: { kind: "range", base: "a", head: "b" },
+    requirements: [
+      { role: "security", threshold: 100 },
+      { role: "human", threshold: 50 },
+      { role: "addressed", threshold: 80 },
+    ],
+  });
+});
+
+test("gate without --require is a coverage readout (no requirements)", () => {
+  assert.deepEqual(parseCommand(["gate"]), { verb: "gate", spec: { kind: "worktree" }, requirements: [] });
+});
+
+test("gate rejects malformed predicates, an over-100 percent, a non-slug role, and positionals", () => {
+  assert.throws(() => parseCommand(["gate", "--require", "security"]), /Invalid --require/);
+  assert.throws(() => parseCommand(["gate", "--require", "security=150%"]), /cannot exceed 100/);
+  assert.throws(() => parseCommand(["gate", "--require", "Security=100%"]), /Invalid --require/);
+  assert.throws(() => parseCommand(["gate", "extra"]), /no positional/);
+});
+
 test("present reads its grouping from an inline object, a file, or stdin", () => {
   assert.deepEqual(parseCommand(["present", '{"chapters":[]}']), {
     verb: "present",

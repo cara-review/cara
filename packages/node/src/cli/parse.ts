@@ -1,5 +1,5 @@
 // argv → a typed command (ADR-0011). The CLI is the agent's whole
-// protocol surface: four plumbing verbs (`atoms`/`present`/`dispatch`/`submit`),
+// protocol surface: five plumbing verbs (`atoms`/`present`/`dispatch`/`submit`/`gate`),
 // the `instructions` reference, the `review` porcelain (bare invocation), and the
 // internal `serve` boot the `present` verb spawns. Parsing is pure — no IO, no
 // composition — so every verb's argument grammar is unit-testable in isolation.
@@ -45,6 +45,19 @@ export interface SubmitCommand {
 export interface InstructionsCommand {
   readonly verb: "instructions";
 }
+/** A single gate predicate: a role must cover at least `threshold` percent of the master list. */
+export interface GateRequirement {
+  /** `addressed` | `accounted` | a tier (`human`/`agent`) | a reviewer label (e.g. `security`). */
+  readonly role: string;
+  /** Minimum percent (0–100, integer). The bar is met when coverage ≥ threshold. */
+  readonly threshold: number;
+}
+export interface GateCommand {
+  readonly verb: "gate";
+  readonly spec: DiffSpec;
+  /** `--require` predicates (comma-separated). Empty = a coverage readout, never a failure. */
+  readonly requirements: readonly GateRequirement[];
+}
 export interface ReviewCommand {
   readonly verb: "review";
   readonly spec: DiffSpec;
@@ -71,10 +84,11 @@ export type Command =
   | DispatchCommand
   | SubmitCommand
   | InstructionsCommand
+  | GateCommand
   | ReviewCommand
   | ServeCommand;
 
-const VERBS = new Set(["atoms", "present", "dispatch", "submit", "instructions", "review", "serve"]);
+const VERBS = new Set(["atoms", "present", "dispatch", "submit", "instructions", "gate", "review", "serve"]);
 
 /** Split argv into options (`--flag` / `--flag value`) and positionals, per a flag spec. */
 interface Flags {
@@ -164,6 +178,26 @@ export function reviewerSlug(value: string): string {
 }
 
 /**
+ * Parse `--require` into gate predicates: `<role>=<percent>%` (or `>=`), comma-separated, e.g.
+ * `security=100%,human>=50%`. The role is a slug (a tier, a reviewer label, or `addressed`/
+ * `accounted`); both operators mean "at least" — a gate is a minimum bar.
+ */
+function parseRequirements(raw: string | undefined): GateRequirement[] {
+  if (raw === undefined) return [];
+  return raw
+    .split(",")
+    .map((token) => token.trim())
+    .filter((token) => token !== "")
+    .map((token) => {
+      const match = /^([a-z0-9-]+)(?:>=|=)(\d{1,3})%?$/.exec(token);
+      if (match === null) throw new CliError(`Invalid --require "${token}". Use <role>=<percent>% (e.g. security=100%).`);
+      const threshold = Number(match[2]);
+      if (threshold > 100) throw new CliError(`Invalid --require "${token}": percent cannot exceed 100.`);
+      return { role: reviewerSlug(match[1] as string), threshold };
+    });
+}
+
+/**
  * argv (without node/script) → a Command. The first token is the verb; a bare
  * invocation (or a leading range) is the `review` porcelain. `--pr` is rejected.
  */
@@ -220,6 +254,12 @@ export function parseCommand(argv: readonly string[]): Command {
       rejectUnknownBool(flags.bool, new Set());
       if (flags.positional.length > 0) throw new CliError("instructions takes no arguments.");
       return { verb: "instructions" };
+    }
+    case "gate": {
+      const flags = splitFlags(args, new Set(["range", "require"]));
+      rejectUnknownBool(flags.bool, new Set());
+      if (flags.positional.length > 0) throw new CliError("gate takes no positional arguments.");
+      return { verb: "gate", spec: specFromRange(flags), requirements: parseRequirements(flags.value.get("require")) };
     }
     case "serve": {
       const flags = splitFlags(args, new Set(["range", "grouping"]));

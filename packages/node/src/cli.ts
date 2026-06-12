@@ -9,6 +9,7 @@ import type { ClockPort, ConfigPort, ReviewContext } from "@clear-diff/core";
 import { parseCommand, type PresentCommand } from "./cli/parse.ts";
 import { systemIo, type CliIo } from "./cli/output.ts";
 import { runAtoms, runDispatch, runInstructions, runPresent, runSubmit, type VerbContext } from "./cli/verbs.ts";
+import { runGate } from "./cli/gate.ts";
 import { runServe } from "./cli/serve.ts";
 import { composeOverrides } from "./server/compose.ts";
 // Type-only — erased at build, so the plumbing path never loads the LLM/porcelain modules.
@@ -63,6 +64,8 @@ export async function runCli(argv: readonly string[], deps: CliDeps = {}): Promi
       return runSubmit(cmd, ctx);
     case "instructions":
       return runInstructions(ctx);
+    case "gate":
+      return runGate(cmd, ctx);
     case "serve":
       return runServe(cmd, { cwd, stateDir: ctx.stateDir, ...composeOverrides(deps) });
     case "review": {
