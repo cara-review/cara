@@ -1,6 +1,6 @@
 {
   "name": "@paul.grimshaw/cara",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "description": "cara — a local-first, completeness-gated code-review engine an AI agent drives; the LLM stays outside the trust boundary.",
   "keywords": [
     "code-review",
