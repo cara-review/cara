@@ -9,6 +9,7 @@ import { fixedClock } from "../clock.ts";
 import { makeTestRepo, type TestRepo } from "../git/test-repo.ts";
 import { GitLedgerStore } from "../git/ledger-store.ts";
 import { runCli } from "../cli.ts";
+import { GateNotMetError } from "./gate.ts";
 import { NEXT, VERB_REFERENCE, type CliIo } from "./output.ts";
 import { readDiscovery, writeDiscovery } from "./discovery.ts";
 
@@ -163,6 +164,89 @@ test("dispatch lists located comments carrying their author tier + reviewer", as
     assert.equal(comments[0]!.tier, "agent");
     assert.equal(comments[0]!.reviewer, "security");
     assert.match(out["next"] as string, /comment/);
+  } finally {
+    await repo.cleanup();
+  }
+});
+
+/** Submit one done mark on `hash` under an agent reviewer label. */
+async function submitDone(repo: TestRepo, range: string, hash: string, reviewer: string): Promise<void> {
+  const batch = JSON.stringify({ marks: [{ atomHash: hash, disposition: "done" }] });
+  await runCli(["submit", "-", "--reviewer", reviewer, "--range", range], {
+    ...deps(repo),
+    io: capture(batch).io,
+  });
+}
+
+test("gate with no --require prints a role-coverage readout and passes", async () => {
+  const { repo, range } = await oneAtomRepo();
+  try {
+    const hash = await atomHash(repo, range);
+    await submitDone(repo, range, hash, "security");
+    const cap = capture();
+    await runCli(["gate", "--range", range], { ...deps(repo), io: cap.io });
+    const out = cap.json();
+    assert.equal(out["pass"], true);
+    assert.deepEqual(out["requirements"], []);
+    const coverage = out["coverage"] as Record<string, number>;
+    assert.equal(coverage["addressed"], 100);
+    assert.equal(coverage["security"], 100);
+    assert.equal(coverage["human"], 0);
+    assert.match(out["next"] as string, /Enforce/);
+  } finally {
+    await repo.cleanup();
+  }
+});
+
+test("gate passes (exit 0) when every required role clears its bar", async () => {
+  const { repo, range } = await oneAtomRepo();
+  try {
+    const hash = await atomHash(repo, range);
+    await submitDone(repo, range, hash, "security");
+    const cap = capture();
+    await runCli(["gate", "--require", "security=100%,addressed=100%", "--range", range], { ...deps(repo), io: cap.io });
+    const out = cap.json();
+    assert.equal(out["pass"], true);
+    const reqs = out["requirements"] as { role: string; pass: boolean; percent: number }[];
+    assert.equal(reqs.length, 2);
+    assert.ok(reqs.every((r) => r.pass));
+    assert.match(out["next"] as string, /gate met/i);
+  } finally {
+    await repo.cleanup();
+  }
+});
+
+test("gate fails (throws, non-zero exit) when a required role is below bar, after emitting the report", async () => {
+  const { repo, range } = await oneAtomRepo();
+  try {
+    const hash = await atomHash(repo, range);
+    await submitDone(repo, range, hash, "security"); // agent tier only — no human coverage
+    const cap = capture();
+    await assert.rejects(
+      runCli(["gate", "--require", "human=100%", "--range", range], { ...deps(repo), io: cap.io }),
+      GateNotMetError,
+    );
+    // The JSON report is still emitted (CI reads it) before the non-zero exit.
+    const out = cap.json();
+    assert.equal(out["pass"], false);
+    const human = (out["requirements"] as { role: string; percent: number; pass: boolean }[]).find((r) => r.role === "human");
+    assert.deepEqual({ percent: human?.percent, pass: human?.pass }, { percent: 0, pass: false });
+    assert.match(out["next"] as string, /not met/i);
+  } finally {
+    await repo.cleanup();
+  }
+});
+
+test("gate is vacuously met on an empty diff (nothing to review)", async () => {
+  const repo = await makeTestRepo();
+  await repo.write("a.ts", "one\n");
+  const base = await repo.commit("base");
+  try {
+    const cap = capture();
+    await runCli(["gate", "--require", "security=100%", "--range", `${base}..${base}`], { ...deps(repo), io: cap.io });
+    const out = cap.json();
+    assert.equal(out["pass"], true);
+    assert.equal((out["progress"] as { total: number }).total, 0);
   } finally {
     await repo.cleanup();
   }

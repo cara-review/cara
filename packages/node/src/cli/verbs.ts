@@ -1,8 +1,8 @@
-// The five agent-facing verbs (ADR-0011). Each composes the LLM-free backend, drives
-// one use-case, and prints a self-narrating JSON envelope (the `instructions` verb
-// prints plain text). Plumbing only: no grouping/LLM config is ever read here, and
-// channel-inferred tiers are set structurally — a CLI `submit` is always the agent
-// tier, never forgeable to human.
+// The agent-facing verbs (ADR-0011). Each composes the LLM-free backend, drives one
+// use-case, and prints a self-narrating JSON envelope (the `instructions` verb prints
+// plain text). `gate` lives alongside in its own module (gate.ts). Plumbing only: no
+// grouping/LLM config is ever read here, and channel-inferred tiers are set structurally —
+// a CLI `submit` is always the agent tier, never forgeable to human.
 
 import { homedir } from "node:os";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -50,7 +50,7 @@ export interface VerbContext {
 }
 
 /** The composition config for a verb, threading test overrides without `undefined` keys. */
-function coreConfig(ctx: VerbContext, spec: DiffSpec) {
+export function coreConfig(ctx: VerbContext, spec: DiffSpec) {
   return { cwd: ctx.cwd, spec, ...composeOverrides(ctx) };
 }
 

@@ -84,6 +84,11 @@ export const NEXT = {
   submitClean: (total: number) => `All ${total} accounted. Review complete.`,
   submitGap: (missing: number) =>
     `${missing} ${missing === 1 ? "atom" : "atoms"} unaccounted. Mark or comment each, then resubmit: clear-diff submit '<batch-json>' ${SPEC}  ${PAYLOAD}`,
+  gateReadout:
+    "Coverage only (no bar set). Enforce with: clear-diff gate --require <role>=<percent>% (e.g. security=100%,human>=50%).",
+  gatePass: "Review gate met — every required role cleared its bar. Safe to proceed / merge.",
+  gateFail: (roles: readonly string[]) =>
+    `Review gate not met: ${roles.join(", ")} below bar. Have the missing role(s) review the unaddressed atoms, then re-run: clear-diff gate.`,
 } as const;
 
 /** The `instructions` verb's verb-reference block, appended after the merged methodology. */
@@ -102,6 +107,12 @@ export const VERB_REFERENCE: string = [
   "                                         with --timeout <seconds> and --idle-threshold <seconds>.",
   "  4. clear-diff submit '<batch>'       → apply marks / comments / answers; returns a gap",
   "                                         report. Resubmit until every atom is accounted.",
+  "",
+  "Gating (CI, optional):",
+  "  clear-diff gate [--require …]        → role coverage over the ledger as a pass/fail bar,",
+  "                                         e.g. --require security=100%,human>=50%. Exits non-zero",
+  "                                         when unmet; no --require just prints coverage. Roles:",
+  "                                         addressed, accounted, human, agent, or a reviewer label.",
   "",
   "Passing payloads: present and submit take their JSON inline ('{…}'), as a file path, or from",
   "stdin with '-'. The spec defaults to the worktree vs origin/main; pass --range <base>..<head>",
