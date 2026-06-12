@@ -30,15 +30,25 @@ export function greet(): string {
 }
 `;
 
-const GAMMA_BASE = `export const gamma = "to be removed";
-export const removeMe = true;
+// Deleted file. Shares no line or token content with the delta files, so git's
+// rename detection never scores gamma as a rename source for delta-renamed —
+// the delta↔delta-renamed pairing stays unambiguous across git versions.
+const GAMMA_BASE = `function farewell(): void {
+  console.log("gamma departs");
+}
 `;
 
-// 4 lines; only line 1 changes → >50% similar → git -M reports a rename with an edit.
+// Many identical lines; only line 1 changes → ~95% similar → git -M reports an
+// unambiguous rename with an edit. The high match keeps delta-renamed paired
+// with delta regardless of git's tie-breaking.
 const DELTA_BASE = `export const delta = 1;
-export const stableLine = "unchanged content kept for rename similarity";
-export const anotherStable = "more shared content so the rename is detected";
-export const yetMore = "even more shared lines to keep similarity high";
+export const s1 = "shared content kept for rename similarity";
+export const s2 = "more shared content so the rename is detected";
+export const s3 = "even more shared lines to keep similarity high";
+export const s4 = "and yet more shared lines to dominate any rival";
+export const s5 = "still more so the rename is the strongest pairing";
+export const s6 = "padding lines that make the single edit a tiny fraction";
+export const s7 = "the more identical lines, the higher the similarity score";
 `;
 const DELTA_HEAD = DELTA_BASE.replace("export const delta = 1;", "export const delta = 2;");
 
