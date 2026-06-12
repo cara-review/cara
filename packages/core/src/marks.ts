@@ -241,106 +241,56 @@ export function isSectionComplete(
 }
 
 /**
- * Progress over the canonical master list (ADR-0004), never the grouping. When agent
- * marks carry reviewer labels (ADR-0011 §6), a per-reviewer addressed breakdown is
- * attached; it is absent entirely when no mark is labelled. Marks are one-record-per-atom
- * (last-write-wins), so an atom dispositioned by two reviewer labels is credited to the
- * later writer only — the breakdown is last-writer attribution, not a per-lens tally.
+ * Coverage over the canonical master list (ADR-0004), never the grouping. Folded by
+ * **existence** over the raw event log (not the last-write-wins `marks` Map): per atom hash
+ * we keep the set of distinct disposition authors `(tier, reviewer)` and the set of tiers that
+ * commented it, then count those over the master list. So an atom dispositioned by two reviewer
+ * labels (or both tiers) credits BOTH, never just the later writer — multi-role coverage on one
+ * context is counted, not collapsed.
  *
- * Takes the comments (not a bare hash set) because scrutiny is tier-aware (TN-26-029):
- * each tier's row counts the atoms that tier touched (marked or commented) and how many
- * it commented — dispositioned ≠ reviewed, so an agent's bare-disposition sweep stays
- * visible regardless of what other tiers did to the same atom.
+ * - `addressed` / `unaddressed`: atoms with ≥1 surviving disposition from any role.
+ * - `byReviewer[label]`: atoms a given reviewer label dispositioned (absent when no mark is
+ *   labelled, ADR-0011 §6).
+ * - `scrutiny[tier]`: a per-tier footprint, NOT a partition (TN-26-029) — an atom an agent
+ *   swept and a human commented counts in both rows. `accounted` per tier is its sweep
+ *   (marked or commented); `commented` is the subset it commented, so a bare-disposition
+ *   sweep stays visible regardless of what other tiers did to the same atom.
+ * - `accounted`: atoms with ≥1 disposition OR comment from any role.
+ *
+ * `applyUnmark` distinguishes the two folds (output shape identical, so the gate evaluator
+ * and snapshot consumers are untouched):
+ * - `true` (single context, ordered log): `unmarked` retracts the atom's footprint for the
+ *   *unmarking role only*. A disposition is keyed by its full author identity `(tier, reviewer)`,
+ *   so an unmark removes only the matching role's mark — two reviewer labels of the same tier
+ *   (e.g. `agent:security` and `agent:perf`) are distinct dispositions, and retracting one leaves
+ *   the other (its tier and label) standing. Each role's retraction nets only its own attention.
+ * - `false` (repo-wide, ADR-0014 §3): `unmarked` is ignored. Cross-context there is no "later"
+ *   to net against, and a `marked` fact is itself evidence the role attended that content; a
+ *   marked-then-unmarked atom still counts as attended repo-wide (an over-count bounded by
+ *   unmark frequency, acceptable for an advisory readout, ADR-0014 §7).
  */
-export function reviewProgress(
+export function coverageProgress(
   masterList: readonly Atom[],
-  marks: ReadonlyMap<AtomHash, MarkRecord>,
-  comments: readonly Pick<Comment, "atomHash" | "author">[],
+  events: readonly MarkEvent[],
+  applyUnmark: boolean,
 ): ReviewProgress {
-  // The tiers that commented each atom (a hash may carry comments from both tiers).
-  const commentTiers = new Map<AtomHash, Set<MarkAuthor["tier"]>>();
-  for (const { atomHash, author } of comments) {
-    const tiers = commentTiers.get(atomHash) ?? new Set<MarkAuthor["tier"]>();
-    tiers.add(author.tier);
-    commentTiers.set(atomHash, tiers);
-  }
-  const commentedHashes = new Set(commentTiers.keys());
-
-  let addressed = 0;
-  let accounted = 0;
-  const byReviewer = new Map<string, number>();
-  // Scrutiny is a per-tier footprint, NOT a partition: an atom an agent swept and a human
-  // commented counts in both rows, so each tier's sweep total (accounted − commented)
-  // reflects that tier's own engagement and is never eroded by another tier (TN-26-029).
-  // Counts are surface-area like `accounted`: byte-identical hunks share a hash, so a
-  // hash-keyed comment is credited to every occurrence it accounts.
-  const scrutiny = new Map<MarkAuthor["tier"], { accounted: number; commented: number }>();
-  const touch = (tier: MarkAuthor["tier"], commented: boolean): void => {
-    const cell = scrutiny.get(tier) ?? { accounted: 0, commented: 0 };
-    cell.accounted++;
-    if (commented) cell.commented++;
-    scrutiny.set(tier, cell);
-  };
-
-  for (const atom of masterList) {
-    const record = marks.get(atom.hash);
-    if (record !== undefined) {
-      addressed++;
-      const { reviewer } = record.author;
-      if (reviewer !== null) byReviewer.set(reviewer, (byReviewer.get(reviewer) ?? 0) + 1);
-    }
-    if (!isAccounted(atom, marks, commentedHashes)) continue;
-    accounted++;
-    const commentedBy = commentTiers.get(atom.hash);
-    const tiers = new Set<MarkAuthor["tier"]>(commentedBy);
-    if (record !== undefined) tiers.add(record.author.tier);
-    for (const tier of tiers) touch(tier, commentedBy?.has(tier) ?? false);
-  }
-
-  const progress: ReviewProgress = {
-    total: masterList.length,
-    addressed,
-    accounted,
-    unaddressed: masterList.length - addressed,
-    scrutiny: (["human", "agent"] as const).flatMap((tier) => {
-      const cell = scrutiny.get(tier);
-      return cell ? [{ tier, ...cell }] : [];
-    }),
-  };
-  if (byReviewer.size === 0) return progress;
-  return {
-    ...progress,
-    byReviewer: [...byReviewer].map(([reviewer, count]) => ({ reviewer, addressed: count })),
-  };
-}
-
-/**
- * Repo-wide progress (ADR-0014): the same `ReviewProgress` shape as `reviewProgress`, but folded
- * by **existence** over facts unioned across ALL contexts (`ReviewStore.loadAll`), not last-write-wins
- * within one. "Did role R ever attend to this content" — so per atom hash we keep the *set* of tiers
- * and labels that dispositioned it and the set of tiers that commented, then count those sets over the
- * master list. The output drives the gate evaluator unchanged; only the fold strategy differs.
- *
- * Order is irrelevant (the input is unordered), so `unmarked` is NOT applied: cross-context there is no
- * "later" to net against, and a `marked` fact is itself evidence the role attended that content. A
- * marked-then-unmarked atom therefore still counts as attended repo-wide — an over-count bounded by
- * unmark frequency, acceptable for an advisory readout (ADR-0014 §7).
- */
-export function repoProgress(masterList: readonly Atom[], events: readonly MarkEvent[]): ReviewProgress {
-  const dispositionedTiers = new Map<AtomHash, Set<MarkAuthor["tier"]>>();
-  const dispositionedLabels = new Map<AtomHash, Set<string>>();
+  // Per atom: the set of distinct disposition authors `(tier, reviewer)`, keyed so an unmark
+  // retracts exactly the matching role (tier alone is too coarse — two labels share a tier).
+  const dispositions = new Map<AtomHash, Map<string, MarkAuthor>>();
   const commentedTiers = new Map<AtomHash, Set<MarkAuthor["tier"]>>();
-  const into = <V>(map: Map<AtomHash, Set<V>>, hash: AtomHash, value: V): void => {
-    const set = map.get(hash) ?? new Set<V>();
-    set.add(value);
-    map.set(hash, set);
-  };
+  const authorKey = (author: MarkAuthor): string => `${author.tier} ${author.reviewer ?? ""}`;
   for (const event of events) {
     if (event.type === "marked") {
-      into(dispositionedTiers, event.atomHash, event.author.tier);
-      if (event.author.reviewer !== null) into(dispositionedLabels, event.atomHash, event.author.reviewer);
+      const authors = dispositions.get(event.atomHash) ?? new Map<string, MarkAuthor>();
+      authors.set(authorKey(event.author), event.author);
+      dispositions.set(event.atomHash, authors);
+    } else if (event.type === "unmarked") {
+      if (!applyUnmark) continue;
+      dispositions.get(event.atomHash)?.delete(authorKey(event.author));
     } else if (event.type === "commented") {
-      into(commentedTiers, event.atomHash, event.author.tier);
+      const tiers = commentedTiers.get(event.atomHash) ?? new Set<MarkAuthor["tier"]>();
+      tiers.add(event.author.tier);
+      commentedTiers.set(event.atomHash, tiers);
     }
   }
 
@@ -349,17 +299,25 @@ export function repoProgress(masterList: readonly Atom[], events: readonly MarkE
   const byReviewer = new Map<string, number>();
   const scrutiny = new Map<MarkAuthor["tier"], { accounted: number; commented: number }>();
   for (const atom of masterList) {
-    const dispoTiers = dispositionedTiers.get(atom.hash);
+    const authors = dispositions.get(atom.hash);
     const commTiers = commentedTiers.get(atom.hash);
-    if (dispoTiers !== undefined) {
-      addressed++;
-      for (const label of dispositionedLabels.get(atom.hash) ?? []) {
-        byReviewer.set(label, (byReviewer.get(label) ?? 0) + 1);
-      }
+    // Derive the surviving disposition tiers and reviewer labels from the per-author set
+    // (an unmark may have emptied it).
+    const dispoTiers = new Set<MarkAuthor["tier"]>();
+    const dispoLabels = new Set<string>();
+    for (const author of authors?.values() ?? []) {
+      dispoTiers.add(author.tier);
+      if (author.reviewer !== null) dispoLabels.add(author.reviewer);
     }
-    if (dispoTiers === undefined && commTiers === undefined) continue;
+    const hasDispo = dispoTiers.size > 0;
+    const hasComm = commTiers !== undefined && commTiers.size > 0;
+    if (hasDispo) {
+      addressed++;
+      for (const label of dispoLabels) byReviewer.set(label, (byReviewer.get(label) ?? 0) + 1);
+    }
+    if (!hasDispo && !hasComm) continue;
     accounted++;
-    for (const tier of new Set([...(dispoTiers ?? []), ...(commTiers ?? [])])) {
+    for (const tier of new Set([...dispoTiers, ...(commTiers ?? [])])) {
       const cell = scrutiny.get(tier) ?? { accounted: 0, commented: 0 };
       cell.accounted++;
       if (commTiers?.has(tier)) cell.commented++;
@@ -379,4 +337,20 @@ export function repoProgress(masterList: readonly Atom[], events: readonly MarkE
   };
   if (byReviewer.size === 0) return progress;
   return { ...progress, byReviewer: [...byReviewer].map(([reviewer, count]) => ({ reviewer, addressed: count })) };
+}
+
+/**
+ * Single-context progress: existence-based coverage with `unmarked` applied (the ordered log
+ * nets each role's own retractions). See {@link coverageProgress}.
+ */
+export function reviewProgress(masterList: readonly Atom[], events: readonly MarkEvent[]): ReviewProgress {
+  return coverageProgress(masterList, events, true);
+}
+
+/**
+ * Repo-wide progress (ADR-0014): existence-based coverage over the cross-context fact union
+ * (`ReviewStore.loadAll`), with `unmarked` ignored (the input is unordered). See {@link coverageProgress}.
+ */
+export function repoProgress(masterList: readonly Atom[], events: readonly MarkEvent[]): ReviewProgress {
+  return coverageProgress(masterList, events, false);
 }

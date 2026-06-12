@@ -11,7 +11,7 @@ import {
   type MarkEvent,
 } from "./marks.ts";
 import { buildMasterList } from "./master-list.ts";
-import type { Atom, AtomHash, CommentLinePointer, MarkAuthor, RawHunk, Section } from "./model.ts";
+import type { Atom, AtomHash, CommentLinePointer, Disposition, MarkAuthor, RawHunk, Section } from "./model.ts";
 
 function hunk(path: string, text: string): RawHunk {
   return {
@@ -39,9 +39,22 @@ const AGENT: MarkAuthor = { tier: "agent", reviewer: null };
 const SECURITY: MarkAuthor = { tier: "agent", reviewer: "security" };
 const PERF: MarkAuthor = { tier: "agent", reviewer: "perf" };
 
-/** A minimal comment for reviewProgress — only the hash + author tier feed its scrutiny breakdown. */
-const comment = (i: number, author: MarkAuthor): { atomHash: AtomHash; author: MarkAuthor } => ({
+// reviewProgress folds the raw event log (TN-26-037 Fix B). These build the two event kinds it
+// reads; `ts` is uniform (the fold is existence-based, order matters only for unmark).
+const mark = (i: number, disposition: Disposition, author: MarkAuthor): MarkEvent => ({
+  type: "marked",
+  ts: 1,
   atomHash: h(i),
+  disposition,
+  author,
+});
+const unmark = (i: number, author: MarkAuthor): MarkEvent => ({ type: "unmarked", ts: 1, atomHash: h(i), author });
+/** A comment event for reviewProgress — only the hash + author tier feed its scrutiny breakdown. */
+const comment = (i: number, author: MarkAuthor): MarkEvent => ({
+  type: "commented",
+  ts: 1,
+  atomHash: h(i),
+  body: "",
   author,
 });
 
@@ -160,31 +173,22 @@ test("empty section is never complete", () => {
 });
 
 test("progress derives from the master list, counting skipped as addressed", () => {
-  const { marks } = project([
-    { type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: HUMAN },
-    { type: "marked", ts: 2, atomHash: h(2), disposition: "skipped", author: HUMAN },
-  ]);
-  const progress = reviewProgress(master, marks, []);
+  const progress = reviewProgress(master, [mark(0, "done", HUMAN), mark(2, "skipped", HUMAN)]);
   assert.equal(progress.total, 3);
   assert.equal(progress.addressed, 2);
   assert.equal(progress.unaddressed, 1);
 });
 
 test("progress omits byReviewer entirely when no mark carries a label", () => {
-  const { marks } = project([
-    { type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: HUMAN },
-    { type: "marked", ts: 2, atomHash: h(1), disposition: "done", author: AGENT },
-  ]);
-  assert.equal("byReviewer" in reviewProgress(master, marks, []), false);
+  assert.equal("byReviewer" in reviewProgress(master, [mark(0, "done", HUMAN), mark(1, "done", AGENT)]), false);
 });
 
 test("progress breaks down addressed per reviewer label when labels are present", () => {
-  const { marks } = project([
-    { type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: SECURITY },
-    { type: "marked", ts: 2, atomHash: h(1), disposition: "done", author: SECURITY },
-    { type: "marked", ts: 3, atomHash: h(2), disposition: "done", author: PERF },
-  ]);
-  const breakdown = reviewProgress(master, marks, []).byReviewer;
+  const breakdown = reviewProgress(master, [
+    mark(0, "done", SECURITY),
+    mark(1, "done", SECURITY),
+    mark(2, "done", PERF),
+  ]).byReviewer;
   assert.deepEqual(
     [...(breakdown ?? [])].sort((a, b) => a.reviewer.localeCompare(b.reviewer)),
     [
@@ -194,31 +198,51 @@ test("progress breaks down addressed per reviewer label when labels are present"
   );
 });
 
-test("two labels marking the same atom credit the last writer only (one-record-per-atom)", () => {
-  // Marks are last-write-wins per atom, so byReviewer is last-writer attribution — not a
-  // per-lens tally. A multi-reviewer-per-atom model would be a domain change (owner decision).
-  const { marks } = project([
-    { type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: SECURITY },
-    { type: "marked", ts: 2, atomHash: h(0), disposition: "done", author: PERF },
+test("two labels marking the same atom credit BOTH (existence-based coverage, TN-26-037 Fix B)", () => {
+  // The fix: coverage folds the raw event log by existence, so an atom dispositioned by two
+  // reviewer labels credits each lens — not just the later writer the marks map would keep.
+  const progress = reviewProgress(master, [mark(0, "done", SECURITY), mark(0, "done", PERF)]);
+  assert.equal(progress.addressed, 1); // one atom, addressed once
+  assert.deepEqual(
+    [...(progress.byReviewer ?? [])].sort((a, b) => a.reviewer.localeCompare(b.reviewer)),
+    [
+      { reviewer: "perf", addressed: 1 },
+      { reviewer: "security", addressed: 1 },
+    ],
+  );
+});
+
+test("a role's own unmark retracts only its own attention; another role's mark stands", () => {
+  // security marks then unmarks h(0) → its label nets to absent. perf's mark on the same atom
+  // is untouched: the atom is still addressed, credited to perf alone.
+  const progress = reviewProgress(master, [
+    mark(0, "done", SECURITY),
+    mark(0, "done", PERF),
+    unmark(0, SECURITY),
   ]);
-  const progress = reviewProgress(master, marks, []);
   assert.equal(progress.addressed, 1);
   assert.deepEqual(progress.byReviewer, [{ reviewer: "perf", addressed: 1 }]);
 });
 
+test("marked-then-unmarked by the same role nets to absent (unmark applied, single context)", () => {
+  const progress = reviewProgress(master, [mark(0, "done", SECURITY), unmark(0, SECURITY)]);
+  assert.equal(progress.addressed, 0);
+  assert.equal("byReviewer" in progress, false);
+  assert.deepEqual(progress.scrutiny, []);
+});
+
 test("byReviewer counts only labelled marks landing on master-list atoms", () => {
-  const { marks } = project([
-    { type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: SECURITY },
-    { type: "marked", ts: 2, atomHash: "gone" as AtomHash, disposition: "done", author: SECURITY },
-  ]);
-  assert.deepEqual(reviewProgress(master, marks, []).byReviewer, [{ reviewer: "security", addressed: 1 }]);
+  const events: MarkEvent[] = [
+    mark(0, "done", SECURITY),
+    { type: "marked", ts: 1, atomHash: "gone" as AtomHash, disposition: "done", author: SECURITY },
+  ];
+  assert.deepEqual(reviewProgress(master, events).byReviewer, [{ reviewer: "security", addressed: 1 }]);
 });
 
 // --- gap-closed accounting (ADR-0012 §f) ------------------------------------
 
 test("accounted counts a disposition OR a comment; addressed counts disposition only", () => {
-  const { marks } = project([{ type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: HUMAN }]);
-  const progress = reviewProgress(master, marks, [comment(1, AGENT)]); // h(1) comment-only
+  const progress = reviewProgress(master, [mark(0, "done", HUMAN), comment(1, AGENT)]); // h(1) comment-only
   assert.equal(progress.total, 3);
   assert.equal(progress.addressed, 1); // h(0) dispositioned
   assert.equal(progress.accounted, 2); // h(0) by mark, h(1) by comment
@@ -226,7 +250,7 @@ test("accounted counts a disposition OR a comment; addressed counts disposition 
 });
 
 test("a comment-only atom is accounted but never addressed (gap-closed yet undispositioned)", () => {
-  const progress = reviewProgress(master, new Map(), [comment(0, AGENT)]);
+  const progress = reviewProgress(master, [comment(0, AGENT)]);
   assert.equal(progress.addressed, 0);
   assert.equal(progress.accounted, 1);
 });
@@ -234,27 +258,34 @@ test("a comment-only atom is accounted but never addressed (gap-closed yet undis
 // --- scrutiny breakdown (TN-26-029: dispositioned ≠ reviewed) ---------------
 
 test("scrutiny is empty when nothing is accounted", () => {
-  assert.deepEqual(reviewProgress(master, new Map(), []).scrutiny, []);
+  assert.deepEqual(reviewProgress(master, []).scrutiny, []);
+});
+
+test("an atom dispositioned by agent AND human shows both tiers (existence-based, TN-26-037 Fix B)", () => {
+  // Both tiers dispositioned h(0); the marks map would keep only the later writer, but coverage
+  // credits each tier's sweep.
+  const progress = reviewProgress(master, [mark(0, "done", AGENT), mark(0, "done", HUMAN)]);
+  assert.equal(progress.addressed, 1);
+  assert.deepEqual(progress.scrutiny, [
+    { tier: "human", accounted: 1, commented: 0 },
+    { tier: "agent", accounted: 1, commented: 0 },
+  ]);
 });
 
 test("scrutiny splits commented engagement from a bare-disposition sweep, per tier", () => {
   // Agent sweeps all three by disposition but comments only one — the warning the breakdown surfaces.
-  const { marks } = project([
-    { type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: AGENT },
-    { type: "marked", ts: 2, atomHash: h(1), disposition: "done", author: AGENT },
-    { type: "marked", ts: 3, atomHash: h(2), disposition: "done", author: AGENT },
+  const progress = reviewProgress(master, [
+    mark(0, "done", AGENT),
+    mark(1, "done", AGENT),
+    mark(2, "done", AGENT),
+    comment(0, AGENT),
   ]);
-  const progress = reviewProgress(master, marks, [comment(0, AGENT)]);
   assert.deepEqual(progress.scrutiny, [{ tier: "agent", accounted: 3, commented: 1 }]);
 });
 
 test("an atom one tier swept and another commented counts in both rows (footprint, not a partition)", () => {
   // h(0): agent mark + human comment → agent counts it swept AND human counts it commented.
-  const { marks } = project([
-    { type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: AGENT },
-    { type: "marked", ts: 2, atomHash: h(1), disposition: "done", author: AGENT },
-  ]);
-  const progress = reviewProgress(master, marks, [comment(0, HUMAN)]);
+  const progress = reviewProgress(master, [mark(0, "done", AGENT), mark(1, "done", AGENT), comment(0, HUMAN)]);
   assert.deepEqual(progress.scrutiny, [
     { tier: "human", accounted: 1, commented: 1 },
     { tier: "agent", accounted: 2, commented: 0 }, // the agent swept both — the human comment doesn't erase h(0)
@@ -263,12 +294,12 @@ test("an atom one tier swept and another commented counts in both rows (footprin
 
 test("a human comment on an agent-swept atom never shrinks the agent's sweep total", () => {
   // The warning this feature exists to raise: agent dispositioned all three with no comment.
-  const { marks } = project([
-    { type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: AGENT },
-    { type: "marked", ts: 2, atomHash: h(1), disposition: "done", author: AGENT },
-    { type: "marked", ts: 3, atomHash: h(2), disposition: "done", author: AGENT },
+  const progress = reviewProgress(master, [
+    mark(0, "done", AGENT),
+    mark(1, "done", AGENT),
+    mark(2, "done", AGENT),
+    comment(2, HUMAN),
   ]);
-  const progress = reviewProgress(master, marks, [comment(2, HUMAN)]);
   assert.deepEqual(progress.scrutiny, [
     { tier: "human", accounted: 1, commented: 1 },
     { tier: "agent", accounted: 3, commented: 0 }, // still 3 swept — the human comment adds on top
@@ -276,13 +307,13 @@ test("a human comment on an agent-swept atom never shrinks the agent's sweep tot
 });
 
 test("a comment-only atom (no disposition) counts as scrutiny under its comment tier", () => {
-  const progress = reviewProgress(master, new Map(), [comment(0, AGENT)]);
+  const progress = reviewProgress(master, [comment(0, AGENT)]);
   assert.deepEqual(progress.scrutiny, [{ tier: "agent", accounted: 1, commented: 1 }]);
 });
 
 test("a human + agent comment on one atom credit both tiers, order-independent", () => {
-  const agentFirst = reviewProgress(master, new Map(), [comment(0, AGENT), comment(0, HUMAN)]);
-  const humanFirst = reviewProgress(master, new Map(), [comment(0, HUMAN), comment(0, AGENT)]);
+  const agentFirst = reviewProgress(master, [comment(0, AGENT), comment(0, HUMAN)]);
+  const humanFirst = reviewProgress(master, [comment(0, HUMAN), comment(0, AGENT)]);
   const expected = [
     { tier: "human", accounted: 1, commented: 1 },
     { tier: "agent", accounted: 1, commented: 1 },
@@ -296,7 +327,8 @@ test("scrutiny counts are surface-area: a hash-keyed comment credits every occur
   // hash-keyed comment is credited to both occurrences, exactly as `accounted` double-counts them.
   const dupMaster = buildMasterList([hunk("a.ts", "x"), hunk("a.ts", "x"), hunk("b.ts", "y")]);
   const dupHash = dupMaster[0]!.hash;
-  const progress = reviewProgress(dupMaster, new Map(), [{ atomHash: dupHash, author: AGENT }]);
+  const events: MarkEvent[] = [{ type: "commented", ts: 1, atomHash: dupHash, body: "", author: AGENT }];
+  const progress = reviewProgress(dupMaster, events);
   assert.equal(progress.accounted, 2); // both occurrences of the shared hash
   assert.deepEqual(progress.scrutiny, [{ tier: "agent", accounted: 2, commented: 2 }]);
 });
@@ -444,7 +476,7 @@ test("a fact with no meta folds to a record with the field absent (no dedupe chu
 
 test("repoProgress folds by existence across the whole ledger, not last-writer (ADR-0014)", () => {
   // Two labels disposition h(0); h(1) only commented; h(2) untouched. Existence credits BOTH
-  // labels for h(0) — unlike reviewProgress, whose last-write-wins map keeps one writer.
+  // labels for h(0); repoProgress differs from reviewProgress only in ignoring unmark (no order).
   const events: MarkEvent[] = [
     { type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: SECURITY },
     { type: "marked", ts: 1, atomHash: h(0), disposition: "done", author: PERF },

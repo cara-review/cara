@@ -58,7 +58,8 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
 
   /** Rebuild the snapshot from a cached review and the live event log. */
   async function buildSnapshot(context: ReviewContext, review: Review): Promise<ReviewSnapshot> {
-    const state = project(await deps.store.load(context));
+    const events = await deps.store.load(context);
+    const state = project(events);
     const masterHashes = hashSet(review.masterList);
     const byHash = atomsByHash(review.masterList);
     return {
@@ -77,7 +78,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
           line: atom ? resolveCommentLine(atom, comment.pointer) : null,
         };
       }),
-      progress: reviewProgress(review.masterList, state.marks, state.comments),
+      progress: reviewProgress(review.masterList, events),
       completed: state.completed,
       pendingReshape: state.pendingReshape,
     };
@@ -220,10 +221,11 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
         });
       }
 
-      const state = project(await deps.store.load(context));
+      const events = await deps.store.load(context);
+      const state = project(events);
       return {
         gap: buildGapReport(masterList, state),
-        progress: reviewProgress(masterList, state.marks, state.comments),
+        progress: reviewProgress(masterList, events),
       };
     },
 
@@ -247,7 +249,8 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
 
     async dispatch(spec) {
       const { context, masterList } = await freshReview(spec);
-      const state = project(await deps.store.load(context));
+      const events = await deps.store.load(context);
+      const state = project(events);
       const masterHashes = hashSet(masterList);
       const byHash = atomsByHash(masterList);
 
@@ -269,7 +272,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
       return {
         context,
         comments,
-        progress: reviewProgress(masterList, state.marks, state.comments),
+        progress: reviewProgress(masterList, events),
         reshape: state.pendingReshape,
       };
     },

@@ -138,9 +138,9 @@ async function runHeadless(cmd: ReviewCommand, ctx: PorcelainContext, config: Po
   const result = await service.submit(cmd.spec, {}, { tier: "agent", reviewer: null });
   const dispatch = await service.dispatch(cmd.spec);
   // Per-reviewer comments are attributable precisely (each carries its author label). The
-  // cross-cutting mark breakdown in `progress.byReviewer` credits the *last* reviewer to
-  // disposition each atom — marks are one-record-per-atom, so when two lenses mark the same
-  // atom only the latest label is retained (see marks.reviewProgress).
+  // cross-cutting mark breakdown in `progress.byReviewer` credits EVERY reviewer label that
+  // dispositioned each atom — coverage folds the event log by existence, so when two lenses
+  // mark the same atom both are counted (see marks.coverageProgress).
   emit(ctx.io, {
     context: dispatch.context,
     gap: result.gap,
