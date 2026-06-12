@@ -74,3 +74,32 @@ export async function runGit(args: readonly string[], cwd: string): Promise<stri
     throw new GitError(`git ${args.join(" ")} failed: ${stderr.trim() || message}`, code, stderr);
   }
 }
+
+/** Extra env to merge over the hermetic base, e.g. a throwaway `GIT_INDEX_FILE` for tree building. */
+export type GitEnv = Readonly<Record<string, string>>;
+
+/**
+ * Run `git <args>` feeding `stdin`, resolving to stdout. Used by the ledger plumbing
+ * (`hash-object --stdin`) and for index-based tree building (`read-tree`/`update-index`/
+ * `write-tree`) where a scratch `GIT_INDEX_FILE` is threaded so the real index is never touched.
+ */
+export async function runGitStdin(
+  args: readonly string[],
+  cwd: string,
+  stdin: string,
+  env: GitEnv = {},
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = execFile(
+      "git",
+      [...args],
+      { cwd, env: { ...hermeticEnv(), ...env }, encoding: "utf8", maxBuffer: MAX_BUFFER },
+      (err, stdout) => {
+        if (err === null) return resolve(stdout);
+        const { code, stderr, message } = readExecError(err);
+        reject(new GitError(`git ${args.join(" ")} failed: ${stderr.trim() || message}`, code, stderr));
+      },
+    );
+    child.stdin?.end(stdin);
+  });
+}
