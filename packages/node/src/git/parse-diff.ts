@@ -2,7 +2,7 @@
 // contract (ADR-0003). Pure: no IO, no git. All git-specific shapes (`@@`
 // headers, `a/`/`b/` prefixes, `/dev/null`) are consumed here and never leak.
 
-import type { ChangeStatus, DiffLine, RawHunk } from "@clear-diff/core";
+import type { ChangeStatus, DiffLine, RawHunk } from "@cara/core";
 
 const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
 

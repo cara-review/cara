@@ -24,4 +24,4 @@ export type {
   MarkAuthor,
   ReviewProgress,
   ReviewSnapshot,
-} from "@clear-diff/core";
+} from "@cara/core";

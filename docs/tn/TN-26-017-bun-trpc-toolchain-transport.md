@@ -31,7 +31,7 @@ One coherent post-skeleton wave: rework the toolchain (Bun) **and** the RPC/tran
 - **zod** input validation at the boundary, replacing #10's hand-rolled validation.
 - Keep **structured-data-only** (ADR-0003) + #10's **Origin/Host hardening** (CSRF / DNS-rebinding) + path containment.
 - **Subscriptions:** `open` is a tRPC subscription streaming grouping progress — an elapsed tick while the agent groups, then the resolved Section titles revealed one by one (the scrolling UX), then the snapshot. Synthesised in the transport layer; the core grouping stays a single use-case, no new port.
-- **Web client:** `import type { AppRouter } from "@clear-diff/node"` (type-only, runtime-erased) + tRPC client. Replaces dev-11's local `protocol.ts` mirror.
+- **Web client:** `import type { AppRouter } from "@cara/node"` (type-only, runtime-erased) + tRPC client. Replaces dev-11's local `protocol.ts` mirror.
 
 ### ADR-0003 amendment (type-only carve-out)
 
@@ -52,7 +52,7 @@ One coherent post-skeleton wave: rework the toolchain (Bun) **and** the RPC/tran
 ## Verification
 
 - Full `bun test` + #22 e2e green on Bun/tRPC.
-- `clear-diff` boots + runs end-to-end on Bun.
+- `cara` boots + runs end-to-end on Bun.
 - Prod web bundle contains **zero** node/backend code (the runtime boundary the amendment relies on).
 
 ## Sequencing

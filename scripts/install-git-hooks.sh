@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install the clear-diff pre-push hook.
+# Install the cara pre-push hook.
 # Creates a relative symlink so it survives repo-directory renames and works
 # from any linked worktree's hook invocation.
 # Idempotent: safe to run multiple times.

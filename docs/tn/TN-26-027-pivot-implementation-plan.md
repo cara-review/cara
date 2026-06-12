@@ -106,14 +106,14 @@ export interface Comment {
 
 ### Methodology (new `methodology.ts`)
 
-clear-diff owns the methodology (decision #10), version-locked to the `present` grouping schema.
+cara owns the methodology (decision #10), version-locked to the `present` grouping schema.
 ```ts
 export const METHODOLOGY_VERSION = 1;
 export const SYSTEM_METHODOLOGY: string;   // the canonical loop + grouping importance rules + vocabulary
 export function buildMethodology(instructions: ReviewInstructions): string;
 ```
-- `SYSTEM_METHODOLOGY` absorbs the grouping guidance currently hard-coded in `anthropic-agent.ts` `SYSTEM_PROMPT` (Chapters by importance 1–4, Sections by theme, ~2–5 chapters, vocabulary, never expose "atom"/"hunk"). It now lives in core as the single source emitted by `getAtoms` and `clear-diff instructions` — version-locked, no doc drift.
-- `buildMethodology` merges system text + `Project reviewer guidance:` (CLEAR_DIFF.md) + `Personal reviewer guidance:` blocks, stamped with `METHODOLOGY_VERSION`.
+- `SYSTEM_METHODOLOGY` absorbs the grouping guidance currently hard-coded in `anthropic-agent.ts` `SYSTEM_PROMPT` (Chapters by importance 1–4, Sections by theme, ~2–5 chapters, vocabulary, never expose "atom"/"hunk"). It now lives in core as the single source emitted by `getAtoms` and `cara instructions` — version-locked, no doc drift.
+- `buildMethodology` merges system text + `Project reviewer guidance:` (CARA.md) + `Personal reviewer guidance:` blocks, stamped with `METHODOLOGY_VERSION`.
 
 ### Ports (`ports.ts`)
 
@@ -194,7 +194,7 @@ export interface ReviewService {
 
 ### CLI surface (`src/cli/` — split `cli.ts`)
 
-- `src/cli/parse.ts` — argv → command union: `{verb:"atoms"|"present"|"dispatch"|"submit"|"instructions"|"review", spec, flags}`. Bare `clear-diff` → `review` (porcelain). `--pr` still rejected.
+- `src/cli/parse.ts` — argv → command union: `{verb:"atoms"|"present"|"dispatch"|"submit"|"instructions"|"review", spec, flags}`. Bare `cara` → `review` (porcelain). `--pr` still rejected.
 - `src/cli/verbs.ts` — the four plumbing verbs + `instructions`. Each composes the **LLM-free** backend, calls the service, prints a JSON envelope with a `next` hint to stdout. **Plumbing verbs never read `[grouping]`/`[llm]` config** (decision #7) — zero key awareness.
 - `src/cli/output.ts` — JSON envelope writer; `next` hints (self-narrating protocol, decision #6/#11). One source for hints so they version-lock.
 - `src/cli/wait.ts` — `dispatch --wait` client: server discovery + three-state.
@@ -203,7 +203,7 @@ export interface ReviewService {
 
 ### JSON wire shapes (stdout; one object per invocation)
 
-`clear-diff atoms [spec]`
+`cara atoms [spec]`
 ```json
 { "context": "feature-x",
   "methodology": "…merged text…", "methodologyVersion": 1,
@@ -212,42 +212,42 @@ export interface ReviewService {
               "lines":[{"kind":"added","text":"…"}] }],
   "openItems": [{ "id":"c0","atomHash":"…","path":"…","lineRange":{"start":1,"count":3},
                   "body":"…","answer":null,"status":"open" }],
-  "next": "Group these into chapters/sections, then run: clear-diff present <grouping.json>" }
+  "next": "Group these into chapters/sections, then run: cara present <grouping.json>" }
 ```
 
-`clear-diff present [grouping] [--no-open]` — grouping read from a file arg or stdin; shape `{ chapters:[{title,summary?,sections:[{title,summary?,atomHashes:string[]}]}] }`:
+`cara present [grouping] [--no-open]` — grouping read from a file arg or stdin; shape `{ chapters:[{title,summary?,sections:[{title,summary?,atomHashes:string[]}]}] }`:
 ```json
 { "context":"feature-x", "opened":true, "url":"http://127.0.0.1:53124",
   "progress":{"total":41,"addressed":0,"unaddressed":41},
-  "next":"Wait for the human (they'll say 'done'), or auto-pick-up: clear-diff dispatch --wait" }
+  "next":"Wait for the human (they'll say 'done'), or auto-pick-up: cara dispatch --wait" }
 ```
-`--no-open` → `"opened":false`, no `url` (autonomous: grouping persisted, no browser); `next` → "Run: clear-diff submit '{…}'".
+`--no-open` → `"opened":false`, no `url` (autonomous: grouping persisted, no browser); `next` → "Run: cara submit '{…}'".
 
-`clear-diff dispatch [--wait]` (no `--wait`):
+`cara dispatch [--wait]` (no `--wait`):
 ```json
 { "context":"feature-x",
   "comments":[{"id":"c0","atomHash":"…","path":"…","lineRange":{"start":12,"count":1},
                "body":"…","answer":null,"status":"open","tier":"human","reviewer":null}],
   "progress":{"total":41,"addressed":38,"unaddressed":3},
-  "next":"Address each open comment — edit code (hash changes → auto-addressed) or run: clear-diff submit '{\"answers\":[…]}'" }
+  "next":"Address each open comment — edit code (hash changes → auto-addressed) or run: cara submit '{\"answers\":[…]}'" }
 ```
 `--wait` three-state (adds `state`; payload only on `done`):
 ```json
 { "state":"done", "comments":[…], "progress":{…}, "next":"Address open comments, or all clear → finish." }
-{ "state":"reviewInProgress", "progress":{…}, "next":"Human still reviewing. Re-run: clear-diff dispatch --wait" }
+{ "state":"reviewInProgress", "progress":{…}, "next":"Human still reviewing. Re-run: cara dispatch --wait" }
 { "state":"reviewIdle", "progress":{…}, "next":"No UI activity for ~5 min. Stop polling; await the human." }
 ```
 
-`clear-diff submit <batch>` (batch from arg/stdin; `--label <name>` or `batch.label` → agent label):
+`cara submit <batch>` (batch from arg/stdin; `--label <name>` or `batch.label` → agent label):
 ```json
 { "context":"feature-x",
   "gap":{"total":41,"accounted":38,"missing":[{"atomHash":"…","path":"…","lineRange":{"start":7,"count":2}}]},
   "progress":{"total":41,"addressed":38,"unaddressed":3},
-  "next":"3 atoms unaccounted. Mark or comment each, then resubmit: clear-diff submit '{…}'" }
+  "next":"3 atoms unaccounted. Mark or comment each, then resubmit: cara submit '{…}'" }
 ```
 Clean gap → `next`: "All 41 accounted. Review complete."
 
-`clear-diff instructions` — **plain text** (not JSON): `buildMethodology(instructions)` + a verb reference block (the four verbs + the loop), generated from the same source as the `next` hints. Version-locked to `present`.
+`cara instructions` — **plain text** (not JSON): `buildMethodology(instructions)` + a verb reference block (the four verbs + the loop), generated from the same source as the `next` hints. Version-locked to `present`.
 
 ### Channel-inferred tier (no override — structural)
 
@@ -271,11 +271,11 @@ Clean gap → `next`: "All 41 accounted. Review complete."
 
 ---
 
-## (c) Porcelain — `clear-diff review` (`src/cli/review.ts`, `src/cli/config.ts`)
+## (c) Porcelain — `cara review` (`src/cli/review.ts`, `src/cli/config.ts`)
 
 The single LLM wrapper. Drives the same plumbing in-process (composes the LLM-free service + an Anthropic client; never shells out to itself).
 
-- **Config (`src/cli/config.ts`)** — `~/.clear-diff/config.toml`, parsed with `smol-toml` (Node-portable; not `Bun.TOML`). Schema (TN-26-026):
+- **Config (`src/cli/config.ts`)** — `~/.cara/config.toml`, parsed with `smol-toml` (Node-portable; not `Bun.TOML`). Schema (TN-26-026):
   ```toml
   [grouping] mode = "llm"          # "llm" | "git-order"
   [llm]      provider="anthropic"; model="claude-sonnet-4-6"; api_key_env="ANTHROPIC_API_KEY"
@@ -290,7 +290,7 @@ The single LLM wrapper. Drives the same plumbing in-process (composes the LLM-fr
   3. Human-in-loop: boot browser via `present`; converge through the human loop. Autonomous: `--no-open` + `submit`/`dispatch` until gap clean.
 - **Answer calls (autonomous Q&A):** when an open comment needs an answer, the porcelain LLM reads the atom's diff (the old `AnthropicAgentChat` prompt + untrusted-data fence, moved here, fully outside core) → `submit {answers:[{commentId,answer}]}`.
 - **Comment-file export (was core `CommentSink`):** the porcelain composes a standalone comment file from `dispatch` output (`DispatchView.comments`) — the markdown egress that used to be `MarkdownCommentSink` now lives here, downstream of the sole `dispatch` egress. Optional, porcelain-only; core never writes files.
-- **Headless multi-reviewer:** `clear-diff review --autonomous --reviewers security,perf,style` (or `[reviewers]` in toml). N passes, each an LLM review producing marks+comments for its lens → `submit --label <lens>`. Marks/comments carry distinct labels; tiers all `agent`; concurrent JSONL appends are order-independent (ADR-0005 fold). Gap report aggregates across reviewers. Default: one unlabelled reviewer.
+- **Headless multi-reviewer:** `cara review --autonomous --reviewers security,perf,style` (or `[reviewers]` in toml). N passes, each an LLM review producing marks+comments for its lens → `submit --label <lens>`. Marks/comments carry distinct labels; tiers all `agent`; concurrent JSONL appends are order-independent (ADR-0005 fold). Gap report aggregates across reviewers. Default: one unlabelled reviewer.
 - **`FakeAgent`/`FakeAgentChat`** repurpose as porcelain LLM stubs (`src/cli/fake-llm.ts`) for tests/`--fake` — they leave core (core has no AgentPort).
 
 ---
@@ -308,8 +308,8 @@ The single LLM wrapper. Drives the same plumbing in-process (composes the LLM-fr
 
 ## (e) Instructions rename + methodology (`packages/node/src/instructions.ts`, repo files)
 
-- `FileInstructions`: `PROJECT_FILE` `clear-diff.md` → **`CLEAR_DIFF.md`** (project root); personal `~/.clear-diff.md` → **`~/.clear-diff/CLEAR_DIFF.md`**.
-- Rename the repo's own `clear-diff.md` → `CLEAR_DIFF.md`; update references (CLAUDE.md, concept.md, README, ADR-0004/TN cross-refs).
+- `FileInstructions`: `PROJECT_FILE` `cara.md` → **`CARA.md`** (project root); personal `~/.cara.md` → **`~/.cara/CARA.md`**.
+- Rename the repo's own `cara.md` → `CARA.md`; update references (CLAUDE.md, concept.md, README, ADR-0004/TN cross-refs).
 - `atoms` emits the merged methodology = `SYSTEM_METHODOLOGY` (core, owns the loop + grouping rules) + project + personal layers, version-locked to the `present` schema (decision #10). `ReviewInstructions`/`InstructionsSource` ports unchanged.
 
 ---
@@ -321,9 +321,9 @@ The single LLM wrapper. Drives the same plumbing in-process (composes the LLM-fr
 - **e2e — three axes** (Playwright + spawned bin, scrubbed `GIT_DIR`/`GIT_WORK_TREE`/`GIT_INDEX_FILE`, temp repo):
   1. **Headless multi-reviewer:** `atoms` → N×`submit --label` → `dispatch`; assert gap converges to clean, labels/tiers persisted, concurrent appends consistent.
   2. **Agent-session human-in-loop (simulated):** `atoms` → `present --no-open` → simulate human marks/`done` over WS → `dispatch --wait` returns `done` with the marked tree; tier badges = human.
-  3. **Standalone wrapper (FakeLLM stub):** bare `clear-diff review` with a stub LLM client → grouping + answers → full converge loop; assert no real key required, no silent fallback.
+  3. **Standalone wrapper (FakeLLM stub):** bare `cara review` with a stub LLM client → grouping + answers → full converge loop; assert no real key required, no silent fallback.
 - **Edge cases (asserted across the above):** empty diff (`atoms` → `[]`, `next` "No changes"); no config (porcelain loud error + sample; plumbing verbs still work); key missing (`mode=llm` → loud error at the LLM call, never git-order); idle abandonment (`reviewIdle`); force-push / worktree change mid-review (master list recomputed; edited-away atoms → comments auto-addressed; `repairGrouping` drops dangling ids, unplaced → "Other changes"; stale marks not counted); submit gap report always returned, resubmit until clean.
 
 ## Out of scope
 
-`clear-diff gate`/risk tiers, RCR artifact + verifier, standing/cross-context store, fleet mode, MCP adapter, lens fan-out (TN-26-026). The event-log + tier substrate must not preclude them.
+`cara gate`/risk tiers, RCR artifact + verifier, standing/cross-context store, fleet mode, MCP adapter, lens fan-out (TN-26-026). The event-log + tier substrate must not preclude them.

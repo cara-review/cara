@@ -336,8 +336,8 @@ test("instructions prints the methodology plus the verb reference, as plain text
     await runCli(["instructions"], { ...deps(repo), io: cap.io });
     const text = cap.text();
     assert.match(text, /Chapters/);
-    assert.match(text, /clear-diff atoms/);
-    assert.match(text, /clear-diff submit/);
+    assert.match(text, /cara atoms/);
+    assert.match(text, /cara submit/);
     assert.doesNotMatch(text.split("\n")[0]!, /^\{/); // not JSON
   } finally {
     await repo.cleanup();
@@ -348,7 +348,7 @@ test("the bare review porcelain fails loudly when no config exists", async () =>
   const repo = await makeTestRepo();
   try {
     // Point home at an empty dir so no config.toml is found; the error pastes a sample.
-    await assert.rejects(runCli([], { ...deps(repo), home: repo.dir, io: capture().io }), /No clear-diff config/);
+    await assert.rejects(runCli([], { ...deps(repo), home: repo.dir, io: capture().io }), /No cara config/);
   } finally {
     await repo.cleanup();
   }

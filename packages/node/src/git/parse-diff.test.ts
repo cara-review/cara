@@ -1,6 +1,6 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import type { RawHunk } from "@clear-diff/core";
+import type { RawHunk } from "@cara/core";
 import { parseDiff } from "./parse-diff.ts";
 
 test("empty diff yields no hunks", () => {

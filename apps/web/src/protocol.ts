@@ -21,4 +21,4 @@ export type {
   MarkAuthor,
   ReviewProgress,
   ReviewSnapshot,
-} from "@clear-diff/node/contract";
+} from "@cara/node/contract";

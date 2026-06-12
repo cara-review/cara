@@ -1,5 +1,5 @@
 // CLI gate axis — the ledger IS the gate. Two labelled agent reviewers split the
-// 5-atom fixture (security 2, quality 3); `clear-diff gate` then reads role coverage
+// 5-atom fixture (security 2, quality 3); `cara gate` then reads role coverage
 // straight off the committed ledger and turns `--require` predicates into a pass/fail
 // exit code. Proves: per-role coverage, a met bar exits 0, an unmet bar exits non-zero
 // while still emitting the JSON report, and a bare readout never fails.

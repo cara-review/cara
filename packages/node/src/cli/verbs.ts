@@ -16,8 +16,8 @@ import type {
   FactMeta,
   ReviewContext,
   SubmitBatch,
-} from "@clear-diff/core";
-import { buildMethodology, SummariesRequiredError } from "@clear-diff/core";
+} from "@cara/core";
+import { buildMethodology, SummariesRequiredError } from "@cara/core";
 import { FileInstructions } from "../instructions.ts";
 import { composeCore, composeOverrides } from "../server/compose.ts";
 import { emit, NEXT, parseJson, readPayload, VERB_REFERENCE, type CliIo } from "./output.ts";

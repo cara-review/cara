@@ -4,7 +4,7 @@
 // internal `serve` boot the `present` verb spawns. Parsing is pure — no IO, no
 // composition — so every verb's argument grammar is unit-testable in isolation.
 
-import type { DiffSpec } from "@clear-diff/core";
+import type { DiffSpec } from "@cara/core";
 
 /** A usage error. Carries a message fit to print to the user; no stack noise. */
 export class CliError extends Error {}
@@ -131,7 +131,7 @@ function rejectUnknownBool(bool: ReadonlySet<string>, allowed: ReadonlySet<strin
 /** A `<base>..<head>` range, or worktree when omitted. Shared by every verb's spec. */
 function parseSpec(arg: string | undefined): DiffSpec {
   if (arg === undefined) return { kind: "worktree" };
-  if (arg === "--pr" || arg.startsWith("--pr")) throw new CliError("clear-diff --pr is not yet supported.");
+  if (arg === "--pr" || arg.startsWith("--pr")) throw new CliError("cara --pr is not yet supported.");
   // Exactly one ".." with non-empty sides. A second ".." (a..b..c) or a third dot
   // (the git three-dot form main...feature) is corrupt, not a two-dot range.
   const parts = arg.split("..");
@@ -172,7 +172,7 @@ export const MAX_REVIEWER_LEN = 40;
 
 /**
  * A reviewer label: a short lowercase slug. Constrained so a porcelain label can never
- * escape the lens directory (`~/.clear-diff/reviewers/<label>.md`), and bounded so a
+ * escape the lens directory (`~/.cara/reviewers/<label>.md`), and bounded so a
  * submitted label can't bloat the store or the tier badge it renders into.
  */
 export function reviewerSlug(value: string): string {
@@ -297,7 +297,7 @@ export function parseCommand(argv: readonly string[]): Command {
       };
     }
     default:
-      // Explicit `clear-diff review …`, or a bare `clear-diff [<base>..<head>]` → the
+      // Explicit `cara review …`, or a bare `cara [<base>..<head>]` → the
       // porcelain. `args` already drops a leading `review` verb token.
       return parseReview(args);
   }
@@ -325,7 +325,7 @@ function parseReview(argv: readonly string[]): ReviewCommand {
     else if (name === "reviewer" || name === "range") {
       const value = argv[++i];
       if (value === undefined) throw new CliError(`Option --${name} needs a value.`);
-      // The label names a lens file (`~/.clear-diff/reviewers/<label>.md`); keep it a
+      // The label names a lens file (`~/.cara/reviewers/<label>.md`); keep it a
       // bounded, safe slug so it can never escape that directory.
       if (name === "reviewer") reviewers.push(reviewerSlug(value));
       else range = value;

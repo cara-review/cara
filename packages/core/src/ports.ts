@@ -45,7 +45,7 @@ export interface WorkspaceReader {
   readFile(path: string, side: FileSide): Promise<string | null>;
 }
 
-/** Personal (`~/.clear-diff/CLEAR_DIFF.md`) and project (`CLEAR_DIFF.md`) instructions. */
+/** Personal (`~/.cara/CARA.md`) and project (`CARA.md`) instructions. */
 export interface ReviewInstructions {
   readonly personal: string | null;
   readonly project: string | null;

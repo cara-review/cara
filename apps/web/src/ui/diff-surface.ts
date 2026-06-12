@@ -29,7 +29,7 @@ export interface SurfaceOptions {
 }
 
 const DEFAULTS: SurfaceOptions = { renderSideBySide: false, showAllDiffs: false };
-const STORAGE_KEY = "clear-diff:surface-options";
+const STORAGE_KEY = "cara:surface-options";
 
 export interface DiffSurface {
   render(state: AppState): void;
@@ -354,13 +354,13 @@ function applyTheme(dark: boolean): void {
   // Monaco requires 6-digit hex; the CSS token may arrive 3-digit (a bundler can shorten
   // #ffffff to #fff), so normalise before handing it over.
   const background = hex6(readToken("--bg-main")) ?? (dark ? "#0a0a0a" : "#ffffff");
-  monaco.editor.defineTheme("clear-diff", {
+  monaco.editor.defineTheme("cara", {
     base: dark ? "vs-dark" : "vs",
     inherit: true,
     rules: [],
     colors: { "editor.background": background, "editorGutter.background": background },
   });
-  monaco.editor.setTheme("clear-diff");
+  monaco.editor.setTheme("cara");
 }
 
 function readToken(name: string): string {

@@ -8,12 +8,12 @@ amended-by: [0008, 0011]
 > **Amended by [ADR-0011](0011-cli-agent-protocol.md) (TN-26-026, Refs #47).** The
 > agent is no longer a **driven** port the core fetches grouping from. `AgentPort` and
 > `AgentChat` (ADR-0009) leave the driven-port table; the **agent becomes a driving
-> actor** invoking CLI verbs, and the LLM-wrapper porcelain (`clear-diff review`) is a
+> actor** invoking CLI verbs, and the LLM-wrapper porcelain (`cara review`) is a
 > **driving adapter**. Grouping arrives **inbound** (untrusted, repaired to a bijection),
-> never fetched. `ConfigPort` is sourced from `~/.clear-diff/config.toml`. See the
+> never fetched. `ConfigPort` is sourced from `~/.cara/config.toml`. See the
 > amendment at the foot of this ADR.
 
-clear-diff is a hexagon: a pure domain + application core surrounded by adapters. Form
+cara is a hexagon: a pure domain + application core surrounded by adapters. Form
 factor (local web app, ADR-0001) and roadmap (CLI, phone, cloud config) mean many
 interchangeable front-ends and back-ends over one unchanged core. So the core owns the
 logic; every IO touchpoint sits behind a port. Full ports-and-adapters is a deliberate
@@ -40,7 +40,7 @@ roadmap.
 | `ReviewStore` | persist marks / comments / grouping per context | fs JSON (→ sqlite) |
 | `EditorPort` | open file at line | spawn `code`/`zed` |
 | `ConfigPort` | editor cmd, prefs | fs / env |
-| `InstructionsSource` | load `CLEAR_DIFF.md` (personal + project) | fs |
+| `InstructionsSource` | load `CARA.md` (personal + project) | fs |
 | `ClockPort` | timestamps | system / fixed |
 
 `LoggerPort` deferred — retrofit if it ever earns its keep. Rule for adding a port: a
@@ -52,7 +52,7 @@ triviality stays a function.
 > **Amended by [ADR-0008](0008-bun-trpc-transport-and-type-only-contract-imports.md):**
 > the web↔node boundary is narrowed from "never by import" to "never by *runtime*
 > import." A **type-only** contract import (`import type { AppRouter } from
-> "@clear-diff/node/contract"`, runtime-erased) is permitted; the enforced boundary is
+> "@cara/node/contract"`, runtime-erased) is permitted; the enforced boundary is
 > that the prod web bundle contains **zero node runtime code** (build-time verified).
 > Data still flows only over the WebSocket, as structured data.
 
@@ -66,7 +66,7 @@ triviality stays a function.
 - Composition root = the `node` server bootstrap, the one place concrete adapters are
   constructed and injected. **Manual constructor injection, no DI framework.**
 - The cross-package boundary is a contract, not a structural impossibility. Bun hoists
-  workspace packages into the root `node_modules`, so `core` *can* resolve a bare `@clear-diff/node`
+  workspace packages into the root `node_modules`, so `core` *can* resolve a bare `@cara/node`
   specifier even without declaring it. Three guarantees hold the boundary instead:
   - **declared deps** — `core` declares no dependency on `node`/`web`; an adapter import is
     undeclared and caught in review.
@@ -121,13 +121,13 @@ The pivot removes the built-in grouping LLM. The port table changes:
   actor**, not a secondary dependency.
 - **`AgentChat` removed** (ADR-0009 superseded by ADR-0011). No chat surface; Q&A routes
   back to the caller as a comment answer.
-- **LLM-wrapper porcelain (`clear-diff review`) is a driving adapter** — an outer module
+- **LLM-wrapper porcelain (`cara review`) is a driving adapter** — an outer module
   that drives the same plumbing verbs (`atoms`/`present`/`dispatch`/`submit`). The core
   carries no LLM, no model, no API key.
-- **`ConfigPort` source is `~/.clear-diff/config.toml`** (was "fs / env"). It subsumes the
+- **`ConfigPort` source is `~/.cara/config.toml`** (was "fs / env"). It subsumes the
   old `AppConfig.groupingModel`; plumbing verbs never read `[grouping]`/`[llm]`.
-- `InstructionsSource` loads `CLEAR_DIFF.md` (project root + `~/.clear-diff/`), merged with
-  system methodology, version-locked to the `present` schema (renamed from `clear-diff.md`).
+- `InstructionsSource` loads `CARA.md` (project root + `~/.cara/`), merged with
+  system methodology, version-locked to the `present` schema (renamed from `cara.md`).
 
 The CLI was always a driving adapter (above); this amendment makes the **agent itself** a
 driving actor over it. The hexagon, the package boundaries, and the dependency rule are

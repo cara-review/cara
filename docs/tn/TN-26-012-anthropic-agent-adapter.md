@@ -9,7 +9,7 @@ issue: 18
 
 # Real Claude (Sonnet) AgentPort adapter
 
-> **Superseded by [TN-26-026](TN-26-026-cli-agent-protocol-pivot.md) / [ADR-0011](../adr/0011-cli-agent-protocol.md).** The pivot drops `AgentPort` as a driven port (ADR-0003 amended) — the core is now LLM-free and grouping arrives *inbound* over the CLI. The Anthropic adapter is deleted from the core; the single LLM moves *outside* the boundary to the `clear-diff review` porcelain.
+> **Superseded by [TN-26-026](TN-26-026-cli-agent-protocol-pivot.md) / [ADR-0011](../adr/0011-cli-agent-protocol.md).** The pivot drops `AgentPort` as a driven port (ADR-0003 amended) — the core is now LLM-free and grouping arrives *inbound* over the CLI. The Anthropic adapter is deleted from the core; the single LLM moves *outside* the boundary to the `cara review` porcelain.
 
 Implement the real `AgentPort` using the Anthropic SDK + Claude Sonnet, alongside the
 existing `FakeAgent`. The agent proposes a grouping overlay over git's atoms; it never

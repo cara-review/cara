@@ -1,13 +1,13 @@
 ---
-title: "clear-diff — Initial Design Prototypes"
+title: "cara — Initial Design Prototypes"
 category: personal
-tags: [design, prototype, ui, tokens, clear-diff, reference]
+tags: [design, prototype, ui, tokens, cara, reference]
 status: reference
 date_created: 2026-06-06
 last_updated: 2026-06-06
 ---
 
-# clear-diff — Initial Design Prototypes
+# cara — Initial Design Prototypes
 
 First interactive prototypes of the reviewer UI (dark + light), built in Gemini Canvas as throwaway HTML. The HTML itself isn't kept; this doc captures everything concrete it established so the design can be rebuilt exactly, **not** re-derived from the screenshots. Values below are transcribed verbatim from the prototype source.
 

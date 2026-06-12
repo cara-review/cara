@@ -7,7 +7,7 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
 import type Anthropic from "@anthropic-ai/sdk";
-import type { Atom } from "@clear-diff/core";
+import type { Atom } from "@cara/core";
 import { AnthropicLlm, type CreateMessage } from "./llm.ts";
 
 function atom(hash: string, path: string, text: string): Atom {

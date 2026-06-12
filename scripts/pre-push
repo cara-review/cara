@@ -9,15 +9,15 @@ cd "$(git rev-parse --show-toplevel)"
 
 if [[ -f package.json ]]; then
   if grep -q '"lint"' package.json; then
-    echo "clear-diff pre-push: bun run lint..."
+    echo "cara pre-push: bun run lint..."
     bun run lint
   fi
-  echo "clear-diff pre-push: bun test..."
+  echo "cara pre-push: bun test..."
   bun run test
 
   # CLI end-to-end (the three-axis agent-protocol suite). Spawns the real bin against
   # throwaway git fixtures — no browser, no network — so it always runs in the gate.
-  echo "clear-diff pre-push: bun run test:e2e:cli..."
+  echo "cara pre-push: bun run test:e2e:cli..."
   bun run test:e2e:cli
 
   # End-to-end Playwright suite. Runs only when the Chromium browser is already
@@ -25,12 +25,12 @@ if [[ -f package.json ]]; then
   # gets a clear notice instead of a silent pass or a surprise download.
   if grep -q '"test:e2e"' package.json; then
     if bun -e "require('node:fs').accessSync(require('@playwright/test').chromium.executablePath())" >/dev/null 2>&1; then
-      echo "clear-diff pre-push: bun run test:e2e..."
+      echo "cara pre-push: bun run test:e2e..."
       bun run test:e2e
     else
-      echo "clear-diff pre-push: e2e SKIPPED — Chromium not installed. Run: bunx playwright install chromium"
+      echo "cara pre-push: e2e SKIPPED — Chromium not installed. Run: bunx playwright install chromium"
     fi
   fi
 fi
 
-echo "clear-diff pre-push: all checks passed."
+echo "cara pre-push: all checks passed."

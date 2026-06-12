@@ -1,6 +1,6 @@
-# clear-diff — project review guidance
+# cara — project review guidance
 
-Reviewer guidance for changes to clear-diff itself. Steers how the diff is grouped into Chapters and Sections — what leads, what gets relegated. Project layer; pairs with anyone's personal `~/.clear-diff/CLEAR_DIFF.md`.
+Reviewer guidance for changes to cara itself. Steers how the diff is grouped into Chapters and Sections — what leads, what gets relegated. Project layer; pairs with anyone's personal `~/.cara/CARA.md`.
 
 ## Lead with these
 

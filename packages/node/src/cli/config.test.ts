@@ -10,11 +10,11 @@ import { join } from "node:path";
 import { loadPorcelainConfig } from "./config.ts";
 
 async function withHome(toml: string | null, run: (home: string) => Promise<void>): Promise<void> {
-  const home = await mkdtemp(join(tmpdir(), "clear-diff-cfg-"));
+  const home = await mkdtemp(join(tmpdir(), "cara-cfg-"));
   try {
     if (toml !== null) {
-      await mkdir(join(home, ".clear-diff"), { recursive: true });
-      await writeFile(join(home, ".clear-diff", "config.toml"), toml);
+      await mkdir(join(home, ".cara"), { recursive: true });
+      await writeFile(join(home, ".cara", "config.toml"), toml);
     }
     await run(home);
   } finally {
@@ -35,7 +35,7 @@ command = "zed"
 test("no config is a loud error carrying a paste-ready minimal config", async () => {
   await withHome(null, async (home) => {
     await assert.rejects(loadPorcelainConfig(home), (e: Error) => {
-      assert.match(e.message, /No clear-diff config/);
+      assert.match(e.message, /No cara config/);
       assert.match(e.message, /\[grouping\]/);
       assert.match(e.message, /api_key_env/);
       return true;

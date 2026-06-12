@@ -32,7 +32,7 @@ functions are thin and untested by node.
 #10 has not landed on `main`, so the wire contract lives locally in `protocol.ts` as the
 documented JSON shapes. **On rebase once #10 lands**, swap the local
 `ClientRequest`/`ServerResponse`/`ResultMap`/`Method` (+ snapshot shapes) for type-only
-imports from `@clear-diff/node`. Single-file swap by design.
+imports from `@cara/node`. Single-file swap by design.
 
 One WebSocket, **same-origin** — the node server hosts HTTP (the built UI) and the WS on
 one port, so the client connects `ws://${location.host}` with no port injection (a `?ws=`
@@ -45,7 +45,7 @@ Methods: `open`{}, `mark`{context,atomHash,disposition}, `unmark`, `comment`{...
 
 ```
 protocol.ts    wire contract: JSON shapes + RequestParams/ResultMap/Method/Client+ServerResponse
-                 (local mirror; → import from @clear-diff/node on rebase)
+                 (local mirror; → import from @cara/node on rebase)
 rpc.ts         Transport interface, WebSocketTransport (browser), RpcClient (id-correlated)
 store.ts       AppStore: UI state, subscribe/notify, actions, transport lifecycle binding
 selectors.ts   pure derivations: marksMap, sectionRollup, navTree

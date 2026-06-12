@@ -38,7 +38,7 @@ Monaco's own `.gutter`) are inserted into the grid between panes:
   `0` and `display:none`s the pane; the divider stays visible so the expand affordance is
   always reachable. Diff has no collapse.
 - **Persistence:** `{navWidth, chatWidth, navCollapsed, chatCollapsed}` in localStorage
-  (`clear-diff:layout`), parsed + clamped defensively on load (`parseLayout`, the one
+  (`cara:layout`), parsed + clamped defensively on load (`parseLayout`, the one
   pure/unit-tested seam), restored before first paint.
 
 ## Monaco

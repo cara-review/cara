@@ -58,7 +58,7 @@ Only atoms whose content appears in the target range's master list are in the de
 
 ### 6. Surface
 
-A mode on the existing verb: `clear-diff gate --repo [--by-file] [--require …] [--range <baseline>..<target>]`. `--repo` swaps the per-context numerator for the cross-context union; everything else (predicate grammar, JSON envelope, exit code) is ADR-0013 unchanged. Default `gate` (per-context, the current review) is untouched.
+A mode on the existing verb: `cara gate --repo [--by-file] [--require …] [--range <baseline>..<target>]`. `--repo` swaps the per-context numerator for the cross-context union; everything else (predicate grammar, JSON envelope, exit code) is ADR-0013 unchanged. Default `gate` (per-context, the current review) is untouched.
 
 ### 7. Trust at repo scale — advisory, with two hard rules
 

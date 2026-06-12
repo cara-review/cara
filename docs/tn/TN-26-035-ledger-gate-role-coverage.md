@@ -1,6 +1,6 @@
 ---
 number: 26-035
-title: Ledger gate + role coverage (no signing) — clear-diff operating off the committed ledger
+title: Ledger gate + role coverage (no signing) — cara operating off the committed ledger
 kind: plan
 status: active
 issue: "#47"
@@ -10,13 +10,13 @@ tags: [cara, ledger, gate, coverage, role, cli]
 # TN-26-035: Ledger gate + role coverage (no signing)
 
 Owner directive (in-session, Refs #47): take the CARA ledger "as close to fully featured (without
-signing) for role-based agent + human, with clear-diff operating off that." Builds directly on the
+signing) for role-based agent + human, with cara operating off that." Builds directly on the
 landed ledger ([TN-26-034](TN-26-034-cara-ledger-implementation-design.md)); realises the `cara gate`
 fast-follow from [TN-26-031](TN-26-031-review-ledger-pivot.md). Decision record: [ADR-0013](../adr/0013-coverage-and-gate-semantics.md).
 
 ## Delivered
 
-A sixth plumbing verb, `clear-diff gate [--require …]` — LLM-free, read-only:
+A sixth plumbing verb, `cara gate [--require …]` — LLM-free, read-only:
 
 - Recomputes the live master list (the bijection, ADR-0004) and folds the committed ledger into
   `ReviewProgress`; coverage decays with content (ADR-0002).

@@ -3,15 +3,15 @@ status: accepted
 relates: [0002, 0004, 0005, 0011]
 ---
 
-# Coverage + gate semantics — `clear-diff gate` over the committed ledger
+# Coverage + gate semantics — `cara gate` over the committed ledger
 
-Owner greenlit the direction in-session (Refs #47): get the ledger "as close to fully featured (without signing) for role-based agent + human, with clear-diff operating off that." Written alongside the implementation and **review-gated** like ADR-0005 / TN-26-034 (semantics open to revision on owner review). Realises the `cara gate` fast-follow named in [TN-26-031](../tn/TN-26-031-review-ledger-pivot.md) / [TN-26-034](../tn/TN-26-034-cara-ledger-implementation-design.md). **Signing is out of scope** (still deferred), so this gate is advisory, not proof (see §Trust).
+Owner greenlit the direction in-session (Refs #47): get the ledger "as close to fully featured (without signing) for role-based agent + human, with cara operating off that." Written alongside the implementation and **review-gated** like ADR-0005 / TN-26-034 (semantics open to revision on owner review). Realises the `cara gate` fast-follow named in [TN-26-031](../tn/TN-26-031-review-ledger-pivot.md) / [TN-26-034](../tn/TN-26-034-cara-ledger-implementation-design.md). **Signing is out of scope** (still deferred), so this gate is advisory, not proof (see §Trust).
 
 ## Decision
 
 ### 1. The gate is a read-only plumbing verb — the ledger IS the gate
 
-`clear-diff gate [--require …]` is a sixth plumbing verb (LLM-free, no key, like `atoms`/`submit`). It recomputes the live master list, folds the committed ledger (`refs/cara/ledger`) into `ReviewProgress`, evaluates `--require` predicates, and **emits one JSON report on stdout regardless of outcome**. A met bar exits 0; an unmet bar exits non-zero (a `UserFacingError`, reason on stderr) so CI gates on it. It replaces the marker-file hack (an agent writes "I reviewed" to a file) with a content-pinned, role-attributed fact.
+`cara gate [--require …]` is a sixth plumbing verb (LLM-free, no key, like `atoms`/`submit`). It recomputes the live master list, folds the committed ledger (`refs/cara/ledger`) into `ReviewProgress`, evaluates `--require` predicates, and **emits one JSON report on stdout regardless of outcome**. A met bar exits 0; an unmet bar exits non-zero (a `UserFacingError`, reason on stderr) so CI gates on it. It replaces the marker-file hack (an agent writes "I reviewed" to a file) with a content-pinned, role-attributed fact.
 
 ### 2. The denominator is the canonical master list (the bijection)
 

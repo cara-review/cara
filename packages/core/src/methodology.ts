@@ -1,6 +1,6 @@
 // The review methodology, owned by core (ADR-0011, TN-26-026 decision #10).
 //
-// clear-diff no longer carries its own grouping LLM; the calling agent groups and
+// cara no longer carries its own grouping LLM; the calling agent groups and
 // prioritises. The methodology it must follow is therefore canonical text emitted by
 // core — the single source surfaced both as the `atoms` response and by the
 // `instructions` verb, version-locked to the `present` grouping schema so the rules
@@ -78,7 +78,7 @@ export const SYSTEM_METHODOLOGY: string = [
 ].join("\n");
 
 /**
- * Merge the canonical methodology with the project (CLEAR_DIFF.md) and personal
+ * Merge the canonical methodology with the project (CARA.md) and personal
  * instructions, in that precedence order. "instructions" (not "reviewer guidance") to
  * avoid colliding with the ADR-0011 §6 `reviewer` label, since this text is emitted
  * verbatim to the agent. Pure text assembly — the version is carried alongside as

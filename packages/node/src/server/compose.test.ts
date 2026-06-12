@@ -1,6 +1,6 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import type { DiffSpec } from "@clear-diff/core";
+import type { DiffSpec } from "@cara/core";
 import { fixedClock } from "../clock.ts";
 import { makeTestRepo } from "../git/test-repo.ts";
 import { compose, composeCore } from "./compose.ts";

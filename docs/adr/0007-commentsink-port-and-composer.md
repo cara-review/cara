@@ -19,7 +19,7 @@ superseded-in-part-by: 0011
 
 Background: TN-26-016. Approved by owner 2026-06-06 (delegated to coordinator).
 
-clear-diff already stores comments as events keyed by atom hash (ADR-0005), but has no way to push them *out*. This ADR adds a 9th driven port (`CommentSink`) for dispatch (`Go`), plus the composer that authors comments and the anchoring that ties them to the diff. The diff-touching rules of ADR-0004 carry over unchanged: the agent drafts prose the user reviews; it never defines or edits the change.
+cara already stores comments as events keyed by atom hash (ADR-0005), but has no way to push them *out*. This ADR adds a 9th driven port (`CommentSink`) for dispatch (`Go`), plus the composer that authors comments and the anchoring that ties them to the diff. The diff-touching rules of ADR-0004 carry over unchanged: the agent drafts prose the user reviews; it never defines or edits the change.
 
 ## Context
 

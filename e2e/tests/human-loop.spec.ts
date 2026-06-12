@@ -6,7 +6,7 @@
 // click to the CLI wait client — the rendering details live in the other specs.
 
 import { expect, test, type Page } from "@playwright/test";
-import type { ReviewContext } from "@clear-diff/core";
+import type { ReviewContext } from "@cara/core";
 import { gotoReview, selectSection, serveReview } from "../support/app.ts";
 import { callWait } from "../../packages/node/src/cli/wait.ts";
 

@@ -3,7 +3,7 @@
 // (discovery, grouping, comment export) all key reviews the same way.
 
 import { createHash } from "node:crypto";
-import type { ReviewContext } from "@clear-diff/core";
+import type { ReviewContext } from "@cara/core";
 
 export function contextHash(context: ReviewContext): string {
   return createHash("sha256").update(context).digest("hex");

@@ -17,13 +17,13 @@ tags: [pivot, review-ledger, attestation, coverage, gating, compliance, naming]
 ## Thesis
 
 **Code review stops being an ephemeral act and becomes a durable, role-attributed, gatable
-fact in the repository.** clear-diff becomes the **review ledger**: a repo-resident,
+fact in the repository.** cara becomes the **review ledger**: a repo-resident,
 content-pinned, signed-where-human, role-attributed audit log of every review act — that
 cannot go stale, because it is keyed to the change itself.
 
 The pivot is away from *competing on bug-finding* (the A/B experiments, TN-26-029, showed
 freeform review matches or beats the scaffold at finding bugs) and toward the two things
-clear-diff structurally does that nothing else does:
+cara structurally does that nothing else does:
 
 1. **Human-ness is structural, not a checkbox.** A mark made through the human channel is
    unforgeable (channel-inferred tier, ADR-0011); signed, it is a person-level fact.
@@ -67,9 +67,9 @@ gate sets the bar per risk; agent-role never masquerades as equivalent to signed
   the change that introduced it — human-reviewed / agent-role-reviewed / **never seen**. A
   number no one can produce today.
 - **The gate replaces the marker-file hack.** Today review gates write a marker file ("an
-  agent says it reviewed" — clear-diff's own `.agent-state` approval marker and remit's
+  agent says it reviewed" — cara's own `.agent-state` approval marker and remit's
   review gate are both this hack). Replace with *the ledger is the gate*:
-  `clear-diff gate --require security=100%,architecture=100%,human-on-risky`. Content-pinned
+  `cara gate --require security=100%,architecture=100%,human-on-risky`. Content-pinned
   per role; cannot be stale; no honour system.
 
 ## Why this beats the narrower wedges
@@ -114,7 +114,7 @@ gatable fact that a security-role pass examined this exact content.
   pattern, applied to attestations). Offline-verifiable. Without this, "proof" is a lie.
 - **Coverage semantics.** Per-diff coverage is easy and gateable now. Repo-wide needs
   line→introducing-hunk attribution via blame — ship per-diff first, map second.
-- **`clear-diff gate`** as a first-class verb (was deferred): role/tier/scrutiny predicates,
+- **`cara gate`** as a first-class verb (was deferred): role/tier/scrutiny predicates,
   exit code, CI integration.
 - **Mode separation holds (field-test ruling):** the UI is exclusively the human's room —
   it is the *only* mint for signed human-review facts, which is what keeps the ledger
@@ -131,7 +131,7 @@ gatable fact that a security-role pass examined this exact content.
   the bijection as the denominator (its integrity *is* the metric's credibility).
 - **Extend ADR-0012 / ADR-0011** — reviewer-label role taxonomy becomes load-bearing;
   scrutiny recorded in the fact.
-- **Naming** — held open. "clear-diff" describes the instrument, not the proof; the product
+- **Naming** — held open. "cara" describes the instrument, not the proof; the product
   is now a review-attestation/ledger. Name follows the settled thesis, not before it.
 
 ## Open questions
@@ -164,7 +164,7 @@ thesis:
   Reshape — the instrument that produces facts, unchanged.
 
 **Demoted (context, not headline):**
-- **Headless multi-reviewer** — no longer "clear-diff finds bugs better." Now: a ledger
+- **Headless multi-reviewer** — no longer "cara finds bugs better." Now: a ledger
   contributor producing agent-role facts. Its bug-finding parity (TN-26-029) is irrelevant
   to the new value.
 - **Methodology arms race (v3 seams, v4 deletion nudge)** — fine as-is; no longer the
@@ -175,7 +175,7 @@ thesis:
   the 2026 trend is routing *around* the human. Survives only as the *mechanism* under a
   required artifact (the gate / the regulated attestation), never sold as a discretionary
   dashboard.
-- **Eval-harness ("clear-diff as the measuring stick for reviewers")** — interesting, not
+- **Eval-harness ("cara as the measuring stick for reviewers")** — interesting, not
   the pivot. Parked.
 - **Boundary lens (TN-26-030)** — stays deferred pending k≥3; orthogonal to the ledger.
 - **Lens marketplace / RCR-as-open-standard / protocol-ownership (vision 5)** — the RCR +
@@ -195,7 +195,7 @@ Order, smallest credible slice first:
 1. **Signed human fact + verify** — sign the mark batch at Done; a tiny verifier recomputes
    atom hashes from the diff and checks the signature. This is the irreducible core; without
    it "proof" is a lie.
-2. **`clear-diff gate`** over the existing (in-memory) marks — role/tier/scrutiny predicates,
+2. **`cara gate`** over the existing (in-memory) marks — role/tier/scrutiny predicates,
    exit code. Proves the gate shape before the persistence rewrite.
 3. **Committed ledger** (ADR-0005 rewrite) — move facts into the repo; per-diff coverage.
 4. **Repo-wide map** — blame attribution; the dark-matter-by-role view.

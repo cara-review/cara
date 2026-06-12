@@ -4,7 +4,7 @@ Scope context for the Remit tool — how it decides whether an agent's tool call
 
 ## Project
 
-clear-diff — local-first, diff-first conversational code reviewer. Node CLI. The agent reorganises a whole diff into a tree (**Review → Chapters → Sections → atoms**) and surfaces the right part at the right time. atoms are git hunks (mechanical, stable); Chapters/Sections are agent groupings over them (semantic, disposable). The two layers never mix.
+cara — local-first, diff-first conversational code reviewer. Node CLI. The agent reorganises a whole diff into a tree (**Review → Chapters → Sections → atoms**) and surfaces the right part at the right time. atoms are git hunks (mechanical, stable); Chapters/Sections are agent groupings over them (semantic, disposable). The two layers never mix.
 
 ## In scope
 

@@ -1,7 +1,7 @@
 {
-  "name": "clear-diff",
+  "name": "@paul.grimshaw/cara",
   "version": "0.5.2",
-  "description": "A local-first, completeness-gated code-review engine an AI agent drives — the LLM stays outside the trust boundary.",
+  "description": "cara — a local-first, completeness-gated code-review engine an AI agent drives; the LLM stays outside the trust boundary.",
   "keywords": [
     "code-review",
     "diff",
@@ -27,7 +27,10 @@
     "apps/*"
   ],
   "bin": {
-    "clear-diff": "./dist/index.js"
+    "cara": "./dist/index.js"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "files": [
     "dist",
@@ -41,7 +44,7 @@
     "typecheck:e2e": "tsc -p e2e/tsconfig.json",
     "lint": "eslint .",
     "test": "bun run typecheck && bun test packages apps",
-    "build": "bun run --filter='@clear-diff/web' build",
+    "build": "bun run --filter='@cara/web' build",
     "build:dist": "bun run build && bun scripts/pack-dist.ts",
     "prepublishOnly": "bun run build:dist",
     "test:e2e:cli": "bun run typecheck:e2e && bun test e2e/cli",

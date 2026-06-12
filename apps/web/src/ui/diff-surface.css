@@ -1,5 +1,5 @@
 /* Diff surface (ADR-0006): per Section, a vertical stack of per-file Monaco diff editors.
-   clear-diff frames each file (sticky header + Done toggle) and owns checklist + order; Monaco
+   cara frames each file (sticky header + Done toggle) and owns checklist + order; Monaco
    renders the evidence. Editors are auto-sized (no inner scrollbar) so the page scrolls as one. */
 
 .surface__empty {

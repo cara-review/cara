@@ -1,6 +1,6 @@
 import { spawn, type SpawnOptions } from "node:child_process";
 import { basename } from "node:path";
-import type { EditorPort } from "@clear-diff/core";
+import type { EditorPort } from "@cara/core";
 
 // VS Code-family editors need an explicit --goto flag to parse `path:line`;
 // others (e.g. zed) take the target positionally.

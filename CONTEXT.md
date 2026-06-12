@@ -1,4 +1,4 @@
-# clear-diff
+# cara
 
 A local-first, diff-first conversational code reviewer. The agent reads a whole diff, reorganises it into a navigable structure, and surfaces the right part at the right time.
 
@@ -31,7 +31,7 @@ A review-level request from the human (browser) asking the agent for a different
 _Avoid_: treating it as a comment or a chat turn.
 
 **AI summary**:
-An agent-written markdown description of a Chapter or Section, rendered (sanitized subset) at the top of it as an untrusted orienting aid ("pinch of salt"). **Required on every Chapter and Section** — `present` rejects an agent grouping missing one and returns the missing list to complete (the engine-swept "Other changes" chapter and the git-order floor are exempt). Its content follows the layered instructions (system methodology + project `CLEAR_DIFF.md` + personal `~/.clear-diff/CLEAR_DIFF.md`) — e.g. a pref like "list the test types in test sections". Never authoritative, never alters or substitutes for the diff. No per-block summaries — the change-block is its own evidence.
+An agent-written markdown description of a Chapter or Section, rendered (sanitized subset) at the top of it as an untrusted orienting aid ("pinch of salt"). **Required on every Chapter and Section** — `present` rejects an agent grouping missing one and returns the missing list to complete (the engine-swept "Other changes" chapter and the git-order floor are exempt). Its content follows the layered instructions (system methodology + project `CARA.md` + personal `~/.cara/CARA.md`) — e.g. a pref like "list the test types in test sections". Never authoritative, never alters or substitutes for the diff. No per-block summaries — the change-block is its own evidence.
 _Avoid_: framing it as a verdict or review conclusion; calling it optional.
 
 **master list**:
@@ -50,14 +50,14 @@ _Avoid_: session.
 A packaged native desktop app (e.g. Electron/Tauri). Full UI control; heaviest to build and ship.
 
 **in-host MCP app**:
-clear-diff riding inside an existing host (Claude Code / Claude Desktop) as an MCP server rendering inline HTML. **Eliminated (#1):** inline HTML needs a graphical canvas; the dominant host (Claude Code) is a terminal with none, and the focused keyboard-driven split-pane experience can't live in a borrowed panel.
+cara riding inside an existing host (Claude Code / Claude Desktop) as an MCP server rendering inline HTML. **Eliminated (#1):** inline HTML needs a graphical canvas; the dominant host (Claude Code) is a terminal with none, and the focused keyboard-driven split-pane experience can't live in a borrowed panel.
 
 **local web app**:
-The `clear-diff` CLI boots a localhost server and opens an `--app`-mode browser window. Full web-UI control, reuses local git + creds, no native packaging. **Chosen for v1 (#1, ADR-0001).** A later Electron wrapper over the same UI is the deferred upgrade.
+The `cara` CLI boots a localhost server and opens an `--app`-mode browser window. Full web-UI control, reuses local git + creds, no native packaging. **Chosen for v1 (#1, ADR-0001).** A later Electron wrapper over the same UI is the deferred upgrade.
 
 ## Flagged ambiguities
 
-- **"voice"** — the concept calls voice the *primary input*. Resolved: clear-diff does **not** build voice capture. Speech→text is delegated to OS-level dictation (e.g. Super Whisper) typing into any focused text field. The distinct feature "agent drafts a comment from your spoken intent" is independent of input method and survives. Voice is therefore **not** a form-factor discriminator.
+- **"voice"** — the concept calls voice the *primary input*. Resolved: cara does **not** build voice capture. Speech→text is delegated to OS-level dictation (e.g. Super Whisper) typing into any focused text field. The distinct feature "agent drafts a comment from your spoken intent" is independent of input method and survives. Voice is therefore **not** a form-factor discriminator.
 
 ## Relationships
 

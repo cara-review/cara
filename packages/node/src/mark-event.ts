@@ -7,7 +7,7 @@
 // ledger format is new — every fact is author-bearing from its first commit, so a
 // missing author is plain corruption, not an older on-disk format to migrate.
 
-import type { MarkEvent } from "@clear-diff/core";
+import type { MarkEvent } from "@cara/core";
 
 /** A well-formed channel-inferred author (ADR-0011 §5/§6): tier plus optional reviewer label. */
 export function isAuthor(value: unknown): boolean {

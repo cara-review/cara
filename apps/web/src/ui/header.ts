@@ -10,7 +10,7 @@ import type { ReviewProgress } from "../protocol.ts";
 import type { AppState, AppStore } from "../store.ts";
 
 export function header(state: AppState, store: AppStore): HTMLElement {
-  const brand = el("div", { class: "brand", text: "clear-diff" });
+  const brand = el("div", { class: "brand", text: "cara" });
   const left = el("div", { class: "header__left" }, [brand]);
 
   const snapshot = state.snapshot;

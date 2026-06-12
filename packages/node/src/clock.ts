@@ -1,4 +1,4 @@
-import type { ClockPort } from "@clear-diff/core";
+import type { ClockPort } from "@cara/core";
 
 /** Wall-clock time in epoch milliseconds. */
 export class SystemClock implements ClockPort {

@@ -13,7 +13,7 @@ Read the `status` field before treating any TN as authoritative: `active` → au
 | [26-005](TN-26-005-reviewstore-jsonl-event-log.md) | Adapter — ReviewStore append-only JSONL event log | plan | active | #7 |
 | [26-006](TN-26-006-fake-agent-and-trivial-adapters.md) | FakeAgent and trivial driven adapters | plan | active | #8 |
 | [26-007](TN-26-007-review-service-use-cases.md) | Application — ReviewService use-cases | plan | active | #9 |
-| [26-008](TN-26-008-backend-server-and-cli.md) | Backend — HTTP/WS server, composition root, and clear-diff CLI | plan | active | #10 |
+| [26-008](TN-26-008-backend-server-and-cli.md) | Backend — HTTP/WS server, composition root, and cara CLI | plan | active | #10 |
 | [26-009](TN-26-009-web-shell.md) | Web — app shell, 3-pane layout, nav tree, WS client + state store | plan | active | #11 |
 | [26-010](TN-26-010-web-diff-surface.md) | Web — diff surface, marking, keyboard navigation | plan | active | #12 |
 | [26-011](TN-26-011-e2e-playwright-suite.md) | End-to-end Playwright test suite | plan | active | #22 |
@@ -33,11 +33,11 @@ Read the `status` field before treating any TN as authoritative: `active` → au
 | [26-026](TN-26-026-cli-agent-protocol-pivot.md) | CLI agent protocol pivot — external agent supplies grouping, dual-mode, LLM-free core | proposal | active | #47 |
 | [26-027](TN-26-027-pivot-implementation-plan.md) | Pivot implementation plan — LLM-free core, CLI agent protocol, dual-mode | plan | active | #47 |
 | [26-028](TN-26-028-polish-pass-implementation-plan.md) | Polish-pass implementation plan — field-test findings on the pivot | plan | active | #47 |
-| [26-029](TN-26-029-ab-eval-scaffolded-vs-freeform.md) | A/B evaluation — scaffolded (clear-diff) vs freeform review (first eval datapoint) | research | active | #47 |
+| [26-029](TN-26-029-ab-eval-scaffolded-vs-freeform.md) | A/B evaluation — scaffolded (cara) vs freeform review (first eval datapoint) | research | active | #47 |
 | [26-030](TN-26-030-boundary-lens-engine-computed.md) | Engine-computed boundary lens — a deterministic between-atom view for the seams pass | proposal | draft | #47 |
 | [26-031](TN-26-031-review-ledger-pivot.md) | Review-ledger pivot — review as a durable, role-attributed, gatable repo fact | proposal | draft | #47 |
 | [26-032](TN-26-032-cara-prior-art-survey.md) | CARA prior-art survey — does a content-addressed review attestation already exist? | research | active | #47 |
 | [26-034](TN-26-034-cara-ledger-implementation-design.md) | CARA ledger — implementation design (git-committed ReviewStore over refs/cara/ledger) | proposal | active | #47 |
-| [26-035](TN-26-035-ledger-gate-role-coverage.md) | Ledger gate + role coverage (no signing) — clear-diff operating off the committed ledger | plan | active | #47 |
+| [26-035](TN-26-035-ledger-gate-role-coverage.md) | Ledger gate + role coverage (no signing) — cara operating off the committed ledger | plan | active | #47 |
 | [26-036](TN-26-036-repo-wide-coverage-and-fact-metadata.md) | Repo-wide coverage + fact metadata — design and plan | plan | active | #47 |
-| [26-037](TN-26-037-cara-rename-consolidation-publish-plan.md) | clear-diff → cara: consolidation, two ledger fixes, rename sweep, global install + publish-prep | plan | active | #47 |
+| [26-037](TN-26-037-cara-rename-consolidation-publish-plan.md) | cara → cara: consolidation, two ledger fixes, rename sweep, global install + publish-prep | plan | active | #47 |

@@ -1,6 +1,6 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import type { DiffSpec } from "@clear-diff/core";
+import type { DiffSpec } from "@cara/core";
 import { GitDiffSource } from "./diff-source.ts";
 import { makeTestRepo, type TestRepo } from "./test-repo.ts";
 

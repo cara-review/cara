@@ -1,4 +1,4 @@
-// The porcelain config (`~/.clear-diff/config.toml`, ADR-0011). Read ONLY by the
+// The porcelain config (`~/.cara/config.toml`, ADR-0011). Read ONLY by the
 // `review` wrapper — the plumbing verbs (`atoms`/`present`/`dispatch`/`submit`) never
 // read it. It selects the
 // grouping mode, names the LLM provider/model and the env var that *names* the key
@@ -19,7 +19,7 @@ export interface PorcelainConfig {
 }
 
 export function configPath(home: string): string {
-  return join(home, ".clear-diff", "config.toml");
+  return join(home, ".cara", "config.toml");
 }
 
 const MINIMAL_CONFIG = `[grouping]
@@ -42,9 +42,9 @@ export async function loadPorcelainConfig(home: string): Promise<PorcelainConfig
     raw = await readFile(path, "utf8");
   } catch {
     throw new CliError(
-      `No clear-diff config at ${path}.\n` +
-        `clear-diff review needs one. Create it:\n\n` +
-        `  mkdir -p ${join(home, ".clear-diff")}\n` +
+      `No cara config at ${path}.\n` +
+        `cara review needs one. Create it:\n\n` +
+        `  mkdir -p ${join(home, ".cara")}\n` +
         `  cat > ${path} <<'TOML'\n${MINIMAL_CONFIG}TOML\n`,
     );
   }

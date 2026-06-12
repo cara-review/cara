@@ -35,10 +35,10 @@ export function overlay(state: AppState): HTMLElement | null {
   if (kind === null) return null;
 
   const content: Record<OverlayKind, { title: string; detail: string }> = {
-    connecting: { title: "Connecting…", detail: "Reaching the clear-diff backend." },
+    connecting: { title: "Connecting…", detail: "Reaching the cara backend." },
     loading: { title: "Loading review…", detail: "Fetching the review snapshot from the backend." },
     reconnecting: { title: "Reconnecting…", detail: "Lost the backend — trying to restore the connection." },
-    disconnected: { title: "Disconnected", detail: "Couldn't reach the backend. Restart clear-diff to continue." },
+    disconnected: { title: "Disconnected", detail: "Couldn't reach the backend. Restart cara to continue." },
     error: { title: "Something went wrong", detail: state.error ?? "Could not reach the backend." },
     empty: { title: "Nothing to review", detail: "There are no changes in this diff." },
   };

@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for looking. clear-diff is pre-release and moves fast; this is the short version.
+Thanks for looking. cara is pre-release and moves fast; this is the short version.
 
 ## Setup
 

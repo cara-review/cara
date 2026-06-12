@@ -6,7 +6,7 @@
 
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { ReviewContext } from "@clear-diff/core";
+import type { ReviewContext } from "@cara/core";
 import { contextHash } from "../context-hash.ts";
 
 export interface ServerInfo {

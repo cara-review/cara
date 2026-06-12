@@ -9,9 +9,9 @@ test("FileInstructions reads personal and project files when present", async () 
   const home = await mkdtemp(join(tmpdir(), "cd-home-"));
   const repo = await mkdtemp(join(tmpdir(), "cd-repo-"));
   try {
-    await mkdir(join(home, ".clear-diff"), { recursive: true });
-    await writeFile(join(home, ".clear-diff", "CLEAR_DIFF.md"), "personal");
-    await writeFile(join(repo, "CLEAR_DIFF.md"), "project");
+    await mkdir(join(home, ".cara"), { recursive: true });
+    await writeFile(join(home, ".cara", "CARA.md"), "personal");
+    await writeFile(join(repo, "CARA.md"), "project");
     const instructions = await new FileInstructions(home, repo).load();
     assert.deepEqual(instructions, { personal: "personal", project: "project" });
   } finally {

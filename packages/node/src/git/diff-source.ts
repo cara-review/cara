@@ -6,8 +6,8 @@
 // surface a mangled, quoted path. Set per-invocation so the host's git config
 // can't change the contract.
 
-import type { DiffSource, DiffSpec, RawHunk, ReviewContext } from "@clear-diff/core";
-import { reviewContext } from "@clear-diff/core";
+import type { DiffSource, DiffSpec, RawHunk, ReviewContext } from "@cara/core";
+import { reviewContext } from "@cara/core";
 import { parseDiff } from "./parse-diff.ts";
 import { refsForSpec } from "./refs.ts";
 import { runGit } from "./run.ts";

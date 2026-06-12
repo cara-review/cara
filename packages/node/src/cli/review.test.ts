@@ -1,4 +1,4 @@
-// The porcelain (`clear-diff review`) driven against the stub LLM — no network. Covers
+// The porcelain (`cara review`) driven against the stub LLM — no network. Covers
 // the headless multi-reviewer loop (converges to a clean gap, per-reviewer labels), the
 // human-in-loop wrapper loop (group → present → wait → answer → export), the git-order
 // floor (no key, no nag), and the loud key-missing error at the LLM call.
@@ -44,9 +44,9 @@ async function twoAtomRepo(): Promise<{ repo: TestRepo; range: string }> {
 }
 
 async function makeHome(toml: string): Promise<string> {
-  const home = await mkdtemp(join(tmpdir(), "clear-diff-rev-"));
-  await mkdir(join(home, ".clear-diff"), { recursive: true });
-  await writeFile(join(home, ".clear-diff", "config.toml"), toml);
+  const home = await mkdtemp(join(tmpdir(), "cara-rev-"));
+  await mkdir(join(home, ".cara"), { recursive: true });
+  await writeFile(join(home, ".cara", "config.toml"), toml);
   return home;
 }
 
@@ -384,13 +384,13 @@ test("mode llm with the key env-var unset fails loudly at the LLM call, never gi
   const { repo, range } = await twoAtomRepo();
   // api_key_env points at a guaranteed-unset variable → the lazy resolution must throw.
   const home = await makeHome(
-    `[grouping]\nmode="llm"\n[llm]\nprovider="anthropic"\nmodel="m"\napi_key_env="CLEAR_DIFF_DEFINITELY_UNSET_KEY"\n`,
+    `[grouping]\nmode="llm"\n[llm]\nprovider="anthropic"\nmodel="m"\napi_key_env="CARA_DEFINITELY_UNSET_KEY"\n`,
   );
   try {
     await assert.rejects(
       // Headless, no stub: resolveLlm builds the real AnthropicLlm, which fails at first use.
       runCli(["review", "--headless", "--reviewer", "security", "--range", range], { ...base(repo, home), io: capture().io }),
-      /CLEAR_DIFF_DEFINITELY_UNSET_KEY is unset/,
+      /CARA_DEFINITELY_UNSET_KEY is unset/,
     );
   } finally {
     await repo.cleanup();

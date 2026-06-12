@@ -1,4 +1,4 @@
-// `clear-diff review` — the porcelain (ADR-0011). The bare invocation. It drives the
+// `cara review` — the porcelain (ADR-0011). The bare invocation. It drives the
 // SAME LLM-free plumbing an external agent drives (getAtoms → grouping → present →
 // dispatch/submit), but supplies the one LLM itself. Two modes:
 //
@@ -21,8 +21,8 @@ import type {
   ReviewContext,
   ReviewSnapshot,
   SubmitBatch,
-} from "@clear-diff/core";
-import { SummariesRequiredError } from "@clear-diff/core";
+} from "@cara/core";
+import { SummariesRequiredError } from "@cara/core";
 import { composeCore } from "../server/compose.ts";
 import { contextHash } from "../context-hash.ts";
 import { loadPorcelainConfig, type PorcelainConfig } from "./config.ts";
@@ -104,7 +104,7 @@ function resolveLlm(cmd: ReviewCommand, ctx: PorcelainContext, config: Porcelain
   if (cmd.fake) return new FakeLlm();
   if (config.llm === null) {
     throw new CliError(
-      "clear-diff review needs an [llm] block in ~/.clear-diff/config.toml (or pass --fake for the stub).",
+      "cara review needs an [llm] block in ~/.cara/config.toml (or pass --fake for the stub).",
     );
   }
   return new AnthropicLlm({ model: config.llm.model, apiKeyEnv: config.llm.apiKeyEnv });
@@ -332,10 +332,10 @@ function sanitizeFindings(findings: LensFindings, known: ReadonlySet<string>): S
   return batch;
 }
 
-/** A reviewer lens: an override at `~/.clear-diff/reviewers/<label>.md`, else the shipped default. */
+/** A reviewer lens: an override at `~/.cara/reviewers/<label>.md`, else the shipped default. */
 async function loadLens(home: string, label: string): Promise<string> {
   try {
-    return await readFile(join(home, ".clear-diff", "reviewers", `${label}.md`), "utf8");
+    return await readFile(join(home, ".cara", "reviewers", `${label}.md`), "utf8");
   } catch {
     return SHIPPED_LENSES[label] ?? `Review the changes for ${label} concerns.`;
   }

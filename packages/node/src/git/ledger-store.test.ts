@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { project, type AtomHash, type MarkAuthor, type MarkEvent, type ReviewContext } from "@clear-diff/core";
+import { project, type AtomHash, type MarkAuthor, type MarkEvent, type ReviewContext } from "@cara/core";
 import { GitLedgerStore, LEDGER_REF } from "./ledger-store.ts";
 import { contextHash } from "../context-hash.ts";
 import { runGitStdin } from "./run.ts";

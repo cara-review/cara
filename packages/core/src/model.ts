@@ -1,4 +1,4 @@
-// Domain + contract types for clear-diff core.
+// Domain + contract types for cara core.
 //
 // Two layers, never mixed (ADR-0002):
 //   - Mechanical (git, stable): RawHunk -> Atom, identity by content hash.

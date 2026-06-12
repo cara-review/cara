@@ -42,7 +42,7 @@ export interface TestRepo {
 }
 
 export async function makeTestRepo(): Promise<TestRepo> {
-  const dir = await mkdtemp(join(tmpdir(), "clear-diff-git-"));
+  const dir = await mkdtemp(join(tmpdir(), "cara-git-"));
   const git = async (...args: string[]): Promise<string> => {
     const { stdout } = await execFileAsync("git", args, { cwd: dir, env: ENV, encoding: "utf8" });
     return stdout;

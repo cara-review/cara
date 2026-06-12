@@ -28,7 +28,7 @@ The skeleton ships a bespoke `{id,method,params}` RPC over `ws` with hand-rolled
 
 ADR-0003's "never by import" is **narrowed to runtime**:
 
-- **Permitted:** `apps/web` may import the contract **type-only** from the node package — `import type { AppRouter } from "@clear-diff/node/contract"`, runtime-erased. The dedicated `/contract` subpath is a pure type surface (the router type + domain types); it carries no server runtime, so importing it never drags `Bun.serve` / node builtins into the web program.
+- **Permitted:** `apps/web` may import the contract **type-only** from the node package — `import type { AppRouter } from "@cara/node/contract"`, runtime-erased. The dedicated `/contract` subpath is a pure type surface (the router type + domain types); it carries no server runtime, so importing it never drags `Bun.serve` / node builtins into the web program.
 - **Enforced boundary is the runtime one:** no node runtime code in the web bundle; data flows only over WS.
 - **Verification:** the prod web bundle is checked to contain zero backend/node code. This build-time check *is* the boundary now that a type import is allowed.
 
@@ -62,10 +62,10 @@ The Bun toolchain (runtime, `bun test`, `bun install`, Bun bundler/dev server re
 
 Background: TN-26-024, issue #42. Owner-approved 2026-06-08.
 
-§1 chose tRPC over **`Bun.serve`**. That tied the published runtime to Bun (`Bun.serve` has no Node equivalent), so `npx clear-diff` only ran where Bun was installed — blocking the distribution goal. The Bun-specific runtime surface turned out to be a single file (`server.ts`). This amendment narrows the **runtime-API** choice without touching the transport decision:
+§1 chose tRPC over **`Bun.serve`**. That tied the published runtime to Bun (`Bun.serve` has no Node equivalent), so `npx cara` only ran where Bun was installed — blocking the distribution goal. The Bun-specific runtime surface turned out to be a single file (`server.ts`). This amendment narrows the **runtime-API** choice without touching the transport decision:
 
 - **`Bun.serve` → `node:http`**, **`trpc-bun-adapter` → `@trpc/server`'s ws adapter** (`applyWSSHandler` + the `ws` library on the HTTP upgrade), **`Bun.file` → `node:fs`**. The published bundle targets Node (`#!/usr/bin/env node`); `bun index.js` stays the dev entry.
-- **Result:** the published CLI runs under plain Node (`npx clear-diff`, `node dist/index.js`) on any machine, and still under Bun. No compiled binaries, no platform packages.
+- **Result:** the published CLI runs under plain Node (`npx cara`, `node dist/index.js`) on any machine, and still under Bun. No compiled binaries, no platform packages.
 - **Unchanged:** the tRPC transport, the type-only `AppRouter` import (§2), subscriptions, structured-data-only, the loopback **Origin/Host hardening** + path containment (re-ported to the node:http request + upgrade handlers, re-reviewed), and the Bun toolchain for dev/build/test (§3 / CDR-0001).
 - **CDR-0001 note:** `ws` returns as a *runtime* dependency (reversing that one "drop ws" bullet); the rest of the Bun toolchain convention stands. Bun is no longer a *runtime* requirement for end users, only a dev/build toolchain.
 

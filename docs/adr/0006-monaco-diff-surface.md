@@ -4,7 +4,7 @@ status: accepted
 
 # Monaco as the diff-rendering surface
 
-clear-diff's web adapter renders a Section's evidence with the **Monaco diff editor**, not
+cara's web adapter renders a Section's evidence with the **Monaco diff editor**, not
 a bespoke DOM renderer. The core still owns mechanical truth and grouping; Monaco is a
 client-side presentation library that renders git-verbatim text. Born from TN-26-015 (#27).
 

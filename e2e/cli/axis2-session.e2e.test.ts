@@ -10,7 +10,7 @@ import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { createTRPCClient, createWSClient, wsLink } from "@trpc/client";
-import type { MarkAuthor } from "@clear-diff/core";
+import type { MarkAuthor } from "@cara/core";
 import { makeReviewFixture } from "../support/fixture-repo.ts";
 import { compose } from "../../packages/node/src/server/compose.ts";
 import { startServer } from "../../packages/node/src/server/server.ts";

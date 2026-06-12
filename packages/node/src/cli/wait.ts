@@ -5,7 +5,7 @@
 // blocking and the clock — the client just relays the verdict.
 
 import { createTRPCClient, createWSClient, wsLink } from "@trpc/client";
-import type { CommentView, ReviewContext, ReviewProgress } from "@clear-diff/core";
+import type { CommentView, ReviewContext, ReviewProgress } from "@cara/core";
 import type { AppRouter } from "../server/router.ts";
 
 export type WaitResult =

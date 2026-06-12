@@ -10,7 +10,7 @@ tags: [cara, ledger, persistence, adapter, git-notes, implementation, plan]
 # TN-26-034: CARA ledger — implementation design
 
 Owner-approved direction (in-session): build the CARA audit ledger as a **committed git store**
-and rewire clear-diff so the browser (and CLI) review path persists there instead of the local
+and rewire cara so the browser (and CLI) review path persists there instead of the local
 gitignored JSONL. ADRs written **alongside** code (owner greenlit the shape; review-gated).
 Lands on the **`feat/cara-ledger`** branch, **not main**.
 
@@ -123,9 +123,9 @@ Dependency: (1) settles contracts → (2) and (3) parallelise after, (3) consume
 
 > **Superseded by [TN-26-037](TN-26-037-cara-rename-consolidation-publish-plan.md):** the two
 > delivery constraints below — *never main* and *no rename* — were lifted once the ledger work
-> firmed up. TN-26-037 consolidates `feat/cara-ledger` onto `main` and renames clear-diff → cara.
+> firmed up. TN-26-037 consolidates `feat/cara-ledger` onto `main` and renames cara → cara.
 > The pre-push quality-gate rule (never `--no-verify`) still stands.
 
 - All work lands on **`feat/cara-ledger`** (worktrees branch off it, merge back to it) — **never
   main**. Pre-push hook is the quality gate; **never `--no-verify`**.
-- No rename — stays clear-diff; the ledger is a new capability behind the existing port.
+- No rename — stays cara; the ledger is a new capability behind the existing port.

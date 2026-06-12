@@ -10,7 +10,7 @@ Bun is a **convention**, not an architectural boundary — it changes how the pr
 
 ## Decision
 
-- **Runtime:** Bun executes TypeScript natively. The `clear-diff` bin is `#!/usr/bin/env bun`.
+- **Runtime:** Bun executes TypeScript natively. The `cara` bin is `#!/usr/bin/env bun`.
 - **Tests:** `bun test` replaces `node:test`. Specs import `test` from `bun:test`; assertions stay on `node:assert/strict` (Bun implements it). Discovery is scoped to `packages apps` so the Playwright e2e specs are not picked up.
 - **Package manager:** `bun install` with `bun.lock`. `package-lock.json` and npm are dropped.
 - **Bundler / dev server:** the Bun bundler builds `apps/web` from an HTML entrypoint; Vite is dropped. Monaco workers are built as separate entrypoints (Bun does not auto-bundle `new Worker(new URL(...))`) and resolved relative to the loaded bundle.

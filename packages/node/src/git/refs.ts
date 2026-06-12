@@ -2,7 +2,7 @@
 // DiffSource and WorkspaceReader agree on what "base" and "head" mean for a
 // given review. The trunk a worktree is reviewed against is `origin/main`.
 
-import type { DiffSpec } from "@clear-diff/core";
+import type { DiffSpec } from "@cara/core";
 
 /** A side of the diff in git terms: a committed revision, or the live worktree. */
 export type GitRef = { readonly kind: "rev"; readonly rev: string } | { readonly kind: "worktree" };

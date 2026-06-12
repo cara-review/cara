@@ -1,13 +1,13 @@
 ---
-title: "clear-diff"
+title: "cara"
 category: personal
-tags: [idea, product, code-review, diff, AI-agents, developer-tools, local-first, clear-diff]
+tags: [idea, product, code-review, diff, AI-agents, developer-tools, local-first, cara]
 status: active
 date_created: 2026-04-01
 last_updated: 2026-06-10
 ---
 
-# clear-diff
+# cara
 
 ## The Problem
 
@@ -17,7 +17,7 @@ The result: the diff-browsing UI from 2008 now works against you. You open a 400
 
 **The diff is the wrong primary interface.** Diffs aren't useless; they're the evidence. But being handed *all* of it, in file order, with no sense of what matters, is the wrong starting point.
 
-clear-diff fixes the *starting point*, not by guessing what you care about, but by **structuring the change and showing you the right part at the right time.**
+cara fixes the *starting point*, not by guessing what you care about, but by **structuring the change and showing you the right part at the right time.**
 
 ---
 
@@ -25,7 +25,7 @@ clear-diff fixes the *starting point*, not by guessing what you care about, but 
 
 Current tools say: *here's everything that changed, good luck.*
 
-clear-diff says: *here's the change, organised into a shape you can walk through — start at the top, stop when you stop caring.*
+cara says: *here's the change, organised into a shape you can walk through — start at the top, stop when you stop caring.*
 
 The agent that made (or is reviewing) the change reads the whole diff and reorganises it into a navigable structure. You descend that structure, marking things off as you go, commenting where you want to (by voice, usually), and the diff is surfaced as evidence — never pushed at you as a wall.
 
@@ -35,9 +35,9 @@ It works on any diff: a local worktree against `origin/main`, two refs, or a Git
 
 ## The Engine and the Agent
 
-clear-diff is **not** an AI tool with an LLM inside it. It is a **trusted, deterministic accounting engine** that an external agent drives.
+cara is **not** an AI tool with an LLM inside it. It is a **trusted, deterministic accounting engine** that an external agent drives.
 
-- **The engine (clear-diff)** runs git, computes the atoms, owns identity and marks, enforces completeness. It carries **no LLM, no model, no API key.** Everything it reports is mechanically true.
+- **The engine (cara)** runs git, computes the atoms, owns identity and marks, enforces completeness. It carries **no LLM, no model, no API key.** Everything it reports is mechanically true.
 - **The agent (your coding tool — Claude Code, Cursor, the session that *made* the change)** reads the diff and supplies the grouping. It already has the richest possible context: it wrote the code. It drives the engine over a small CLI protocol.
 
 This split is the whole point. The agent *arranges and describes*; it can never *define or change* what's in the review. Putting the LLM **outside** the trust boundary is the property every downstream capability (a completeness gate, multi-lens review, an audit artifact) rests on — see [TN-26-025](tn/TN-26-025-competitive-landscape-and-positioning.md).
@@ -46,21 +46,21 @@ This split is the whole point. The agent *arranges and describes*; it can never 
 
 ## The CLI Protocol
 
-The agent drives the engine with four verbs plus a self-describing helper. clear-diff never calls *out* to the agent — every verb is agent-invoked, which is what makes it portable to any platform that can run a command and read JSON. No hooks, no callbacks, no per-platform code.
+The agent drives the engine with four verbs plus a self-describing helper. cara never calls *out* to the agent — every verb is agent-invoked, which is what makes it portable to any platform that can run a command and read JSON. No hooks, no callbacks, no per-platform code.
 
 ```
-clear-diff atoms [spec]       # engine → agent: context, merged methodology, atoms
+cara atoms [spec]       # engine → agent: context, merged methodology, atoms
                               #   (hash, path, ranges, diff lines), open items.
-clear-diff present [grouping] # agent → engine: grouping JSON → bijection repair →
+cara present [grouping] # agent → engine: grouping JSON → bijection repair →
                               #   boots server + browser. --no-open stays headless.
-clear-diff dispatch [--wait]  # engine → agent: all comments (open|addressed) + progress.
-clear-diff submit <batch>     # agent → engine: dispositions and/or answers, batched.
+cara dispatch [--wait]  # engine → agent: all comments (open|addressed) + progress.
+cara submit <batch>     # agent → engine: dispositions and/or answers, batched.
                               #   Returns the gap report ("38/41 accounted; missing: …").
-clear-diff instructions       # emits the canonical loop + verb reference.
+cara instructions       # emits the canonical loop + verb reference.
 ```
 
 - **Core as agent memory.** Every response returns the full open state + a gap report; the agent tracks nothing across calls.
-- **Self-narrating.** Every JSON response carries a `next` hint ("now run: …"); a cold agent that runs any one verb is pulled through the whole loop. `clear-diff instructions` emits the canonical protocol, generated from the same source — no doc drift.
+- **Self-narrating.** Every JSON response carries a `next` hint ("now run: …"); a cold agent that runs any one verb is pulled through the whole loop. `cara instructions` emits the canonical protocol, generated from the same source — no doc drift.
 - **Fixes need no verb.** The agent edits code, the atom's hash changes, the engine marks the comment addressed mechanically. Only answers are data.
 
 The protocol is ratified in [ADR-0011](adr/0011-cli-agent-protocol.md).
@@ -69,7 +69,7 @@ The protocol is ratified in [ADR-0011](adr/0011-cli-agent-protocol.md).
 
 ## Two Modes
 
-clear-diff is dual-mode from day one — the same engine, the same atoms, a different reviewer in the seat.
+cara is dual-mode from day one — the same engine, the same atoms, a different reviewer in the seat.
 
 | | Human-in-loop | Autonomous |
 |---|---|---|
@@ -181,7 +181,7 @@ The whole review is drivable from the keyboard, with the rapid, IDE-fast feel of
 
 ---
 
-## CLEAR_DIFF.md and config
+## CARA.md and config
 
 Two kinds of configuration, both plain and local.
 
@@ -189,12 +189,12 @@ Two kinds of configuration, both plain and local.
 
 | Path | Scope |
 |---|---|
-| `~/.clear-diff/CLEAR_DIFF.md` | Personal — your standing preferences across every repo |
-| `CLEAR_DIFF.md` (repo root) | Project — committed, benefits the whole team |
+| `~/.cara/CARA.md` | Personal — your standing preferences across every repo |
+| `CARA.md` (repo root) | Project — committed, benefits the whole team |
 
 Personal might say *"I care most about architectural changes and boundary violations; deprioritise CSS."* Project might say *"the domain layer is sacred; flag anything touching auth."* These shape chaptering, section relevance, and what gets relegated.
 
-**Behaviour config** — `~/.clear-diff/config.toml`: grouping mode (`llm` | `git-order`), the bundled LLM porcelain's provider/model/API-key *env-var name* (never the key itself), and the editor command. No silent fallbacks — behaviour is configured, never inferred; a missing key is a loud error, never a quiet drop to the floor.
+**Behaviour config** — `~/.cara/config.toml`: grouping mode (`llm` | `git-order`), the bundled LLM porcelain's provider/model/API-key *env-var name* (never the key itself), and the editor command. No silent fallbacks — behaviour is configured, never inferred; a missing key is a loud error, never a quiet drop to the floor.
 
 ---
 
@@ -204,25 +204,25 @@ Local-first, local checkouts, no auth infrastructure for now. Two ways in:
 
 ```bash
 # Plumbing — the agent drives these directly (LLM-free, no key):
-clear-diff atoms              # current worktree against origin/main
-clear-diff atoms <base>..<head>
-clear-diff present grouping.json
-clear-diff dispatch --wait
-clear-diff submit batch.json
+cara atoms              # current worktree against origin/main
+cara atoms <base>..<head>
+cara present grouping.json
+cara dispatch --wait
+cara submit batch.json
 
 # Porcelain — the bundled LLM wrapper that groups for you:
-clear-diff review             # bare: full semantic review, opens the browser
-clear-diff review --headless  # autonomous, no browser
-clear-diff review --headless --reviewer security   # one labelled lens
+cara review             # bare: full semantic review, opens the browser
+cara review --headless  # autonomous, no browser
+cara review --headless --reviewer security   # one labelled lens
 ```
 
-`clear-diff review` is a thin LLM wrapper around the same verbs: it calls an LLM to group, then drives `present`/`submit` for you. It is the *only* place an API key is touched; the plumbing verbs never read the `[grouping]`/`[llm]` config at all.
+`cara review` is a thin LLM wrapper around the same verbs: it calls an LLM to group, then drives `present`/`submit` for you. It is the *only* place an API key is touched; the plumbing verbs never read the `[grouping]`/`[llm]` config at all.
 
 ---
 
 ## Design Principles
 
-- **Trusted engine, untrusted agent.** clear-diff is a deterministic accounting engine; the LLM lives outside the boundary. The agent arranges and describes, never defines or changes the review.
+- **Trusted engine, untrusted agent.** cara is a deterministic accounting engine; the LLM lives outside the boundary. The agent arranges and describes, never defines or changes the review.
 - **Structure-first, diff-second.** The diff is evidence the agent surfaces on demand, not the interface.
 - **Two layers, never mixed.** Git owns mechanical truth and identity; the agent owns semantic grouping. Marks live on the mechanical layer.
 - **Selective disclosure over prediction.** The agent structures and orders; *you* decide what to hide by marking. It doesn't guess your mind.

@@ -1,10 +1,10 @@
-// @clear-diff/node — driven adapters + HTTP/WS server + composition root.
+// @cara/node — driven adapters + HTTP/WS server + composition root.
 // Depends on core to prove the dependency direction (node → core).
-import { buildMasterList, type RawHunk } from "@clear-diff/core";
+import { buildMasterList, type RawHunk } from "@cara/core";
 
 export { contextHash } from "./context-hash.ts";
 
-export const PACKAGE_ID = "@clear-diff/node";
+export const PACKAGE_ID = "@cara/node";
 
 // Scaffold wiring probe: proves node resolves core across the workspace boundary.
 export function coreAtomCount(hunks: readonly RawHunk[]): number {

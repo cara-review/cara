@@ -1,13 +1,13 @@
 ---
-title: "clear-diff — Design Brief"
+title: "cara — Design Brief"
 category: personal
-tags: [design, brief, ui, ux, clear-diff, desktop, keyboard-native]
+tags: [design, brief, ui, ux, cara, desktop, keyboard-native]
 status: active
 date_created: 2026-06-05
 last_updated: 2026-06-10
 ---
 
-# clear-diff — Design Brief
+# cara — Design Brief
 
 A brief for a product/UI designer. It fixes layout, states, interactions, the keyboard model, and which tokens to define, and leaves exact colour, type, and spacing values for you to propose. Read [`concept.md`](concept.md) for the full product model; this doc is the visual and interaction surface over it.
 

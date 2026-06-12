@@ -1,4 +1,4 @@
-// AXIS 3 — the standalone wrapper `clear-diff review`. Proves the bundled porcelain
+// AXIS 3 — the standalone wrapper `cara review`. Proves the bundled porcelain
 // drives the full loop with the stub LLM (no network, no key), honours git-order mode
 // (no LLM at all), and fails loudly — never silently degrading — when its config or its
 // API key is missing. The happy paths run the real bin; git-order's human-loop boots a
@@ -13,7 +13,7 @@ import { makeReviewFixture } from "../support/fixture-repo.ts";
 import { runReview } from "../../packages/node/src/cli/review.ts";
 import { groupingPath } from "../../packages/node/src/cli/discovery.ts";
 import { parseCommand } from "../../packages/node/src/cli/parse.ts";
-import type { ReviewContext } from "@clear-diff/core";
+import type { ReviewContext } from "@cara/core";
 import { runBin } from "./support/run-bin.ts";
 
 const LLM_CONFIG = `[grouping]
@@ -32,10 +32,10 @@ command = "true"
 `;
 
 async function makeHome(configToml: string | null): Promise<string> {
-  const home = await mkdtemp(join(tmpdir(), "clear-diff-home-"));
+  const home = await mkdtemp(join(tmpdir(), "cara-home-"));
   if (configToml !== null) {
-    await mkdir(join(home, ".clear-diff"), { recursive: true });
-    await writeFile(join(home, ".clear-diff", "config.toml"), configToml);
+    await mkdir(join(home, ".cara"), { recursive: true });
+    await writeFile(join(home, ".cara", "config.toml"), configToml);
   }
   return home;
 }
@@ -82,7 +82,7 @@ test("a missing config is a loud error carrying a paste-ready sample", async () 
       env: envWithout(home),
     });
     assert.equal(run.code, 1);
-    assert.match(run.err, /No clear-diff config/);
+    assert.match(run.err, /No cara config/);
     assert.match(run.err, /\[grouping\]/); // the paste-ready TOML sample
   } finally {
     await fixture.cleanup();

@@ -7,7 +7,7 @@
 // deterministic under a fixed clock in tests. One tracker per server (a server
 // reviews exactly one context).
 
-import type { ClockPort } from "@clear-diff/core";
+import type { ClockPort } from "@cara/core";
 
 export interface ReviewActivity {
   /** Bump the last-activity timestamp — call on every inbound mutation. */

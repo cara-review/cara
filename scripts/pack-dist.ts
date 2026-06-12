@@ -7,7 +7,7 @@ import { cp, chmod, rm, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-// The published bin targets Node so `npx clear-diff` runs on any Node machine
+// The published bin targets Node so `npx cara` runs on any Node machine
 // (ADR-0008 amendment); dev still uses `bun index.js`.
 const SHEBANG = "#!/usr/bin/env node";
 

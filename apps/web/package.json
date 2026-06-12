@@ -1,5 +1,5 @@
 {
-  "name": "@clear-diff/web",
+  "name": "@cara/web",
   "version": "0.1.0",
   "description": "Web UI. Reaches the node backend over WS only (type-only contract import, ADR-0008).",
   "type": "module",
@@ -16,7 +16,7 @@
     "monaco-editor": "^0.52.2"
   },
   "devDependencies": {
-    "@clear-diff/node": "*",
+    "@cara/node": "*",
     "@trpc/server": "^11",
     "@types/markdown-it": "^14.1.2"
   },

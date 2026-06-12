@@ -9,7 +9,7 @@ tags: [transport, bun, node, npx, distribution, hexagonal, security]
 
 # TN-26-024: Cross-runtime server runtime
 
-`clear-diff` is published to npm as a Bun-native bin, so `npx clear-diff` only works on machines that already have Bun (the bin shebang routes to `bun`; `Bun.serve` doesn't exist under Node). That blocks the core distribution goal — a friend with just Node can't run it. Background for the **ADR-0008 amendment**.
+`cara` is published to npm as a Bun-native bin, so `npx cara` only works on machines that already have Bun (the bin shebang routes to `bun`; `Bun.serve` doesn't exist under Node). That blocks the core distribution goal — a friend with just Node can't run it. Background for the **ADR-0008 amendment**.
 
 ## The key finding
 
@@ -24,7 +24,7 @@ Keep Bun for dev/build/test; make the **runtime** cross-runtime so the published
 - `Bun.file` → `node:fs` (`createReadStream` / `stat`)
 - Published bundle retargeted to Node with `#!/usr/bin/env node`; `bun index.js` stays the dev entry.
 
-Result: native `npx clear-diff` (and `node dist/index.js`) on any Node machine — no Bun, no compiled binaries — while Bun remains a fully-supported runtime.
+Result: native `npx cara` (and `node dist/index.js`) on any Node machine — no Bun, no compiled binaries — while Bun remains a fully-supported runtime.
 
 ## What stays / changes
 

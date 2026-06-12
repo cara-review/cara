@@ -1,6 +1,6 @@
 ---
 number: 26-029
-title: A/B evaluation — scaffolded (clear-diff) vs freeform review (first eval datapoint)
+title: A/B evaluation — scaffolded (cara) vs freeform review (first eval datapoint)
 kind: research
 status: active
 issue: "#47"
@@ -9,15 +9,15 @@ tags: [research, evaluation, completeness, methodology, eval-harness]
 
 # TN-26-029: A/B evaluation — scaffolded vs freeform review
 
-First datapoint for the eval-harness vision (vision 2 / SYNTHESIS): use the engine's own master list as the measuring stick to score *any* reviewer's coverage, and pit the clear-diff scaffold against freeform review on the same diff. Tests the prior-art claims of [TN-26-025](TN-26-025-competitive-landscape-and-positioning.md): that single-pass LLM review skips parts of a diff and self-reports unverifiable coverage.
+First datapoint for the eval-harness vision (vision 2 / SYNTHESIS): use the engine's own master list as the measuring stick to score *any* reviewer's coverage, and pit the cara scaffold against freeform review on the same diff. Tests the prior-art claims of [TN-26-025](TN-26-025-competitive-landscape-and-positioning.md): that single-pass LLM review skips parts of a diff and self-reports unverifiable coverage.
 
 > n=1, single diff, same-day single model, self-review dogfood, judge not blind. Directional, not conclusive. See **Limits**.
 
 ## The experiment
 
-- **Diff under test:** `origin/main..HEAD` of clear-diff itself — the 0.5.0 polish pass ([ADR-0012](../adr/0012-field-test-amendments.md) field-test amendments). 12 commits, 62 files, +3141/−219, **269 atoms**.
-- **Controlled variable — only one:** the clear-diff scaffold. Same model both arms, same two lenses (ARCHITECTURE + SECURITY), same lens instructions, sequential, mutually blind, uncapped budget.
-  - **Arm A (scaffolded):** drove the clear-diff verbs — `atoms` → per-atom sweep → mark each `done`/`commented` → gap report. 127.8k sub-agent tokens, 30 tool uses.
+- **Diff under test:** `origin/main..HEAD` of cara itself — the 0.5.0 polish pass ([ADR-0012](../adr/0012-field-test-amendments.md) field-test amendments). 12 commits, 62 files, +3141/−219, **269 atoms**.
+- **Controlled variable — only one:** the cara scaffold. Same model both arms, same two lenses (ARCHITECTURE + SECURITY), same lens instructions, sequential, mutually blind, uncapped budget.
+  - **Arm A (scaffolded):** drove the cara verbs — `atoms` → per-atom sweep → mark each `done`/`commented` → gap report. 127.8k sub-agent tokens, 30 tool uses.
   - **Arm B (freeform):** same model, same lenses, read the raw diff and wrote a prose report. No engine, no accounting. 142.8k tokens, 24 tool uses.
 - **Measuring stick (the eval-harness pattern):** the judge mapped every Arm-B finding back onto the engine's 269-atom master list and measured *evidence-backed coverage* — which atoms each arm actually demonstrated it examined. Arm A's coverage is engine-measured (the gap report); Arm B's is reconstructed from its prose against the same master list. Every finding in both arms was judge-verified against the actual code.
 
@@ -77,7 +77,7 @@ The cause is structural, not effort: **every one of B's 6 unique catches is eith
 ## Limits — read honestly
 
 - **n=1.** One diff, one comparison. No claim about distributions.
-- **Dogfood diff.** The diff under test is clear-diff's own polish pass — atypically self-referential (the reviewer reasons about the very mechanisms it runs on). May inflate or distort both arms.
+- **Dogfood diff.** The diff under test is cara's own polish pass — atypically self-referential (the reviewer reasons about the very mechanisms it runs on). May inflate or distort both arms.
 - **Same-day single model.** Both arms ran the same model on the same day. No cross-model or temporal variance captured.
 - **Judge not blind.** The judge knew which arm was which and verified findings against code it could read. Verification is checkable, but selection/framing bias is not excluded.
 - **Coverage metric is reconstructed for Arm B.** Strict/lenient evidence-backed coverage is inferred from prose, not measured by an instrument — a generous reading of B could move 12% upward, but not to the claimed 95%.

@@ -19,7 +19,7 @@ test("atoms envelope: shape + a hint pointing at present", async () => {
   try {
     const out = json(await runBin(["atoms", "--range", fixture.range], fixture.dir));
     assert.deepEqual(shape(out), ["atoms", "context", "methodology", "methodologyVersion", "next", "openItems"]);
-    assert.match(out["next"] as string, /clear-diff present/);
+    assert.match(out["next"] as string, /cara present/);
   } finally {
     await fixture.cleanup();
   }
@@ -150,7 +150,7 @@ test("instructions: plain-text methodology + the verb reference (not JSON)", asy
     assert.equal(run.code, 0, run.err);
     assert.doesNotMatch(run.out.trimStart()[0] ?? "", /[{[]/); // not a JSON document
     assert.match(run.out, /Chapters/); // the methodology
-    for (const verb of ["clear-diff atoms", "clear-diff present", "clear-diff dispatch", "clear-diff submit"]) {
+    for (const verb of ["cara atoms", "cara present", "cara dispatch", "cara submit"]) {
       assert.ok(run.out.includes(verb), `instructions reference ${verb}`);
     }
     assert.match(run.out, /--timeout|--idle-threshold/); // the wait knobs are self-documented

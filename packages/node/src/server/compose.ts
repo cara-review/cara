@@ -2,15 +2,15 @@
 // and injected into the inbound port. Manual constructor injection, no DI
 // framework. The core is LLM-free (ADR-0011) — no AgentPort, no chat, no sink:
 // the plumbing verbs and the server drive a pure accounting engine, and the one
-// LLM lives outside the boundary in the porcelain (`clear-diff review`).
+// LLM lives outside the boundary in the porcelain (`cara review`).
 //
 // `composeCore` builds the adapter set the CLI verbs need (the service + git
 // adapters). `compose` wraps it for the server, adding the UI-activity tracker
 // and the boot spec the tRPC router carries.
 
 import { homedir } from "node:os";
-import type { ClockPort, ConfigPort, DiffSource, DiffSpec, ReviewService, WorkspaceReader } from "@clear-diff/core";
-import { createReviewService } from "@clear-diff/core";
+import type { ClockPort, ConfigPort, DiffSource, DiffSpec, ReviewService, WorkspaceReader } from "@cara/core";
+import { createReviewService } from "@cara/core";
 import { SystemClock } from "../clock.ts";
 import { EnvConfig } from "../config.ts";
 import { SpawnEditor } from "../editor.ts";

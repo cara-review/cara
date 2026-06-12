@@ -18,28 +18,28 @@ supersedes-in-part: 0007
 
 Background: TN-26-026. Owner-approved in-session 2026-06-09 (Refs #47). This ADR ratifies the pivot's cross-boundary channel and carries the ADR-0003/0004 amendments and the ADR-0009 supersession it depends on.
 
-clear-diff stops carrying its own grouping LLM. It becomes a **completeness-gated, content-addressed review engine driven by an external agent over a CLI protocol** — dual-mode (human-in-loop and autonomous) from day one. The calling agent (Claude Code, Cursor, the session that *made* the change) groups and prioritises; the core stays a pure trusted accounting engine. A CLI is the only universally portable integration: every platform can run a command and read JSON — no hooks, no callbacks, no per-platform code.
+cara stops carrying its own grouping LLM. It becomes a **completeness-gated, content-addressed review engine driven by an external agent over a CLI protocol** — dual-mode (human-in-loop and autonomous) from day one. The calling agent (Claude Code, Cursor, the session that *made* the change) groups and prioritises; the core stays a pure trusted accounting engine. A CLI is the only universally portable integration: every platform can run a command and read JSON — no hooks, no callbacks, no per-platform code.
 
 ## Context
 
 - ADR-0003 modelled the agent as a **driven** port (`AgentPort`) the core *fetches* grouping from. The pivot inverts that: grouping arrives **inbound**, untrusted, supplied by the caller; the agent is a **driving** actor, not a dependency.
 - ADR-0009's chat surface assumed an in-process `AgentChat` port. With one LLM outside the boundary wearing every hat, there is no chat surface to host — Q&A becomes a comment answer (see Supersession).
-- The portability constraint is structural: clear-diff **never initiates toward the agent**. No callback channel exists. Every verb is agent-invoked; verbs differ in payload direction only.
+- The portability constraint is structural: cara **never initiates toward the agent**. No callback channel exists. Every verb is agent-invoked; verbs differ in payload direction only.
 
 ## Decision
 
 ### 1. Four agent-invoked verbs
 
 ```
-clear-diff atoms [spec]       # core → agent: context, merged methodology, atoms
+cara atoms [spec]       # core → agent: context, merged methodology, atoms
                               #   (hash, path, ranges, diff lines), open items from
                               #   prior rounds. Trusted: core runs git itself.
-clear-diff present [grouping] # agent → core: grouping JSON → bijection repair →
+cara present [grouping] # agent → core: grouping JSON → bijection repair →
                               #   boots server + browser. Non-blocking. --no-open
                               #   persists the grouping headless (autonomous).
-clear-diff dispatch [--wait]  # core → agent: all comments, each open|addressed,
+cara dispatch [--wait]  # core → agent: all comments, each open|addressed,
                               #   + full progress. --wait blocks until Done.
-clear-diff submit <batch>     # agent → core: dispositions and/or answers, batched.
+cara submit <batch>     # agent → core: dispositions and/or answers, batched.
                               #   Returns the gap report ("38/41 accounted; missing: …").
 ```
 
@@ -48,7 +48,7 @@ clear-diff submit <batch>     # agent → core: dispositions and/or answers, bat
 ### 2. Self-narrating protocol
 
 - Every JSON response carries a `next` hint ("now run: …"). A cold agent that runs any one verb is pulled through the whole loop.
-- `clear-diff instructions` emits the canonical loop + verb reference, **generated from the same source** as the `next` hints and version-locked to the `present` schema — no doc drift, nothing shipped to drift.
+- `cara instructions` emits the canonical loop + verb reference, **generated from the same source** as the `next` hints and version-locked to the `present` schema — no doc drift, nothing shipped to drift.
 - Onboarding is the self-narrating protocol + `instructions` + a documented one-liner (paste into CLAUDE.md / AGENTS.md). No shipped skill.
 
 ### 3. Dual mode
@@ -76,7 +76,7 @@ Marks carry an author tier — `human` | `agent` — **inferred from channel**: 
 
 An agent-tier event may carry an optional `reviewer` label (e.g. `"security"`, `"architecture"`) so multiple headless reviewer agents are distinguishable. `dispatch` and progress can filter per label. The label is descriptive metadata *within* the `agent` tier — it never crosses into `human`, never affects counts or the bijection, and is absent on human marks.
 
-### 7. Config — `~/.clear-diff/config.toml`, no silent fallbacks
+### 7. Config — `~/.cara/config.toml`, no silent fallbacks
 
 `[grouping] mode = "llm" | "git-order"`, `[llm]` provider/model/`api_key_env` (env-var **name**, never the key), `[editor] command`. Behavior is configured, never inferred. Missing config or missing key ⇒ loud error (never an auto-drop to floor). Plumbing verbs never read `[grouping]`/`[llm]`. This becomes the `ConfigPort` source (see ADR-0003 amendment).
 
@@ -99,7 +99,7 @@ No LLM/transport concept enters domain types or names. The core cannot tell whic
 
 - One LLM in the system, outside the boundary, wearing every hat (grouper, answerer, fixer). The core is fully LLM-free — the trusted-accounting property every downstream vision rests on (TN-26-025).
 - `AgentPort` and `AgentChat` leave the driven-port table; the agent becomes a driving adapter (ADR-0003 amendment).
-- One bin. The LLM porcelain (`clear-diff review`) is an isolated module; API keys resolve lazily at the first LLM call only. Plumbing verbs have zero key awareness.
+- One bin. The LLM porcelain (`cara review`) is an isolated module; API keys resolve lazily at the first LLM call only. Plumbing verbs have zero key awareness.
 - **`dispatch` is the sole egress** (supersedes ADR-0007 in part). The `CommentSink`
   driven port and `ReviewDispatch`/`CommentRecord`/`DispatchReceipt` leave the core;
   comments flow back to the caller as structured data, not out through a sink. The UI `Go`

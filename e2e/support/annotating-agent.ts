@@ -5,7 +5,7 @@
 // so the literal tag appears as inert text, never as a live element.
 // If escaping ever regressed, the injected <img> would fire onerror and set window.__xss.
 
-import type { Atom } from "@clear-diff/core";
+import type { Atom } from "@cara/core";
 import type { GroupingAgent } from "./server.ts";
 
 export const XSS_PROBE = `<img src=x onerror="window.__xss = true">`;

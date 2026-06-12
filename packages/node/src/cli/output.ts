@@ -69,26 +69,26 @@ function truncate(body: string, max = 120): string {
 
 export const NEXT = {
   atomsEmpty: "No changes to review.",
-  atoms: `Group these into chapters/sections — give every Chapter and Section a one-line summary — then run: clear-diff present '<grouping-json>' ${SPEC}  ${PAYLOAD}`,
-  presentOpened: "Wait for the human (they'll say 'done'), or auto-pick-up: clear-diff dispatch --wait",
+  atoms: `Group these into chapters/sections — give every Chapter and Section a one-line summary — then run: cara present '<grouping-json>' ${SPEC}  ${PAYLOAD}`,
+  presentOpened: "Wait for the human (they'll say 'done'), or auto-pick-up: cara dispatch --wait",
   presentReshaped:
-    "Live review refreshed in the open browser. Wait for the human, or auto-pick-up: clear-diff dispatch --wait",
-  presentNoOpen: `Review each section, then run: clear-diff submit '<batch-json>' ${SPEC}  ${PAYLOAD}`,
-  dispatch: `Address each open comment — edit code (the hash changes → auto-addressed) or run: clear-diff submit '<batch-json>' ${SPEC}  ${PAYLOAD}`,
+    "Live review refreshed in the open browser. Wait for the human, or auto-pick-up: cara dispatch --wait",
+  presentNoOpen: `Review each section, then run: cara submit '<batch-json>' ${SPEC}  ${PAYLOAD}`,
+  dispatch: `Address each open comment — edit code (the hash changes → auto-addressed) or run: cara submit '<batch-json>' ${SPEC}  ${PAYLOAD}`,
   reshape: (body: string) =>
-    `The human asked to reshape: "${truncate(body)}". Re-group and run: clear-diff present '<grouping-json>' ${SPEC}  ${PAYLOAD}`,
-  summariesRequired: `Every Chapter and Section needs a one-line summary. Add the missing ones and re-run: clear-diff present '<grouping-json>' ${SPEC}  ${PAYLOAD}`,
+    `The human asked to reshape: "${truncate(body)}". Re-group and run: cara present '<grouping-json>' ${SPEC}  ${PAYLOAD}`,
+  summariesRequired: `Every Chapter and Section needs a one-line summary. Add the missing ones and re-run: cara present '<grouping-json>' ${SPEC}  ${PAYLOAD}`,
   waitDone: "Address open comments, or all clear → finish.",
-  waitInProgress: "Human still reviewing. Re-run: clear-diff dispatch --wait",
+  waitInProgress: "Human still reviewing. Re-run: cara dispatch --wait",
   waitIdle: "No UI activity for ~5 min. Stop polling; await the human.",
   submitClean: (total: number) => `All ${total} accounted. Review complete.`,
   submitGap: (missing: number) =>
-    `${missing} ${missing === 1 ? "atom" : "atoms"} unaccounted. Mark or comment each, then resubmit: clear-diff submit '<batch-json>' ${SPEC}  ${PAYLOAD}`,
+    `${missing} ${missing === 1 ? "atom" : "atoms"} unaccounted. Mark or comment each, then resubmit: cara submit '<batch-json>' ${SPEC}  ${PAYLOAD}`,
   gateReadout:
-    "Coverage only (no bar set). Enforce with: clear-diff gate --require <role>=<percent>% (e.g. security=100%,human>=50%).",
+    "Coverage only (no bar set). Enforce with: cara gate --require <role>=<percent>% (e.g. security=100%,human>=50%).",
   gatePass: "Review gate met — every required role cleared its bar. Safe to proceed / merge.",
   gateFail: (roles: readonly string[]) =>
-    `Review gate not met: ${roles.join(", ")} below bar. Have the missing role(s) review the unaddressed atoms, then re-run: clear-diff gate.`,
+    `Review gate not met: ${roles.join(", ")} below bar. Have the missing role(s) review the unaddressed atoms, then re-run: cara gate.`,
   gateIndeterminate:
     "Repo gate over an empty range — no introduced content to measure. Pass --range <baseline>..<target> (the adoption baseline → HEAD).",
 } as const;
@@ -96,22 +96,22 @@ export const NEXT = {
 /** The `instructions` verb's verb-reference block, appended after the merged methodology. */
 export const VERB_REFERENCE: string = [
   "—",
-  "clear-diff — agent review protocol",
+  "cara — agent review protocol",
   "",
   "The loop:",
-  "  1. clear-diff atoms                  → the change set + this methodology. Group it.",
-  "  2. clear-diff present '<grouping>'    → persist your grouping; boots the human's browser",
+  "  1. cara atoms                  → the change set + this methodology. Group it.",
+  "  2. cara present '<grouping>'    → persist your grouping; boots the human's browser",
   "                                         (--no-open to stay headless). A live review for this",
   "                                         context is refreshed in place, never duplicated.",
-  "  3. clear-diff dispatch [--wait]      → every open comment with its lifecycle + author, plus",
+  "  3. cara dispatch [--wait]      → every open comment with its lifecycle + author, plus",
   "                                         any human Reshape request. --wait blocks for the human",
   "                                         and returns done / reviewInProgress / reviewIdle. Tune",
   "                                         with --timeout <seconds> and --idle-threshold <seconds>.",
-  "  4. clear-diff submit '<batch>'       → apply marks / comments / answers; returns a gap",
+  "  4. cara submit '<batch>'       → apply marks / comments / answers; returns a gap",
   "                                         report. Resubmit until every atom is accounted.",
   "",
   "Gating (CI, optional):",
-  "  clear-diff gate [--require …]        → role coverage over the ledger as a pass/fail bar,",
+  "  cara gate [--require …]        → role coverage over the ledger as a pass/fail bar,",
   "                                         e.g. --require security=100%,human>=50%. Exits non-zero",
   "                                         when unmet; no --require just prints coverage. Roles:",
   "                                         addressed, accounted, human, agent, or a reviewer label.",

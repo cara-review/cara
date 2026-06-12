@@ -1,5 +1,5 @@
 {
-  "name": "@clear-diff/core",
+  "name": "@cara/core",
   "version": "0.1.0",
   "description": "Pure domain + application core. Zero runtime dependencies.",
   "type": "module",

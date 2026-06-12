@@ -55,7 +55,7 @@ export async function startServer(deps: RpcDeps, options: ServerOptions = {}): P
     // session, so the author is the fixed human tier. No CLI path reaches here.
     createContext: () => ({ author: { tier: "human" as const, reviewer: null } }),
     // Log the full error server-side; the router's errorFormatter masks what reaches the peer.
-    onError: ({ error }) => console.error("clear-diff RPC error:", error),
+    onError: ({ error }) => console.error("cara RPC error:", error),
   });
   // Defer to a macrotask so the `reshape` mutation's own result is flushed to its caller
   // (the CLI present-client) BEFORE the reconnect notification tears that socket down —
@@ -111,8 +111,8 @@ function isLoopbackOrigin(origin: string | null): boolean {
 }
 
 const PLACEHOLDER =
-  "<!doctype html><meta charset=utf-8><title>clear-diff</title>" +
-  "<p>clear-diff backend is running. The UI is not built yet.";
+  "<!doctype html><meta charset=utf-8><title>cara</title>" +
+  "<p>cara backend is running. The UI is not built yet.";
 
 async function serveHttp(request: IncomingMessage, response: ServerResponse, webRoot?: string): Promise<void> {
   if (webRoot === undefined) {

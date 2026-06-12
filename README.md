@@ -1,8 +1,8 @@
-# clear-diff
+# cara
 
 **A local-first, completeness-gated code reviewer that an AI agent drives — not one with an LLM inside it.**
 
-clear-diff is a trusted, deterministic engine: it runs git, splits the change into mechanical units, owns identity and review marks, and enforces that every change is accounted for. Your coding agent (Claude Code, Cursor, the session that *made* the change) reads the diff and supplies the structure, driving the engine over a tiny CLI protocol. The agent arranges and describes; it can never define or change what's in the review.
+cara is a trusted, deterministic engine: it runs git, splits the change into mechanical units, owns identity and review marks, and enforces that every change is accounted for. Your coding agent (Claude Code, Cursor, the session that *made* the change) reads the diff and supplies the structure, driving the engine over a tiny CLI protocol. The agent arranges and describes; it can never define or change what's in the review.
 
 The result is review that reads like a report — importance at the top, related things together, evidence on demand — and works two ways: a human reviewing in a browser, or an agent reviewing autonomously, over the same engine.
 
@@ -10,7 +10,7 @@ The result is review that reads like a report — importance at the top, related
 
 ## Why it's different
 
-Every other AI reviewer puts the LLM **inside** the trust boundary — it both reads the diff and decides what you see, so a hidden or mis-summarised change is undetectable. clear-diff puts the LLM **outside**:
+Every other AI reviewer puts the LLM **inside** the trust boundary — it both reads the diff and decides what you see, so a hidden or mis-summarised change is undetectable. cara puts the LLM **outside**:
 
 - **Trusted engine.** Counts and completion derive from a master list computed straight from git, with zero agent involvement. A grouping can never make a change look smaller than it is.
 - **Untrusted agent.** Grouping is ids + titles + summaries only. The engine enforces a bijection — every atom appears exactly once — so the agent **cannot add, remove, hide, or edit** a single line ([ADR-0004](docs/adr/0004-agent-untrusted-master-list.md)).
@@ -20,34 +20,34 @@ Every other AI reviewer puts the LLM **inside** the trust boundary — it both r
 
 ```bash
 # Standalone, once published:
-npx clear-diff review            # in any git repo with uncommitted changes
+npx cara review            # in any git repo with uncommitted changes
 ```
 
-`clear-diff review` calls an LLM to group the diff, then opens the review in a browser. It needs `~/.clear-diff/config.toml` (below) and the configured API key in your environment.
+`cara review` calls an LLM to group the diff, then opens the review in a browser. It needs `~/.cara/config.toml` (below) and the configured API key in your environment.
 
 ## Agent setup
 
-The point of clear-diff is to be driven by *your* agent. Onboarding is one line — paste into `CLAUDE.md`, `AGENTS.md`, or a rule file:
+The point of cara is to be driven by *your* agent. Onboarding is one line — paste into `CLAUDE.md`, `AGENTS.md`, or a rule file:
 
-> To review changes with the user, run `clear-diff instructions` and follow it.
+> To review changes with the user, run `cara instructions` and follow it.
 
-`clear-diff instructions` emits the canonical loop and verb reference. The protocol is **self-narrating** — every response carries a `next` hint — so a cold agent that runs any one verb is pulled through the whole review. Nothing else to install; no shipped skill to drift.
+`cara instructions` emits the canonical loop and verb reference. The protocol is **self-narrating** — every response carries a `next` hint — so a cold agent that runs any one verb is pulled through the whole review. Nothing else to install; no shipped skill to drift.
 
 ## The protocol
 
-The agent drives the engine with four verbs plus a helper. clear-diff never calls out to the agent — every verb is agent-invoked, which is what makes it portable to any platform that can run a command and read JSON.
+The agent drives the engine with four verbs plus a helper. cara never calls out to the agent — every verb is agent-invoked, which is what makes it portable to any platform that can run a command and read JSON.
 
 ```
-clear-diff atoms [--range <base>..<head>]   # engine → agent: context, merged guidance,
+cara atoms [--range <base>..<head>]   # engine → agent: context, merged guidance,
                               #   atoms (hash, path, ranges, diff lines), open items.
-clear-diff present <grouping> # agent → engine: grouping JSON → bijection repair →
+cara present <grouping> # agent → engine: grouping JSON → bijection repair →
                               #   boots server + browser. --no-open stays headless.
                               #   Every chapter & section needs a one-line summary.
-clear-diff dispatch [--wait]  # engine → agent: all comments (open|addressed), any
+cara dispatch [--wait]  # engine → agent: all comments (open|addressed), any
                               #   reshape request, + progress.
-clear-diff submit <batch>     # agent → engine: dispositions and/or answers, batched.
+cara submit <batch>     # agent → engine: dispositions and/or answers, batched.
                               #   Returns a gap report ("38/41 accounted; missing: …").
-clear-diff instructions       # emits the canonical loop + verb reference.
+cara instructions       # emits the canonical loop + verb reference.
 ```
 
 - **Payloads** — `present`/`submit` take their JSON inline (`'{…}'`), as a file path, or from stdin (`-`). The spec defaults to the worktree vs `origin/main`; pass `--range <base>..<head>` for any other range.
@@ -73,15 +73,15 @@ Hybrid is free: an agent pre-reviews autonomously; a human later opens the same 
 ### Headless multi-reviewer
 
 ```bash
-clear-diff review --headless                      # autonomous, no browser
-clear-diff review --headless --reviewer security  # one labelled lens
-clear-diff review --headless --reviewer architecture
-clear-diff review --fake                           # deterministic stub, no LLM/key
+cara review --headless                      # autonomous, no browser
+cara review --headless --reviewer security  # one labelled lens
+cara review --headless --reviewer architecture
+cara review --fake                           # deterministic stub, no LLM/key
 ```
 
 Each headless reviewer's marks carry its `--reviewer` label, so several lenses (security, architecture, …) review the same diff and stay distinguishable; `dispatch` and progress can filter per label.
 
-## Config — `~/.clear-diff/config.toml`
+## Config — `~/.cara/config.toml`
 
 ```toml
 [grouping]
@@ -98,7 +98,7 @@ command = "code"
 
 No silent fallbacks — behaviour is configured, never inferred:
 
-| State | Bare `clear-diff review` |
+| State | Bare `cara review` |
 |---|---|
 | No config | Loud error with a paste-ready minimal config |
 | `llm`, key resolves | Full semantic review |
@@ -106,7 +106,7 @@ No silent fallbacks — behaviour is configured, never inferred:
 | `git-order` | Floor, by choice — no nag |
 | Plumbing verbs | Never read `[grouping]`/`[llm]` |
 
-Review guidance is separate, in plain markdown (like CLAUDE.md): `CLEAR_DIFF.md` at the repo root (project, committed) and `~/.clear-diff/CLEAR_DIFF.md` (personal). Both are merged and fed to the agent on every `atoms` call to steer chaptering and relevance.
+Review guidance is separate, in plain markdown (like CLAUDE.md): `CARA.md` at the repo root (project, committed) and `~/.cara/CARA.md` (personal). Both are merged and fed to the agent on every `atoms` call to steer chaptering and relevance.
 
 ## Security model
 
@@ -114,7 +114,7 @@ Review guidance is separate, in plain markdown (like CLAUDE.md): `CLEAR_DIFF.md`
 - **Grouping is untrusted overlay.** ids + titles + summaries only; repaired to a bijection over the master list before anything renders. The agent cannot add, remove, hide, or edit an atom — structural, not policed.
 - **Provenance is structural.** Mark author tier (`human` | `agent`) is inferred from the channel with no override flag; an agent cannot impersonate a human.
 - **Diff lines are shared, not the change.** `atoms` includes diff lines (the caller has the repo anyway), but rendered evidence always comes from git verbatim; the agent never has a write channel to a line.
-- **Summaries and answers are display-only.** Sanitized markdown subset, escaped on render, never drive an action ([ADR-0010](docs/adr/0010-chat-answer-markdown-rendering.md)). The agent guidance (`CLEAR_DIFF.md`) reaching the LLM prompt is an accepted, documented trust seam ([TN-26-026 §Security posture](docs/tn/TN-26-026-cli-agent-protocol-pivot.md)).
+- **Summaries and answers are display-only.** Sanitized markdown subset, escaped on render, never drive an action ([ADR-0010](docs/adr/0010-chat-answer-markdown-rendering.md)). The agent guidance (`CARA.md`) reaching the LLM prompt is an accepted, documented trust seam ([TN-26-026 §Security posture](docs/tn/TN-26-026-cli-agent-protocol-pivot.md)).
 
 ## Architecture & docs
 

@@ -9,8 +9,8 @@ import type {
   ReviewService,
   ReviewSnapshot,
   WorkspaceReader,
-} from "@clear-diff/core";
-import { SummariesRequiredError } from "@clear-diff/core";
+} from "@cara/core";
+import { SummariesRequiredError } from "@cara/core";
 import { fixedClock } from "../clock.ts";
 import { UserFacingError } from "../user-facing-error.ts";
 import { createReviewActivity, type ReviewActivity } from "./activity.ts";

@@ -13,7 +13,7 @@
 import { dirname, resolve } from "node:path";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import type { Atom, CommentLinePointer, MarkAuthor, ReviewContext } from "@clear-diff/core";
+import type { Atom, CommentLinePointer, MarkAuthor, ReviewContext } from "@cara/core";
 import { parseCommand } from "../../packages/node/src/cli/parse.ts";
 import { compose } from "../../packages/node/src/server/compose.ts";
 import { startServer } from "../../packages/node/src/server/server.ts";

@@ -1,6 +1,6 @@
 ---
 number: 26-008
-title: Backend — HTTP/WS server, composition root, and clear-diff CLI
+title: Backend — HTTP/WS server, composition root, and cara CLI
 kind: plan
 status: active
 issue: "#10"
@@ -9,7 +9,7 @@ tags: [node, adapter, server, websocket, composition-root, cli, hexagonal]
 
 # TN-26-008: Backend HTTP/WS server + composition root + CLI
 
-Wave 3. `packages/node` driving adapter: the composition root, the HTTP/WS server that exposes `ReviewService` to the UI, and the `clear-diff` bin. Depends on the landed hexagon (domain + all ports + git/store/fake/trivial adapters + `ReviewService`). Implements the driving side of ADR-0003 (composition root; **structured data only over the wire, never pre-rendered diff HTML**) and serves the UI described in `design-brief.md`.
+Wave 3. `packages/node` driving adapter: the composition root, the HTTP/WS server that exposes `ReviewService` to the UI, and the `cara` bin. Depends on the landed hexagon (domain + all ports + git/store/fake/trivial adapters + `ReviewService`). Implements the driving side of ADR-0003 (composition root; **structured data only over the wire, never pre-rendered diff HTML**) and serves the UI described in `design-brief.md`.
 
 ## Modules
 
@@ -42,9 +42,9 @@ One persistent WS connection. Client→server: `{ id, method, params }`. Server�
 
 ## CLI
 
-- `clear-diff` → `{ kind: "worktree" }` (worktree vs `origin/main`).
-- `clear-diff <base>..<head>` → `{ kind: "range", base, head }`.
-- `clear-diff --pr N` → explicit "not yet supported" error.
+- `cara` → `{ kind: "worktree" }` (worktree vs `origin/main`).
+- `cara <base>..<head>` → `{ kind: "range", base, head }`.
+- `cara --pr N` → explicit "not yet supported" error.
 - `--no-open` suppresses the browser launch (tests, headless).
 - Ephemeral port (`listen(0)`); the URL is printed. The UI opens via a chromium `--app=<url>` window, falling back to the OS opener.
 

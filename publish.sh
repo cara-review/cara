@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Release clear-diff to npm: sync main → clean install → full gate → publish.
+# Release cara to npm: sync main → clean install → full gate → publish.
 #
 # 2FA is handled by npm's interactive OTP prompt — do NOT pass --otp here.
 # `npm publish` runs the `prepublishOnly` script, which builds the publishable
@@ -29,4 +29,4 @@ bun run test:e2e
 # Publish (prepublishOnly builds dist; npm prompts for the OTP interactively).
 npm publish
 
-echo "Published clear-diff@$(bun -e 'console.log(require("./package.json").version)')"
+echo "Published cara@$(bun -e 'console.log(require("./package.json").version)')"

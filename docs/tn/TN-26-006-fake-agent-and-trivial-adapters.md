@@ -24,7 +24,7 @@ fake-agent.ts    FakeAgent: deterministic grouping over the real atom set (untru
 clock.ts         SystemClock + fixedClock(ms) for tests
 editor.ts        SpawnEditor + editorArgs (pure); spawns AppConfig.editorCommand
 config.ts        EnvConfig: AppConfig from process.env
-instructions.ts  FileInstructions: ~/.clear-diff.md + repo clear-diff.md
+instructions.ts  FileInstructions: ~/.cara.md + repo cara.md
 index.ts         barrel — additive re-exports (keep existing wiring probe)
 ```
 
@@ -43,9 +43,9 @@ index.ts         barrel — additive re-exports (keep existing wiring probe)
 - **`SpawnEditor`** — `open(path, line)` spawns `editorCommand` detached. `editorArgs(command, path, line)`
   is a pure helper: `code`-family → `["--goto", "path:line"]`; others (e.g. `zed`) → `["path:line"]`.
   Spawn fn is injectable so `open` is testable without launching an editor.
-- **`EnvConfig`** — `load()` reads `editorCommand` from `CLEAR_DIFF_EDITOR` (null when unset). `env`
+- **`EnvConfig`** — `load()` reads `editorCommand` from `CARA_EDITOR` (null when unset). `env`
   injectable for tests. File-based config is deferred until `AppConfig` grows beyond one field.
-- **`FileInstructions`** — `load()` reads personal `~/.clear-diff.md` and project `clear-diff.md`,
+- **`FileInstructions`** — `load()` reads personal `~/.cara.md` and project `cara.md`,
   each `null` when absent. Home and repo dirs injected at construction (testable against temp dirs).
 
 ## Tests (`node --test`)

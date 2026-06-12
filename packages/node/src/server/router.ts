@@ -23,8 +23,8 @@ import type {
   MarkAuthor,
   ReviewService,
   WorkspaceReader,
-} from "@clear-diff/core";
-import { reviewContext, SummariesRequiredError } from "@clear-diff/core";
+} from "@cara/core";
+import { reviewContext, SummariesRequiredError } from "@cara/core";
 import { UserFacingError } from "../user-facing-error.ts";
 import { classifyWait, type ReviewActivity } from "./activity.ts";
 

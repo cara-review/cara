@@ -4,7 +4,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { createTRPCClient, createWSClient, wsLink } from "@trpc/client";
-import type { ReviewService } from "@clear-diff/core";
+import type { ReviewService } from "@cara/core";
 import { fixedClock } from "../clock.ts";
 import { makeTestRepo } from "../git/test-repo.ts";
 import { UserFacingError } from "../user-facing-error.ts";
@@ -188,8 +188,8 @@ test("a non-loopback Origin is rejected at the WS handshake", async () => {
 });
 
 test("static serving refuses to read outside the web root", async () => {
-  const root = await mkdtemp(join(tmpdir(), "clear-diff-web-"));
-  const secret = await mkdtemp(join(tmpdir(), "clear-diff-secret-"));
+  const root = await mkdtemp(join(tmpdir(), "cara-web-"));
+  const secret = await mkdtemp(join(tmpdir(), "cara-secret-"));
   await writeFile(join(root, "index.html"), "<h1>app</h1>");
   await writeFile(join(secret, "secret.txt"), "TOPSECRET");
 

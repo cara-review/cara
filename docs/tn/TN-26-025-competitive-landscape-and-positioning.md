@@ -9,13 +9,13 @@ tags: [research, positioning, prior-art, mcp, completeness, atom-identity]
 
 # TN-26-025: Competitive landscape and positioning
 
-Landscape research for clear-diff's distinctive bets — **provable per-hunk completeness**, **content-hash payload marks decoupled from grouping** (ADR-0002/0005), and the **agent-untrusted master list** (ADR-0004). Born from the design discussion on an MCP-as-external-agent shape and interactive agentic diffing. Source of intent for "where clear-diff sits."
+Landscape research for cara's distinctive bets — **provable per-hunk completeness**, **content-hash payload marks decoupled from grouping** (ADR-0002/0005), and the **agent-untrusted master list** (ADR-0004). Born from the design discussion on an MCP-as-external-agent shape and interactive agentic diffing. Source of intent for "where cara sits."
 
 > Citations are vendor docs / repos / papers, read as primary sources. Benchmark catch-rates are vendor-run — directional, not ground truth. Absence-of-prior-art is a weaker claim than presence.
 
 ## The gap, stated up front
 
-**No surveyed tool offers a structural completeness guarantee** (provably examines every changed hunk, with an auditable per-hunk reviewed state). Coverage is universally best-effort. The combination clear-diff targets (content-hash payload marks + mandatory hunk coverage + strict mechanical/semantic layer split) is **unclaimed**. Each ingredient exists somewhere; the composition does not.
+**No surveyed tool offers a structural completeness guarantee** (provably examines every changed hunk, with an auditable per-hunk reviewed state). Coverage is universally best-effort. The combination cara targets (content-hash payload marks + mandatory hunk coverage + strict mechanical/semantic layer split) is **unclaimed**. Each ingredient exists somewhere; the composition does not.
 
 ## 1. Autonomous AI reviewers — all best-effort, none complete
 
@@ -29,13 +29,13 @@ LLM reviewers that ingest a diff and emit comments. Coverage is probabilistic, n
 
 **Cross-cutting anchoring reality:** GitHub auto-marks *line-anchored* comments "outdated" when the line changes; *top-level* comments silently go stale. Most tools inherit this. The sophisticated approach (CodeRabbit) is finding-level continuity (auto-resolve fixed, re-emit unfixed), **not** content re-anchoring.
 
-## 2. Deterministic / coverage + anchoring lineage — the half clear-diff lives in
+## 2. Deterministic / coverage + anchoring lineage — the half cara lives in
 
 - **Kenjutu** ([Yuki-bun/kenjutu](https://github.com/Yuki-bun/kenjutu)) — **the nearest neighbour.** "Track review progress hunk-by-hunk through history rewrites" (Jujutsu). Hunk-level marks, persisted as **git objects** (no DB), a **"remaining diff"** model (deliberately chosen over inter-diff/revision tracking). Key difference: anchors to **jj change-IDs**, jj-only — not a content hash of the hunk payload, not plain git. **Recommend a direct teardown.**
 - **Reviewable.io** — coverage tracking keyed to **(file × revision)**, never *mandatory*. Ignores files reverted to base. Closest on the coverage axis but revision-keyed, not content-keyed. ([tracking changes](https://www.reviewable.io/blog/tracking-changes-in-a-code-review/))
 - **Gerrit** — patch-set model; **ported comments** map unresolved comments onto the latest patchset via **diff-position porting**, not content identity. ([ported comments](https://www.gerritcodereview.com/2020-11-18-gerrit-news-jun-nov-2020.html))
 - **Phabricator / Differential** — "ghost" inline comments ported forward; **deliberately over-ports** because "the algorithm cannot read the comment." Pure diff-heuristic, admits mis-placement. ([differential inlines](https://secure.phabricator.com/book/phabricator/article/differential_inlines/))
-- **GitHub PRs** — per-*file* "viewed" checkbox (resets on file change); inline comments anchor to (commit, line) and go stale. The baseline failure mode clear-diff avoids.
+- **GitHub PRs** — per-*file* "viewed" checkbox (resets on file change); inline comments anchor to (commit, line) and go stale. The baseline failure mode cara avoids.
 - **git range-diff** — compares two patch series via a cost matrix over the "diff of diffs" + Jonker–Volgenant assignment; descends from **tbdiff** / `interdiff`. Matches *commits*, not a stable per-hunk identity. ([git-range-diff](https://git-scm.com/docs/git-range-diff))
 - **Histogram diff** — empirically produces hunks better matching developer intent (Nugroho et al., *EMSE* 2020). Direct justification for `-U0 --histogram` → more stable hunk boundaries → more stable content hashes. ([Springer](https://link.springer.com/article/10.1007/s10664-019-09772-z))
 - **Content-hash anchoring as a primitive** — independently converged on by AI-agent *edit* tools (per-line hash, reject on mismatch, no silent relocation), but for safe edits, not review-mark persistence.
@@ -53,12 +53,12 @@ LLM reviewers that ingest a diff and emit comments. Coverage is probabilistic, n
 
 - Deterministic layer works at **file** granularity and *filters/triages* files (deliberately drops some) — coverage-**reducing**, the opposite of a completeness invariant.
 - Grouping is deterministic **file-bundling**, not agent-semantic.
-- Comments anchor by **line number**, with an explicit `start==end==0` "failed to locate" sentinel — fragile against the regrouping clear-diff's atom-hash design survives.
+- Comments anchor by **line number**, with an explicit `start==end==0` "failed to locate" sentinel — fragile against the regrouping cara's atom-hash design survives.
 - **No per-hunk review state**; stateless per run.
 
-## Where clear-diff sits — the novel combination
+## Where cara sits — the novel combination
 
-| Dimension | State of the art | clear-diff |
+| Dimension | State of the art | cara |
 |---|---|---|
 | Completeness | Best-effort; none provable | **Provable per-hunk coverage as a hard gate** (ADR-0004 bijection) |
 | Per-hunk review state | None (Kenjutu: hunk marks, but jj-only) | Marks on atoms, **content-hashed payload**, plain git |

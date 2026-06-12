@@ -1,4 +1,4 @@
-// `clear-diff gate` (ADR-0013, ADR-0014): the ledger IS the gate. A read-only plumbing verb that
+// `cara gate` (ADR-0013, ADR-0014): the ledger IS the gate. A read-only plumbing verb that
 // recomputes live coverage over the canonical master list (the bijection is the denominator —
 // ADR-0004), evaluates `--require` role predicates, and exits non-zero when the bar is not met.
 //
@@ -12,7 +12,7 @@
 //   addressed | accounted | human | agent | <tier>:commented | <reviewer-label>   (all / total)
 // Coverage is exact (met/total ≥ threshold/100). Exit: 0 met, 1 not met, 2 indeterminate.
 
-import type { ReviewProgress } from "@clear-diff/core";
+import type { ReviewProgress } from "@cara/core";
 import { UserFacingError } from "../user-facing-error.ts";
 import { composeCore } from "../server/compose.ts";
 import { coreConfig, type VerbContext } from "./verbs.ts";

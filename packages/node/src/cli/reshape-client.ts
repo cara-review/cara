@@ -5,7 +5,7 @@
 // loopback transport `callWait` uses — transport lives here, off the verb path.
 
 import { createTRPCClient, createWSClient, wsLink } from "@trpc/client";
-import type { ReviewContext } from "@clear-diff/core";
+import type { ReviewContext } from "@cara/core";
 import type { AppRouter } from "../server/router.ts";
 
 /**

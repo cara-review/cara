@@ -17,13 +17,13 @@ Wave 0. The workspace skeleton everything else builds on. Scaffold + stubs that 
 package.json            # root: npm workspaces, devDeps, scripts
 tsconfig.base.json      # shared strict compilerOptions
 eslint.config.js        # flat config, no-any enforced
-packages/core/          # @clear-diff/core — pure, zero runtime deps
-packages/node/          # @clear-diff/node — depends on core
-apps/web/               # @clear-diff/web — Vite UI
+packages/core/          # @cara/core — pure, zero runtime deps
+packages/node/          # @cara/node — depends on core
+apps/web/               # @cara/web — Vite UI
 ```
 
 - Workspaces: `["packages/*", "apps/*"]`.
-- **Dependency direction** (ADR-0003): `node` declares `@clear-diff/core` as a dependency; `core` declares none; `apps/web` reaches `node` only over HTTP/WS later, never by import. Not wired yet.
+- **Dependency direction** (ADR-0003): `node` declares `@cara/core` as a dependency; `core` declares none; `apps/web` reaches `node` only over HTTP/WS later, never by import. Not wired yet.
 - **Core domain purity is compile-enforced**: `packages/core` production sources get `types: []` (no `@types/node`), so a domain file importing `node:fs`/`node:child_process` is a type error. Node types are scoped to core's tests via `tsconfig.test.json`.
 - **Open question flagged to the project owner (human gate):** review found ADR-0003's cross-package boundary guarantee may not hold as written under npm workspace hoisting. Reconciliation is a separate ADR decision — out of scope for this scaffold, not actioned here.
 
@@ -46,7 +46,7 @@ Pre-push hook runs `npm run lint` + `npm test`. Both must pass.
 
 ## Stubs
 
-Each package exports a clearly-placeholder identifier and a smoke test asserting it. `node` imports `@clear-diff/core` to prove the cross-package wiring and dependency direction. `apps/web` keeps DOM bootstrap (`src/main.ts`) separate from a pure module (`src/app.ts`) so its smoke test runs DOM-free under `node --test`.
+Each package exports a clearly-placeholder identifier and a smoke test asserting it. `node` imports `@cara/core` to prove the cross-package wiring and dependency direction. `apps/web` keeps DOM bootstrap (`src/main.ts`) separate from a pure module (`src/app.ts`) so its smoke test runs DOM-free under `node --test`.
 
 ## Out of scope
 

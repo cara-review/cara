@@ -202,7 +202,7 @@ readonly comments?: readonly {
 ```json
 { "error": "summaries_required",
   "missing": [{ "chapter": 1, "section": null }, { "chapter": 1, "section": 0 }],
-  "next": "Every Chapter and Section needs a one-line summary. Add the missing ones and re-run: clear-diff present <grouping.json>" }
+  "next": "Every Chapter and Section needs a one-line summary. Add the missing ones and re-run: cara present <grouping.json>" }
 ```
 No server is spawned on reject, so there is no boot/refresh churn (edge: summary-missing reject loop — it is a pure pre-boot validation; the agent simply re-presents).
 
@@ -210,9 +210,9 @@ No server is spawned on reject, so there is no boot/refresh churn (edge: summary
 
 The `next` hints and `VERB_REFERENCE` must spell out payload + spec grammar. Concretely:
 
-- `NEXT.atoms` → `"Group into chapters/sections (every chapter & section needs a one-line summary), then: clear-diff present '<grouping-json>'  (inline JSON, a file path, or - for stdin)"`.
-- `NEXT.presentNoOpen` / `NEXT.dispatch` / `submitGap` → include `clear-diff submit '<batch-json>'  (inline JSON | file path | -)` and, where a non-default spec applies, `[--range <base>..<head>]`.
-- `dispatch` `next` when `view.reshape !== null` → `"The human asked to reshape: \"<body>\". Re-group and run: clear-diff present '<grouping-json>'"` (truncate body).
+- `NEXT.atoms` → `"Group into chapters/sections (every chapter & section needs a one-line summary), then: cara present '<grouping-json>'  (inline JSON, a file path, or - for stdin)"`.
+- `NEXT.presentNoOpen` / `NEXT.dispatch` / `submitGap` → include `cara submit '<batch-json>'  (inline JSON | file path | -)` and, where a non-default spec applies, `[--range <base>..<head>]`.
+- `dispatch` `next` when `view.reshape !== null` → `"The human asked to reshape: \"<body>\". Re-group and run: cara present '<grouping-json>'"` (truncate body).
 - `VERB_REFERENCE`: add a "Passing payloads" line — *"present/submit take their JSON inline ('{…}'), as a file path, or from stdin with '-'. The spec defaults to the worktree vs origin/main; pass --range <base>..<head> for a range (or the positional <base>..<head> form on atoms)."* Keep it version-locked (same source as the hints).
 
 These are string changes only; pin them by the existing contract tests (assert each `next` contains `--range`, `-`, and the `'<...>'` payload form).
@@ -283,7 +283,7 @@ Diagnosed in `.agent-state/porcelain-grouping-bug.md` (task #13). **Three compou
 - `docs/concept.md`: add Reshape to the semantic-layer/regrouping discussion (a human-initiated regroup request); note gap-closed accounting includes comment-only atoms.
 - `docs/adr/0012-field-test-amendments.md` already ratifies the four design rulings (a, b, d, e). This plan's docs task only cross-links it from concept.md/README and fixes any drift; it does not author the ADR.
 - `README` / quickstart: update the verb examples to the exact payload forms (`'<json>'` | file | `-`) and `--range`; mention the Reshape loop and that summaries are required.
-- `CLEAR_DIFF.md` / methodology references: reflect cognitive-load sizing and `METHODOLOGY_VERSION = 2`.
+- `CARA.md` / methodology references: reflect cognitive-load sizing and `METHODOLOGY_VERSION = 2`.
 - Run `/streamline-doc` on every doc edited before committing (CLAUDE.md).
 
 ---

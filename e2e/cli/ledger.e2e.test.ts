@@ -7,7 +7,7 @@
 //     to the human tier, with the working tree left untouched;
 //  2. a FRESH composition over the same repo replays them identically — marks survive
 //     sessions, now via git, not in-memory state;
-//  3. the real `clear-diff` bin round-trips across separate processes: a `submit` in one
+//  3. the real `cara` bin round-trips across separate processes: a `submit` in one
 //     process is read back by a `dispatch` in another, through the ledger alone.
 //
 // Travel note: the ledger rides git but needs an explicit refspec to push/fetch, e.g.
@@ -16,7 +16,7 @@
 
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import type { Atom } from "@clear-diff/core";
+import type { Atom } from "@cara/core";
 import { LEDGER_REF } from "../../packages/node/src/git/ledger-store.ts";
 import { compose } from "../../packages/node/src/server/compose.ts";
 import { runGit } from "../../packages/node/src/git/run.ts";

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { PACKAGE_ID, coreAtomCount } from "./index.ts";
 
 test("node package wiring smoke test", () => {
-  assert.equal(PACKAGE_ID, "@clear-diff/node");
+  assert.equal(PACKAGE_ID, "@cara/node");
 });
 
 test("node resolves core across the workspace boundary", () => {

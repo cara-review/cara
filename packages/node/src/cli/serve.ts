@@ -10,7 +10,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ClockPort, ConfigPort, DiffSpec, ReviewContext } from "@clear-diff/core";
+import type { ClockPort, ConfigPort, DiffSpec, ReviewContext } from "@cara/core";
 import { compose, composeOverrides } from "../server/compose.ts";
 import { startServer } from "../server/server.ts";
 import { parseJson } from "./output.ts";

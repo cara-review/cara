@@ -7,7 +7,7 @@
 // mutations return fresh snapshots.
 
 import { createTRPCClient, createWSClient, wsLink } from "@trpc/client";
-import type { AppRouter } from "@clear-diff/node/contract";
+import type { AppRouter } from "@cara/node/contract";
 import type { AtomHash, CommentLinePointer, Disposition, FileSide, ReviewContext, ReviewSnapshot } from "./protocol.ts";
 
 /** Socket lifecycle the store maps to a connection status. tRPC retries indefinitely. */

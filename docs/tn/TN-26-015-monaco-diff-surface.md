@@ -10,7 +10,7 @@ tags: [web, ui, diff, monaco, rendering, hexagonal]
 # TN-26-015: Monaco-based diff surface
 
 Replace the bespoke DOM diff renderer (#12 / TN-26-010) with the **Monaco diff editor**
-as `apps/web`'s rendering surface. clear-diff keeps owning the *reorganisation* (Chapters,
+as `apps/web`'s rendering surface. cara keeps owning the *reorganisation* (Chapters,
 Sections, ordering) and the *checklist* (marks); Monaco owns *rendering the evidence*.
 
 Proposed ADR-0006, now accepted. Implementation proceeds on #27.

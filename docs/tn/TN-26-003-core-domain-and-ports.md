@@ -72,7 +72,7 @@ Driven (core defines the interface; adapters infer their impl):
 | `ReviewStore` | `load(ctx): Promise<MarkEvent[]>`, `append(ctx, event): Promise<void>` (event log, ADR-0005) |
 | `EditorPort` | `open(path, line): Promise<void>` |
 | `ConfigPort` | `load(): Promise<AppConfig>` |
-| `InstructionsSource` | `load(): Promise<ReviewInstructions>` (personal + project `clear-diff.md`) |
+| `InstructionsSource` | `load(): Promise<ReviewInstructions>` (personal + project `cara.md`) |
 | `ClockPort` | `now(): number` (epoch ms) |
 
 Inbound: **`ReviewService`** — `open(spec)`, `mark(ctx, atom, disposition)`, `unmark(ctx, atom)`, `comment(ctx, atom, body)`, `openInEditor(path, line)`; mutations return a fresh `ReviewSnapshot` (review + marks + comments + progress) for the UI to re-render. Snapshot uses plain arrays/records (JSON-friendly for WS, per ADR-0003 "structured data only"). `AgentPort` returns `unknown`; the proposal reaches the UI only after `repairGrouping`.

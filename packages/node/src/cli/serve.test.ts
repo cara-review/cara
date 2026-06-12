@@ -2,7 +2,7 @@
 // the review context from it; without it the UI hangs on "Loading review…" forever.
 
 import { describe, expect, test } from "bun:test";
-import type { ReviewContext } from "@clear-diff/core";
+import type { ReviewContext } from "@cara/core";
 import { appUrl } from "./serve.ts";
 
 describe("appUrl", () => {

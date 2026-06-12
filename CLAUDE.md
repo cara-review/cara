@@ -38,11 +38,11 @@
 
 # Project
 
-**clear-diff** — a local-first, completeness-gated code-review **engine**, driven by an external agent over a CLI protocol. The engine runs git, owns the atoms/identity/marks, and is **LLM-free**; the calling agent (Claude Code, Cursor, the session that made the change) supplies the grouping and drives the verbs. Dual-mode: human-in-loop (browser) and autonomous (CLI). Bun CLI.
+**cara** — a local-first, completeness-gated code-review **engine**, driven by an external agent over a CLI protocol. The engine runs git, owns the atoms/identity/marks, and is **LLM-free**; the calling agent (Claude Code, Cursor, the session that made the change) supplies the grouping and drives the verbs. Dual-mode: human-in-loop (browser) and autonomous (CLI). Bun CLI.
 
-- `index.js` — dev entry (`bun index.js`). The published `clear-diff` bin is the bundled `dist/index.js` (built by `scripts/pack-dist.ts`); both run the same `cli.ts`.
+- `index.js` — dev entry (`bun index.js`). The published `cara` bin is the bundled `dist/index.js` (built by `scripts/pack-dist.ts`); both run the same `cli.ts`.
 - **Verbs (agent-invoked plumbing, no LLM/key):** `atoms` (engine→agent: context + atoms), `present` (agent→engine: grouping → browser), `dispatch [--wait]` (engine→agent: comments + progress), `submit` (agent→engine: dispositions/answers → gap report), `instructions` (self-narrating protocol).
-- **Porcelain:** `clear-diff review` — the bundled LLM wrapper that groups, then drives the verbs. `--headless` (autonomous), `--reviewer <label>` (one labelled lens), `--fake` (stub, no key). The only place an API key is touched.
+- **Porcelain:** `cara review` — the bundled LLM wrapper that groups, then drives the verbs. `--headless` (autonomous), `--reviewer <label>` (one labelled lens), `--fake` (stub, no key). The only place an API key is touched.
 
 See [`docs/concept.md`](docs/concept.md) for the full product model. Treat it as the source of intent. The pivot is [TN-26-026](docs/tn/TN-26-026-cli-agent-protocol-pivot.md) → [ADR-0011](docs/adr/0011-cli-agent-protocol.md). Architecture: [`docs/adr/`](docs/adr/) — hexagonal core (0003), agent/master-list security invariant (0004), atom identity (0002), marks persistence (0005), CLI agent protocol (0011).
 
@@ -83,7 +83,7 @@ Use these terms exactly in code, docs, commits, and conversation:
 Agents push directly to `main`. No feature branches for review, no PRs to merge.
 
 - `/do-work` — single entry point for any change (kick-off → plan → develop → review → ship → close).
-- `/do-review` (or `/clear-diff`) — local review before shipping.
+- `/do-review` (or `/cara`) — local review before shipping.
 - `/do-ship` — deliver to `main`.
 - `/start-team` — parallel agents picking up Ready issues.
 - Pre-push hook is the quality gate. **Never `--no-verify`.**

@@ -11,7 +11,7 @@ import { gotoReview, serveReview } from "../support/app.ts";
 // behaves like the rest of the suite under full-parallel load.
 
 const url = serveReview();
-const KEY = "clear-diff:layout";
+const KEY = "cara:layout";
 const stored = (page: Page) =>
   page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "{}"), KEY);
 

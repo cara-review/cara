@@ -48,7 +48,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { MarkEvent, ReviewContext, ReviewStore } from "@clear-diff/core";
+import type { MarkEvent, ReviewContext, ReviewStore } from "@cara/core";
 import { contextHash } from "../context-hash.ts";
 import { isMarkEvent } from "../mark-event.ts";
 import { GitError, runGit, runGitStdin } from "./run.ts";
@@ -63,10 +63,10 @@ export const LEDGER_REF = "refs/cara/ledger";
  * git identity, and keeps the ledger reproducible. (Signing is a deferred fast-follow.)
  */
 const LEDGER_IDENTITY = {
-  GIT_AUTHOR_NAME: "clear-diff",
-  GIT_AUTHOR_EMAIL: "ledger@clear-diff",
-  GIT_COMMITTER_NAME: "clear-diff",
-  GIT_COMMITTER_EMAIL: "ledger@clear-diff",
+  GIT_AUTHOR_NAME: "cara",
+  GIT_AUTHOR_EMAIL: "ledger@cara",
+  GIT_COMMITTER_NAME: "cara",
+  GIT_COMMITTER_EMAIL: "ledger@cara",
 } as const;
 
 /**

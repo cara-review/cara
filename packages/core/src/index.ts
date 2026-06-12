@@ -1,4 +1,4 @@
-// @clear-diff/core — pure domain + application core (ADR-0003).
+// @cara/core — pure domain + application core (ADR-0003).
 // Two layers, never mixed (ADR-0002): mechanical (git, identity) and semantic
 // (agent grouping, untrusted per ADR-0004). The agent arranges; git owns truth.
 // LLM-free (ADR-0011): the agent is a driving actor over a CLI, not a driven port.

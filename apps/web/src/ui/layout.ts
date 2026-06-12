@@ -9,7 +9,7 @@
 
 import { el } from "../dom.ts";
 
-const STORAGE_KEY = "clear-diff:layout";
+const STORAGE_KEY = "cara:layout";
 
 const NAV_MIN = 180;
 const NAV_MAX = 480;

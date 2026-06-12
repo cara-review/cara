@@ -11,7 +11,7 @@
 // backstop. The Anthropic response shape never leaves this module.
 
 import Anthropic from "@anthropic-ai/sdk";
-import type { Atom, MissingSummary } from "@clear-diff/core";
+import type { Atom, MissingSummary } from "@cara/core";
 import { UserFacingError } from "../user-facing-error.ts";
 
 /** What a lens pass proposes over the change set. Untrusted — validated before submit. */

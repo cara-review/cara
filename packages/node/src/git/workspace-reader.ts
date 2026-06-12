@@ -4,7 +4,7 @@
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { FileSide, WorkspaceReader } from "@clear-diff/core";
+import type { FileSide, WorkspaceReader } from "@cara/core";
 import type { GitRef, SpecRefs } from "./refs.ts";
 import { GitError, runGit } from "./run.ts";
 

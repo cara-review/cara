@@ -1,11 +1,11 @@
-// The `clear-diff` CLI dispatcher (driving adapter, ADR-0011). Parse argv into a typed
+// The `cara` CLI dispatcher (driving adapter, ADR-0011). Parse argv into a typed
 // command and route it to its verb. The agent's whole protocol is these verbs; the bare
 // invocation is the `review` porcelain. Transport/composition live in
 // the verb modules — this file only wires argv → verb.
 
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { ClockPort, ConfigPort, ReviewContext } from "@clear-diff/core";
+import type { ClockPort, ConfigPort, ReviewContext } from "@cara/core";
 import { parseCommand, type PresentCommand } from "./cli/parse.ts";
 import { systemIo, type CliIo } from "./cli/output.ts";
 import { runAtoms, runDispatch, runInstructions, runPresent, runSubmit, type VerbContext } from "./cli/verbs.ts";

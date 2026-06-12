@@ -1,4 +1,4 @@
-// Spawn the real `clear-diff` bin (dev entry `bun index.js`) for the CLI e2e axes.
+// Spawn the real `cara` bin (dev entry `bun index.js`) for the CLI e2e axes.
 // Drives the published surface end-to-end: argv → index.js → runCli → JSON on stdout.
 // makeTestRepo (imported by the fixtures) scrubs every GIT_* var on import, so a
 // fixture's git never touches the host repo even under the pre-push hook.
