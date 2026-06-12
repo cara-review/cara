@@ -50,7 +50,8 @@ test("SYSTEM_METHODOLOGY sizes by cognitive load with a homogeneous-run exceptio
 });
 
 test("SYSTEM_METHODOLOGY states summaries are required, not optional", () => {
-  assert.match(SYSTEM_METHODOLOGY, /one-line summary — it is required, not optional/);
+  assert.match(SYSTEM_METHODOLOGY, /one-line summary — required/);
+  assert.doesNotMatch(SYSTEM_METHODOLOGY, /optional/);
 });
 
 test("buildMethodology with no guidance is exactly the system text", () => {
