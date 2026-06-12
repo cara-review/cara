@@ -16,3 +16,6 @@ test-results/
 
 # Transient agent worktrees (Agent tool isolation) — never tracked.
 /.claude/worktrees/
+
+# Bun project — npm must never leave a lockfile
+package-lock.json
