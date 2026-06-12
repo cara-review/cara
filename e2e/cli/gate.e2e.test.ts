@@ -80,3 +80,46 @@ test("gate without --require is a coverage readout that never fails", async () =
     await fixture.cleanup();
   }
 });
+
+test("gate --repo --by-file reports repo-wide coverage off the cross-context union, with the per-file map", async () => {
+  const fixture = await makeReviewFixture();
+  try {
+    await seedTwoReviewers(fixture.dir, fixture.range); // security 2 + quality 3 = all 5 atoms
+    const run = await runBin(
+      ["gate", "--repo", "--by-file", "--require", "addressed=100%,security>=40%", "--range", fixture.range],
+      fixture.dir,
+    );
+    assert.equal(run.code, 0, "a met repo gate exits 0");
+    const gate = json<{
+      repo: boolean;
+      pass: boolean;
+      trust: string;
+      coverage: Record<string, number>;
+      byFile: readonly { path: string; coverage: Record<string, number> }[];
+      unseen: readonly string[];
+    }>(run);
+    assert.equal(gate.repo, true);
+    assert.equal(gate.pass, true);
+    assert.equal(gate.trust, "advisory-unsigned", "the repo number is advisory, never proof");
+    assert.equal(gate.coverage["addressed"], 100);
+    assert.equal(gate.byFile.length, 4, "5 atoms across 4 files (alpha has two hunks)");
+    assert.deepEqual([...gate.unseen], [], "every file has a fact");
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("gate --repo over an empty range is indeterminate (exit 2), never a vacuous pass", async () => {
+  const fixture = await makeReviewFixture();
+  try {
+    const base = fixture.range.split("..")[0]!;
+    const run = await runBin(["gate", "--repo", "--require", "security=100%", "--range", `${base}..${base}`], fixture.dir);
+    assert.equal(run.code, 2, "empty repo range is indeterminate, a distinct exit");
+    const out = JSON.parse(run.out) as { pass: unknown; indeterminate: boolean };
+    assert.equal(out.indeterminate, true);
+    assert.equal(out.pass, null);
+    assert.match(run.err, /indeterminate/i);
+  } finally {
+    await fixture.cleanup();
+  }
+});

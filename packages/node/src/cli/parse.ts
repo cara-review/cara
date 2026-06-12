@@ -57,6 +57,10 @@ export interface GateCommand {
   readonly spec: DiffSpec;
   /** `--require` predicates (comma-separated). Empty = a coverage readout, never a failure. */
   readonly requirements: readonly GateRequirement[];
+  /** `--repo` (ADR-0014): coverage against the cross-context fact union, not just this review's context. */
+  readonly repo: boolean;
+  /** `--by-file` (ADR-0014): add the per-file role map (the dark-matter map). Implies `--repo`. */
+  readonly byFile: boolean;
 }
 export interface ReviewCommand {
   readonly verb: "review";
@@ -268,9 +272,16 @@ export function parseCommand(argv: readonly string[]): Command {
     }
     case "gate": {
       const flags = splitFlags(args, new Set(["range", "require"]));
-      rejectUnknownBool(flags.bool, new Set());
+      rejectUnknownBool(flags.bool, new Set(["repo", "by-file"]));
       if (flags.positional.length > 0) throw new CliError("gate takes no positional arguments.");
-      return { verb: "gate", spec: specFromRange(flags), requirements: parseRequirements(flags.value.get("require")) };
+      const byFile = flags.bool.has("by-file");
+      return {
+        verb: "gate",
+        spec: specFromRange(flags),
+        requirements: parseRequirements(flags.value.get("require")),
+        repo: byFile || flags.bool.has("repo"), // --by-file implies --repo
+        byFile,
+      };
     }
     case "serve": {
       const flags = splitFlags(args, new Set(["range", "grouping"]));

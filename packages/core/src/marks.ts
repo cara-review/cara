@@ -313,3 +313,70 @@ export function reviewProgress(
     byReviewer: [...byReviewer].map(([reviewer, count]) => ({ reviewer, addressed: count })),
   };
 }
+
+/**
+ * Repo-wide progress (ADR-0014): the same `ReviewProgress` shape as `reviewProgress`, but folded
+ * by **existence** over facts unioned across ALL contexts (`ReviewStore.loadAll`), not last-write-wins
+ * within one. "Did role R ever attend to this content" — so per atom hash we keep the *set* of tiers
+ * and labels that dispositioned it and the set of tiers that commented, then count those sets over the
+ * master list. The output drives the gate evaluator unchanged; only the fold strategy differs.
+ *
+ * Order is irrelevant (the input is unordered), so `unmarked` is NOT applied: cross-context there is no
+ * "later" to net against, and a `marked` fact is itself evidence the role attended that content. A
+ * marked-then-unmarked atom therefore still counts as attended repo-wide — an over-count bounded by
+ * unmark frequency, acceptable for an advisory readout (ADR-0014 §7).
+ */
+export function repoProgress(masterList: readonly Atom[], events: readonly MarkEvent[]): ReviewProgress {
+  const dispositionedTiers = new Map<AtomHash, Set<MarkAuthor["tier"]>>();
+  const dispositionedLabels = new Map<AtomHash, Set<string>>();
+  const commentedTiers = new Map<AtomHash, Set<MarkAuthor["tier"]>>();
+  const into = <V>(map: Map<AtomHash, Set<V>>, hash: AtomHash, value: V): void => {
+    const set = map.get(hash) ?? new Set<V>();
+    set.add(value);
+    map.set(hash, set);
+  };
+  for (const event of events) {
+    if (event.type === "marked") {
+      into(dispositionedTiers, event.atomHash, event.author.tier);
+      if (event.author.reviewer !== null) into(dispositionedLabels, event.atomHash, event.author.reviewer);
+    } else if (event.type === "commented") {
+      into(commentedTiers, event.atomHash, event.author.tier);
+    }
+  }
+
+  let addressed = 0;
+  let accounted = 0;
+  const byReviewer = new Map<string, number>();
+  const scrutiny = new Map<MarkAuthor["tier"], { accounted: number; commented: number }>();
+  for (const atom of masterList) {
+    const dispoTiers = dispositionedTiers.get(atom.hash);
+    const commTiers = commentedTiers.get(atom.hash);
+    if (dispoTiers !== undefined) {
+      addressed++;
+      for (const label of dispositionedLabels.get(atom.hash) ?? []) {
+        byReviewer.set(label, (byReviewer.get(label) ?? 0) + 1);
+      }
+    }
+    if (dispoTiers === undefined && commTiers === undefined) continue;
+    accounted++;
+    for (const tier of new Set([...(dispoTiers ?? []), ...(commTiers ?? [])])) {
+      const cell = scrutiny.get(tier) ?? { accounted: 0, commented: 0 };
+      cell.accounted++;
+      if (commTiers?.has(tier)) cell.commented++;
+      scrutiny.set(tier, cell);
+    }
+  }
+
+  const progress: ReviewProgress = {
+    total: masterList.length,
+    addressed,
+    accounted,
+    unaddressed: masterList.length - addressed,
+    scrutiny: (["human", "agent"] as const).flatMap((tier) => {
+      const cell = scrutiny.get(tier);
+      return cell ? [{ tier, ...cell }] : [];
+    }),
+  };
+  if (byReviewer.size === 0) return progress;
+  return { ...progress, byReviewer: [...byReviewer].map(([reviewer, count]) => ({ reviewer, addressed: count })) };
+}

@@ -105,20 +105,42 @@ export class GitLedgerStore implements ReviewStore {
 
     const events: MarkEvent[] = [];
     for (const sha of shas) {
-      const path = await this.#addedPath(sha, prefix);
-      if (path === null) continue;
-      const raw = await runGit(["cat-file", "-p", `${sha}:${path}`], this.#cwd);
-      const parsed: unknown = JSON.parse(raw);
-      if (!isMarkEvent(parsed)) throw new Error(`Corrupt ledger fact ${LEDGER_REF}:${path}`);
-      // Content-address integrity: a fact's filename IS its factId. Recompute it from the
-      // canonical bytes and reject a relabelled or swapped blob — a cheap tamper check the
-      // content-addressing already affords (it does not authenticate the author tier; see header).
-      if (path !== `${prefix}${factId(canonicalFact(parsed))}.json`) {
-        throw new Error(`Corrupt ledger fact ${LEDGER_REF}:${path} (factId mismatch)`);
-      }
-      events.push(parsed);
+      const path = (await this.#addedPaths(sha)).find((p) => p.startsWith(prefix));
+      if (path === undefined) continue;
+      events.push(await this.#readFact(sha, path));
     }
     return events;
+  }
+
+  async loadAll(): Promise<readonly MarkEvent[]> {
+    const tip = await this.#tip();
+    if (tip === null) return [];
+    // Every fact across ALL contexts (ADR-0014): the same chain walk as load(), without the
+    // per-context prefix filter. Order is irrelevant — the repo-wide fold is existence-based —
+    // so this list carries no ordering guarantee and must never reach project().
+    const shas = (await runGit(["rev-list", "--first-parent", "--reverse", tip], this.#cwd))
+      .split("\n")
+      .filter((line) => line !== "");
+    const events: MarkEvent[] = [];
+    for (const sha of shas) {
+      for (const path of await this.#addedPaths(sha)) events.push(await this.#readFact(sha, path));
+    }
+    return events;
+  }
+
+  /** Read, parse, and integrity-check the fact blob at `sha:path`. */
+  async #readFact(sha: string, path: string): Promise<MarkEvent> {
+    const raw = await runGit(["cat-file", "-p", `${sha}:${path}`], this.#cwd);
+    const parsed: unknown = JSON.parse(raw);
+    if (!isMarkEvent(parsed)) throw new Error(`Corrupt ledger fact ${LEDGER_REF}:${path}`);
+    // Content-address integrity: a fact's filename IS its factId. Recompute it from the canonical
+    // bytes and reject a relabelled or swapped blob — a cheap tamper check the content-addressing
+    // affords (it does not authenticate the author tier; see header).
+    const basename = path.slice(path.lastIndexOf("/") + 1);
+    if (basename !== `${factId(canonicalFact(parsed))}.json`) {
+      throw new Error(`Corrupt ledger fact ${LEDGER_REF}:${path} (factId mismatch)`);
+    }
+    return parsed;
   }
 
   async append(context: ReviewContext, event: MarkEvent): Promise<void> {
@@ -149,13 +171,13 @@ export class GitLedgerStore implements ReviewStore {
     }
   }
 
-  /** The single path a commit added under `prefix`, or null (a dedupe/no-add commit). */
-  async #addedPath(sha: string, prefix: string): Promise<string | null> {
+  /** The paths a commit ADDED (normally one — append is one blob per commit; a dedupe commit adds none). */
+  async #addedPaths(sha: string): Promise<readonly string[]> {
     const out = await runGit(
       ["diff-tree", "--no-commit-id", "--name-only", "--diff-filter=A", "-r", "--root", sha],
       this.#cwd,
     );
-    return out.split("\n").find((line) => line.startsWith(prefix)) ?? null;
+    return out.split("\n").filter((line) => line !== "");
   }
 
   /** Build the new ledger tree: the tip's tree plus `path → blob`, via a scratch index. */

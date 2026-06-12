@@ -7,5 +7,6 @@ import { UserFacingError } from "./packages/node/src/user-facing-error.ts";
 runCli(process.argv.slice(2)).catch((error) => {
   const expected = error instanceof CliError || error instanceof UserFacingError;
   console.error(expected ? error.message : error);
-  process.exitCode = 1;
+  // A verb may carry its own exit code (e.g. `gate` — 1 not-met, 2 indeterminate); default 1.
+  process.exitCode = typeof error?.exitCode === "number" ? error.exitCode : 1;
 });

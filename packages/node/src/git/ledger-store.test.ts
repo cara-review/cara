@@ -263,3 +263,24 @@ test("a structurally invalid fact in the ledger is rejected as corrupt on load",
     await repo.cleanup();
   }
 });
+
+test("loadAll returns every fact across all contexts, unordered (ADR-0014)", async () => {
+  const { repo, store } = await freshRepo();
+  try {
+    await store.append(ctx("a..b"), { type: "marked", ts: 1, atomHash: atom("x"), disposition: "done", author: human });
+    await store.append(ctx("c..d"), { type: "marked", ts: 1, atomHash: atom("y"), disposition: "skipped", author: agent });
+    await store.append(ctx("c..d"), { type: "commented", ts: 1, atomHash: atom("y"), body: "why", author: agent });
+
+    const all = await store.loadAll();
+    assert.equal(all.length, 3);
+    assert.deepEqual(
+      new Set(all.flatMap((e) => ("atomHash" in e ? [e.atomHash] : []))),
+      new Set(["x", "y"]),
+    );
+    // Per-context load still isolates — loadAll is the cross-context union, not a replacement.
+    assert.equal((await store.load(ctx("a..b"))).length, 1);
+    assert.equal((await store.load(ctx("c..d"))).length, 2);
+  } finally {
+    await repo.cleanup();
+  }
+});

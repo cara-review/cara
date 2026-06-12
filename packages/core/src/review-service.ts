@@ -37,6 +37,7 @@ import {
   deriveCommentStatus,
   isAccounted,
   project,
+  repoProgress,
   resolveCommentLine,
   reviewProgress,
   type ReviewState,
@@ -223,6 +224,24 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
       return {
         gap: buildGapReport(masterList, state),
         progress: reviewProgress(masterList, state.marks, state.comments),
+      };
+    },
+
+    async repoCoverage(spec) {
+      // Denominator: this range's live master list (ADR-0004). Numerator: every fact across all
+      // contexts, existence-folded by atom hash (ADR-0014) — content reviewed anywhere counts.
+      const { context, masterList } = await freshReview(spec);
+      const events = await deps.store.loadAll();
+      const byPath = new Map<string, Atom[]>();
+      for (const atom of masterList) {
+        const atoms = byPath.get(atom.path) ?? [];
+        atoms.push(atom);
+        byPath.set(atom.path, atoms);
+      }
+      return {
+        context,
+        progress: repoProgress(masterList, events),
+        byFile: [...byPath].map(([path, atoms]) => ({ path, progress: repoProgress(atoms, events) })),
       };
     },
 
