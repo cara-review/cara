@@ -237,6 +237,30 @@ test("gate fails (throws, non-zero exit) when a required role is below bar, afte
   }
 });
 
+test("gate gates on scrutiny — a :commented bar passes for the tier that engaged, fails for the absent one", async () => {
+  const { repo, range } = await oneAtomRepo();
+  try {
+    const hash = await atomHash(repo, range);
+    // An agent comment (substance), no human activity at all.
+    await runCli(["submit", "-", "--reviewer", "security", "--range", range], {
+      ...deps(repo),
+      io: capture(JSON.stringify({ comments: [{ atomHash: hash, body: "validate this" }] })).io,
+    });
+    const pass = capture();
+    await runCli(["gate", "--require", "agent:commented=100%", "--range", range], { ...deps(repo), io: pass.io });
+    assert.equal(pass.json()["pass"], true);
+
+    const fail = capture();
+    await assert.rejects(
+      runCli(["gate", "--require", "human:commented>=1%", "--range", range], { ...deps(repo), io: fail.io }),
+      GateNotMetError,
+    );
+    assert.equal((fail.json()["coverage"] as Record<string, number>)["human:commented"], 0);
+  } finally {
+    await repo.cleanup();
+  }
+});
+
 test("gate is vacuously met on an empty diff (nothing to review)", async () => {
   const repo = await makeTestRepo();
   await repo.write("a.ts", "one\n");

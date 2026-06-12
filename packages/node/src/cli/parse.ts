@@ -180,7 +180,8 @@ export function reviewerSlug(value: string): string {
 /**
  * Parse `--require` into gate predicates: `<role>=<percent>%` (or `>=`), comma-separated, e.g.
  * `security=100%,human>=50%`. The role is a slug (a tier, a reviewer label, or `addressed`/
- * `accounted`); both operators mean "at least" — a gate is a minimum bar.
+ * `accounted`), optionally suffixed `:commented` on a tier to gate substance over a bare sweep
+ * (`agent:commented>=30%`). Both operators mean "at least" — a gate is a minimum bar.
  */
 function parseRequirements(raw: string | undefined): GateRequirement[] {
   if (raw === undefined) return [];
@@ -189,12 +190,22 @@ function parseRequirements(raw: string | undefined): GateRequirement[] {
     .map((token) => token.trim())
     .filter((token) => token !== "")
     .map((token) => {
-      const match = /^([a-z0-9-]+)(?:>=|=)(\d{1,3})%?$/.exec(token);
+      const match = /^([a-z0-9-]+(?::commented)?)(?:>=|=)(\d{1,3})%?$/.exec(token);
       if (match === null) throw new CliError(`Invalid --require "${token}". Use <role>=<percent>% (e.g. security=100%).`);
       const threshold = Number(match[2]);
       if (threshold > 100) throw new CliError(`Invalid --require "${token}": percent cannot exceed 100.`);
-      return { role: reviewerSlug(match[1] as string), threshold };
+      return { role: validateRole(match[1] as string), threshold };
     });
+}
+
+/** A gate role: a slug, optionally `:commented` — which only means anything on a tier (human/agent). */
+function validateRole(role: string): string {
+  const [base, suffix] = role.split(":");
+  if (suffix === "commented" && base !== "human" && base !== "agent") {
+    throw new CliError(`Invalid --require role "${role}": ":commented" applies only to human or agent.`);
+  }
+  reviewerSlug(base as string);
+  return role;
 }
 
 /**

@@ -8,6 +8,7 @@
 //   addressed   — atoms with any disposition (done/skipped)        / total
 //   accounted   — atoms dispositioned OR commented                 / total
 //   human|agent — that tier's accounted footprint (TN-26-029)      / total
+//   <tier>:commented — atoms that tier commented on (substance, not a bare sweep) / total
 //   <label>     — atoms a labelled reviewer dispositioned          / total
 // Coverage is exact (met/total ≥ threshold/100), vacuously met on an empty diff.
 
@@ -56,7 +57,7 @@ export async function runGate(cmd: GateCommand, ctx: VerbContext): Promise<void>
   }
 }
 
-/** Atoms credited to a role over the master list: overall, by tier footprint, or by reviewer label. */
+/** Atoms credited to a role over the master list: overall, by tier footprint/scrutiny, or by reviewer label. */
 function roleCount(progress: ReviewProgress, role: string): number {
   switch (role) {
     case "addressed":
@@ -66,6 +67,9 @@ function roleCount(progress: ReviewProgress, role: string): number {
     case "human":
     case "agent":
       return progress.scrutiny.find((s) => s.tier === role)?.accounted ?? 0;
+    case "human:commented":
+    case "agent:commented":
+      return progress.scrutiny.find((s) => s.tier === role.slice(0, role.indexOf(":")))?.commented ?? 0;
     default:
       return progress.byReviewer?.find((r) => r.reviewer === role)?.addressed ?? 0;
   }
