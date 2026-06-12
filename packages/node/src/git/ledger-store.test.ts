@@ -137,7 +137,7 @@ test("the ledger stores only the MarkEvent (atom hash), never the atom set (ADR-
     // Read the single blob under <contextHash>/ straight from the ledger tree.
     const entries = (await repo.git("ls-tree", "-r", "--name-only", LEDGER_REF)).trim().split("\n");
     assert.equal(entries.length, 1);
-    assert.match(entries[0]!, new RegExp(`^${contextHash(context)}/[0-9a-f]+\\.json$`));
+    assert.match(entries[0]!, new RegExp(`^${contextHash(context)}/[0-9a-f]+\\.[0-9a-f-]+\\.json$`));
     const blob = JSON.parse(await repo.git("show", `${LEDGER_REF}:${entries[0]!}`)) as Record<string, unknown>;
     assert.deepEqual(blob, {
       type: "marked",
@@ -153,16 +153,40 @@ test("the ledger stores only the MarkEvent (atom hash), never the atom set (ADR-
   }
 });
 
-test("an identical fact dedupes — content-addressed factId collapses the re-append", async () => {
+test("byte-identical re-appends are distinct events, not deduped away (per-append nonce)", async () => {
   const { repo, store } = await freshRepo();
   try {
     const context = ctx("worktree:dedupe");
     const event: MarkEvent = { type: "marked", ts: 1, atomHash: atom("a"), disposition: "done", author: human };
     await store.append(context, event);
-    await store.append(context, event); // same canonical bytes → same factId → same path
+    await store.append(context, event); // same canonical bytes, but a fresh nonce → distinct path
 
+    // Two distinct blobs, both sharing the same factId leading segment (content) but
+    // differing in the nonce. Both survive load — the second is no longer silently lost.
     const entries = (await repo.git("ls-tree", "-r", "--name-only", LEDGER_REF)).trim().split("\n");
-    assert.equal(entries.length, 1); // one blob, not two
+    assert.equal(entries.length, 2);
+    const factIds = entries.map((e) => e.slice(e.lastIndexOf("/") + 1).split(".")[0]);
+    assert.equal(factIds[0], factIds[1]); // same content-address...
+    assert.notEqual(entries[0], entries[1]); // ...but distinct nonces → distinct paths
+    assert.equal((await store.load(context)).length, 2);
+  } finally {
+    await repo.cleanup();
+  }
+});
+
+test("a byte-identical re-mark folds correctly: done→skipped→done (same ts) ends done", async () => {
+  const { repo, store } = await freshRepo();
+  try {
+    const context = ctx("worktree:refold");
+    // Under a fixed clock every event shares ts=1. The middle skip and the closing done
+    // are byte-identical to no prior event, but the SECOND `done` is byte-identical to the
+    // FIRST: with the old content-address dedupe it collapsed to the first path and the
+    // re-mark was lost, so the fold settled on `skipped`. The nonce keeps it a real event.
+    await store.append(context, { type: "marked", ts: 1, atomHash: atom("a"), disposition: "done", author: human });
+    await store.append(context, { type: "marked", ts: 1, atomHash: atom("a"), disposition: "skipped", author: human });
+    await store.append(context, { type: "marked", ts: 1, atomHash: atom("a"), disposition: "done", author: human });
+    const state = project(await store.load(context));
+    assert.equal(state.marks.get(atom("a"))?.disposition, "done"); // last write wins, and it survived
   } finally {
     await repo.cleanup();
   }
@@ -231,6 +255,39 @@ test("a well-formed fact planted at a mismatched path is rejected on load (conte
     await runGitStdin(["update-index", "--add", "--cacheinfo", `100644,${blob},${contextHash(context)}/feed.json`], repo.dir, "", env);
     const tree = (await runGitStdin(["write-tree"], repo.dir, "", env)).trim();
     const commit = (await repo.git("commit-tree", tree, "-p", tip, "-m", "relabel")).trim();
+    await repo.git("update-ref", LEDGER_REF, commit);
+
+    await assert.rejects(store.load(context), /factId mismatch/);
+  } finally {
+    await repo.cleanup();
+  }
+});
+
+test("a blob whose filename carries a valid-looking but wrong factId prefix is rejected (recompute, never filename-trust)", async () => {
+  const { repo, store } = await freshRepo();
+  try {
+    const context = ctx("worktree:wrongprefix");
+    await store.append(context, { type: "marked", ts: 1, atomHash: atom("a"), disposition: "done", author: human });
+    // The nonce-bearing filename now has the shape `<64-hex factId>.<nonce>.json`. Plant a fact whose
+    // filename leading segment is a structurally valid 64-hex hash — just NOT the hash of these bytes.
+    // The integrity check recomputes factId from the parsed bytes and compares to the prefix, so it
+    // rejects: `startsWith` trusts the recomputed content hash, never the (attacker-chosen) filename.
+    const wrongPrefix = "a".repeat(64);
+    const good = JSON.stringify({ type: "marked", ts: 2, atomHash: "b", disposition: "skipped", author: { tier: "human", reviewer: null } });
+    const blob = (await runGitStdin(["hash-object", "-w", "--stdin"], repo.dir, good)).trim();
+    const tip = (await repo.git("rev-parse", LEDGER_REF)).trim();
+    const baseTree = (await repo.git("rev-parse", `${LEDGER_REF}^{tree}`)).trim();
+    const idx = join(await mkdtemp(join(tmpdir(), "ledger-wrongprefix-")), "index");
+    const env = { GIT_INDEX_FILE: idx };
+    await runGitStdin(["read-tree", baseTree], repo.dir, "", env);
+    await runGitStdin(
+      ["update-index", "--add", "--cacheinfo", `100644,${blob},${contextHash(context)}/${wrongPrefix}.deadbeef.json`],
+      repo.dir,
+      "",
+      env,
+    );
+    const tree = (await runGitStdin(["write-tree"], repo.dir, "", env)).trim();
+    const commit = (await repo.git("commit-tree", tree, "-p", tip, "-m", "wrongprefix")).trim();
     await repo.git("update-ref", LEDGER_REF, commit);
 
     await assert.rejects(store.load(context), /factId mismatch/);

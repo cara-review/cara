@@ -6,14 +6,20 @@
 // Layout — `refs/cara/ledger` (an orphan commit chain, off the working tree and
 // off normal history):
 //
-//   refs/cara/ledger            (one commit per append)
-//   └── <contextHash>/          # per ReviewContext (same SHA-256 key as before)
-//       └── <factId>.json       # one MarkEvent; factId = hash of the canonical fact
+//   refs/cara/ledger                  (one commit per append)
+//   └── <contextHash>/                # per ReviewContext (same SHA-256 key as before)
+//       └── <factId>.<nonce>.json     # one MarkEvent; factId = hash of the canonical fact
 //
-// Content-addressing (factId = hash of the canonical bytes) dedupes identical
-// facts and keeps concurrent writers on disjoint paths, so two clones' ledgers
-// merge as a clean tree union (the concurrent-reviewer story). `load` re-checks
-// each blob's name against its factId, so a relabelled fact is rejected.
+// The filename pairs the content-address (factId = hash of the canonical bytes)
+// with a per-append random nonce. The factId proves integrity — `load` re-checks
+// each blob's bytes against its filename's leading segment, so a relabelled or
+// swapped fact is rejected — while the nonce keeps every append on a distinct path.
+// Two appends with byte-identical canonical facts (same atom, disposition and `ts`
+// under a fixed clock — a rapid identical re-mark) are GENUINELY DISTINCT events:
+// distinct nonces give them distinct paths, so both are preserved rather than one
+// silently dropped. Concurrent writers therefore never collide (disjoint nonces ⇒
+// disjoint paths), and two clones' ledgers still merge as a clean tree union (the
+// concurrent-reviewer story).
 //
 // Integrity caveat: a fact's author tier is ATTRIBUTED, not AUTHENTICATED. The
 // tier is stamped at the channel boundary on write (browser ⇒ human, CLI ⇒ agent;
@@ -38,7 +44,7 @@
 //   git config --add remote.origin.push 'refs/cara/*:refs/cara/*'
 //   git config --add remote.origin.fetch 'refs/cara/*:refs/cara/*'
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -64,9 +70,10 @@ const LEDGER_IDENTITY = {
 } as const;
 
 /**
- * Canonical bytes of a fact: JSON with object keys sorted recursively, so a
- * re-append of the same fact hashes identically (dedupe) regardless of source
- * key order. The factId is the SHA-256 of these bytes; the blob stores them too.
+ * Canonical bytes of a fact: JSON with object keys sorted recursively, so the
+ * factId is stable regardless of source key order. The factId is the SHA-256 of
+ * these bytes; the blob stores them verbatim (the filename's nonce is NOT in the
+ * blob), so the integrity check on load can recompute and match the leading segment.
  */
 function canonicalFact(event: MarkEvent): string {
   return JSON.stringify(sortKeys(event));
@@ -97,8 +104,9 @@ export class GitLedgerStore implements ReviewStore {
     const prefix = `${contextHash(context)}/`;
 
     // First-parent walk, oldest→newest = append order. For each commit, the one path
-    // it ADDED under this context's prefix is that append's fact (dedupe commits add
-    // nothing and are skipped). Reading the added blob per commit recovers total order.
+    // it ADDED under this context's prefix is that append's fact (commits whose added
+    // path is under another context are skipped). Reading the added blob per commit
+    // recovers total order.
     const shas = (await runGit(["rev-list", "--first-parent", "--reverse", tip], this.#cwd))
       .split("\n")
       .filter((line) => line !== "");
@@ -137,7 +145,7 @@ export class GitLedgerStore implements ReviewStore {
     // bytes and reject a relabelled or swapped blob — a cheap tamper check the content-addressing
     // affords (it does not authenticate the author tier; see header).
     const basename = path.slice(path.lastIndexOf("/") + 1);
-    if (basename !== `${factId(canonicalFact(parsed))}.json`) {
+    if (!(basename.startsWith(`${factId(canonicalFact(parsed))}.`) && basename.endsWith(".json"))) {
       throw new Error(`Corrupt ledger fact ${LEDGER_REF}:${path} (factId mismatch)`);
     }
     return parsed;
@@ -145,12 +153,15 @@ export class GitLedgerStore implements ReviewStore {
 
   async append(context: ReviewContext, event: MarkEvent): Promise<void> {
     const canonical = canonicalFact(event);
-    const path = `${contextHash(context)}/${factId(canonical)}.json`;
+    // factId addresses the content (integrity); the per-append nonce keeps every append on a
+    // distinct path, so two byte-identical facts are preserved as distinct events, not deduped
+    // to one. The nonce lives only in the filename — the blob stays pure canonical bytes.
+    const path = `${contextHash(context)}/${factId(canonical)}.${randomUUID()}.json`;
     const blob = (await runGitStdin(["hash-object", "-w", "--stdin"], this.#cwd, canonical)).trim();
 
     // CAS loop: build a commit on the current tip and swap the ref atomically. A
     // concurrent append moves the tip first → update-ref fails → rebuild on the new tip.
-    // Disjoint paths mean the rebuild always succeeds; an identical fact is a no-op.
+    // Disjoint paths (distinct nonces) mean the rebuild always succeeds.
     for (;;) {
       const tip = await this.#tip();
       const tree = await this.#treeWith(tip, path, blob);
@@ -171,7 +182,7 @@ export class GitLedgerStore implements ReviewStore {
     }
   }
 
-  /** The paths a commit ADDED (normally one — append is one blob per commit; a dedupe commit adds none). */
+  /** The paths a commit ADDED (always one — append writes exactly one blob per commit). */
   async #addedPaths(sha: string): Promise<readonly string[]> {
     const out = await runGit(
       ["diff-tree", "--no-commit-id", "--name-only", "--diff-filter=A", "-r", "--root", sha],
