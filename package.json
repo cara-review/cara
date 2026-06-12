@@ -27,7 +27,7 @@
     "apps/*"
   ],
   "bin": {
-    "cara": "./dist/index.js"
+    "cara": "dist/index.js"
   },
   "publishConfig": {
     "access": "public"
