@@ -1,0 +1,6 @@
+[install]
+# Hoist workspace packages and their deps into the root node_modules so the
+# root-level e2e harness (not itself a workspace) resolves @cara/* and @trpc/*.
+# Bun's newer lockfile default ("isolated") nests them per-workspace, which
+# breaks `tsc -p e2e/tsconfig.json`.
+linker = "hoisted"

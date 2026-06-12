@@ -12,7 +12,7 @@ Bun is a **convention**, not an architectural boundary — it changes how the pr
 
 - **Runtime:** Bun executes TypeScript natively. The `cara` bin is `#!/usr/bin/env bun`.
 - **Tests:** `bun test` replaces `node:test`. Specs import `test` from `bun:test`; assertions stay on `node:assert/strict` (Bun implements it). Discovery is scoped to `packages apps` so the Playwright e2e specs are not picked up.
-- **Package manager:** `bun install` with `bun.lock`. `package-lock.json` and npm are dropped.
+- **Package manager:** `bun install` with `bun.lock`. `package-lock.json` and npm are dropped. The root `bunfig.toml` pins `[install] linker = "hoisted"` so workspace packages and their deps land in the root `node_modules`; the root-level e2e harness (not itself a workspace) needs this to resolve `@cara/*` and `@trpc/*` under `tsc`. Bun's newer lockfile default ("isolated") nests them per-workspace and breaks `bun run typecheck:e2e`.
 - **Bundler / dev server:** the Bun bundler builds `apps/web` from an HTML entrypoint; Vite is dropped. Monaco workers are built as separate entrypoints (Bun does not auto-bundle `new Worker(new URL(...))`) and resolved relative to the loaded bundle.
 - **Quality gate:** the `pre-push` hook runs `bun run lint`, `bun run test`, and `bun run test:e2e` (`bun --bun playwright test`, so the suite's in-process Bun.serve boot runs on Bun).
 - **Dropped dependencies:** `ws`, Vite, npm.
