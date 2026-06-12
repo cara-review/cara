@@ -12,7 +12,15 @@
 //
 // Content-addressing (factId = hash of the canonical bytes) dedupes identical
 // facts and keeps concurrent writers on disjoint paths, so two clones' ledgers
-// merge as a clean tree union (the concurrent-reviewer story).
+// merge as a clean tree union (the concurrent-reviewer story). `load` re-checks
+// each blob's name against its factId, so a relabelled fact is rejected.
+//
+// Integrity caveat: a fact's author tier is ATTRIBUTED, not AUTHENTICATED. The
+// tier is stamped at the channel boundary on write (browser ⇒ human, CLI ⇒ agent;
+// ADR-0004) and carried verbatim, but anyone with write access to `refs/cara/ledger`
+// can plant a fact under any tier. The committed ledger proves what a writer claimed,
+// not who approved — a gate must treat tier as advisory until commit signing lands
+// (deferred fast-follow).
 //
 // The order wrinkle (TN-26-034): the fold (`project`) is order-dependent —
 // last-write-wins marks, and `commentId` is the ordinal among `commented`
@@ -102,6 +110,12 @@ export class GitLedgerStore implements ReviewStore {
       const raw = await runGit(["cat-file", "-p", `${sha}:${path}`], this.#cwd);
       const parsed: unknown = JSON.parse(raw);
       if (!isMarkEvent(parsed)) throw new Error(`Corrupt ledger fact ${LEDGER_REF}:${path}`);
+      // Content-address integrity: a fact's filename IS its factId. Recompute it from the
+      // canonical bytes and reject a relabelled or swapped blob — a cheap tamper check the
+      // content-addressing already affords (it does not authenticate the author tier; see header).
+      if (path !== `${prefix}${factId(canonicalFact(parsed))}.json`) {
+        throw new Error(`Corrupt ledger fact ${LEDGER_REF}:${path} (factId mismatch)`);
+      }
       events.push(parsed);
     }
     return events;

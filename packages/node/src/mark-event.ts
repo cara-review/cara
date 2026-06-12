@@ -2,6 +2,10 @@
 // Shared by every ReviewStore adapter so a fact read back from storage is proven
 // well-formed — tier-bearing where required — before it reaches core's `project`
 // fold. Wire shape lives at the adapter (ADR-0003); core never validates bytes.
+//
+// No legacy-missing-author branch (cf. the removed JsonlReviewStore): the committed
+// ledger format is new — every fact is author-bearing from its first commit, so a
+// missing author is plain corruption, not an older on-disk format to migrate.
 
 import type { MarkEvent } from "@clear-diff/core";
 
