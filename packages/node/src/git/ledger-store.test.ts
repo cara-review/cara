@@ -215,6 +215,30 @@ test("a tree merged from two disjoint ledger tips is a clean union of both facts
   }
 });
 
+test("a well-formed fact planted at a mismatched path is rejected on load (content-address integrity)", async () => {
+  const { repo, store } = await freshRepo();
+  try {
+    const context = ctx("worktree:relabel");
+    await store.append(context, { type: "marked", ts: 1, atomHash: atom("a"), disposition: "done", author: human });
+    // A structurally valid fact, but planted at a filename that is not its factId.
+    const good = JSON.stringify({ type: "marked", ts: 2, atomHash: "b", disposition: "skipped", author: { tier: "human", reviewer: null } });
+    const blob = (await runGitStdin(["hash-object", "-w", "--stdin"], repo.dir, good)).trim();
+    const tip = (await repo.git("rev-parse", LEDGER_REF)).trim();
+    const baseTree = (await repo.git("rev-parse", `${LEDGER_REF}^{tree}`)).trim();
+    const idx = join(await mkdtemp(join(tmpdir(), "ledger-relabel-")), "index");
+    const env = { GIT_INDEX_FILE: idx };
+    await runGitStdin(["read-tree", baseTree], repo.dir, "", env);
+    await runGitStdin(["update-index", "--add", "--cacheinfo", `100644,${blob},${contextHash(context)}/feed.json`], repo.dir, "", env);
+    const tree = (await runGitStdin(["write-tree"], repo.dir, "", env)).trim();
+    const commit = (await repo.git("commit-tree", tree, "-p", tip, "-m", "relabel")).trim();
+    await repo.git("update-ref", LEDGER_REF, commit);
+
+    await assert.rejects(store.load(context), /factId mismatch/);
+  } finally {
+    await repo.cleanup();
+  }
+});
+
 test("a structurally invalid fact in the ledger is rejected as corrupt on load", async () => {
   const { repo, store } = await freshRepo();
   try {
