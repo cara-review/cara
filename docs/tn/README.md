@@ -39,4 +39,5 @@ Read the `status` field before treating any TN as authoritative: `active` → au
 | [26-032](TN-26-032-cara-prior-art-survey.md) | CARA prior-art survey — does a content-addressed review attestation already exist? | research | active | #47 |
 | [26-034](TN-26-034-cara-ledger-implementation-design.md) | CARA ledger — implementation design (git-committed ReviewStore over refs/cara/ledger) | proposal | active | #47 |
 | [26-035](TN-26-035-ledger-gate-role-coverage.md) | Ledger gate + role coverage (no signing) — clear-diff operating off the committed ledger | plan | active | #47 |
+| [26-036](TN-26-036-repo-wide-coverage-and-fact-metadata.md) | Repo-wide coverage + fact metadata — design and plan | plan | active | #47 |
 | [26-037](TN-26-037-cara-rename-consolidation-publish-plan.md) | clear-diff → cara: consolidation, two ledger fixes, rename sweep, global install + publish-prep | plan | active | #47 |

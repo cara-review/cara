@@ -32,6 +32,11 @@ facts stay **attributed** (no signature this batch), the architect's CRITICALs a
 crypto-bearing domain fact / `verify` returning tier / wire-format-as-core-contract **do not
 bite** — there is no new port and no domain type change. They return when signing lands.
 
+> **Update (TN-26-037):** "no new port" held for *this* batch. The repo-wide coverage fast-follow
+> ([ADR-0014](../adr/0014-repo-wide-coverage.md)) later added one read-only port method —
+> `ReviewStore.loadAll()`, the cross-context fact union — over the same adapter. Still no
+> domain-type or write-path change; the addition is purely an unordered bulk read.
+
 Carried invariant ([ADR-0004](../adr/0004-agent-untrusted-master-list.md)): the ledger holds
 **facts keyed by `atomHash` only, never the atom set** — the master list is recomputed live from
 `DiffSource` every run. The new adapter must preserve this exactly as `JsonlReviewStore` does.
@@ -115,6 +120,11 @@ existing local logs (they are disposable runtime state, ADR-0005).
 Dependency: (1) settles contracts → (2) and (3) parallelise after, (3) consumes (2)'s adapter.
 
 ## Delivery
+
+> **Superseded by [TN-26-037](TN-26-037-cara-rename-consolidation-publish-plan.md):** the two
+> delivery constraints below — *never main* and *no rename* — were lifted once the ledger work
+> firmed up. TN-26-037 consolidates `feat/cara-ledger` onto `main` and renames clear-diff → cara.
+> The pre-push quality-gate rule (never `--no-verify`) still stands.
 
 - All work lands on **`feat/cara-ledger`** (worktrees branch off it, merge back to it) — **never
   main**. Pre-push hook is the quality gate; **never `--no-verify`**.
