@@ -12,7 +12,7 @@
 //   addressed | accounted | human | agent | <tier>:commented | <reviewer-label>   (all / total)
 // Coverage is exact (met/total ≥ threshold/100). Exit: 0 met, 1 not met, 2 indeterminate.
 
-import type { ReviewProgress } from "@cara/core";
+import type { DiffSpec, ReviewProgress } from "@cara/core";
 import { UserFacingError } from "../user-facing-error.ts";
 import { composeCore } from "../server/compose.ts";
 import { coreConfig, type VerbContext } from "./verbs.ts";
@@ -49,6 +49,7 @@ async function runContextGate(cmd: GateCommand, ctx: VerbContext, service: Revie
   const { context, progress } = await service.dispatch(cmd.spec);
   const requirements = cmd.requirements.map((req) => evaluate(req, progress));
   const pass = requirements.every((r) => r.pass);
+  const surplus = await crossContextSurplus(service, cmd.spec, progress);
   emit(ctx.io, {
     context,
     pass,
@@ -56,9 +57,26 @@ async function runContextGate(cmd: GateCommand, ctx: VerbContext, service: Revie
     coverage: coverageSummary(progress, cmd.requirements),
     requirements,
     progress,
-    next: gateNext(cmd.requirements.length, pass, requirements.filter((r) => !r.pass)),
+    next:
+      surplus > 0
+        ? NEXT.gateCrossContext(surplus)
+        : gateNext(cmd.requirements.length, pass, requirements.filter((r) => !r.pass)),
   });
   if (!pass) throw new GateNotMetError(failSummary(requirements.filter((r) => !r.pass)));
+}
+
+/**
+ * Atoms this context leaves unaddressed that the cross-context ledger union *would* credit.
+ * The self-narration guard (ADR-0011): a context gate at 0% while the ledger holds full
+ * coverage — facts recorded under each reviewer's own worktree context — reads as "reviews
+ * never landed" and sends the agent hunting a non-bug. When this context misses atoms the
+ * repo-wide fold covers, the `next` hint points at `--repo` (advisory at repo scale, §7).
+ * Only runs when the context gate is already incomplete — a fully-addressed gate pays nothing.
+ */
+async function crossContextSurplus(service: ReviewBackend, spec: DiffSpec, progress: ReviewProgress): Promise<number> {
+  if (progress.addressed >= progress.total) return 0;
+  const repo = await service.repoCoverage(spec);
+  return Math.max(0, repo.progress.addressed - progress.addressed);
 }
 
 /** `--repo`: coverage against the cross-context fact union over a baseline→target range (ADR-0014). */

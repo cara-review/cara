@@ -7,6 +7,7 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { makeReviewFixture } from "../support/fixture-repo.ts";
+import { makeTestRepo } from "../../packages/node/src/git/test-repo.ts";
 import { json, runBin } from "./support/run-bin.ts";
 
 interface AtomsView {
@@ -106,6 +107,46 @@ test("gate --repo --by-file reports repo-wide coverage off the cross-context uni
     assert.deepEqual([...gate.unseen], [], "every file has a fact");
   } finally {
     await fixture.cleanup();
+  }
+});
+
+test("a context gate that misses cross-context coverage signposts --repo (the Worthy footgun)", async () => {
+  // The trap: each reviewer submits from its own worktree (range r1); the trunk then moves
+  // (an unrelated commit) so the gate runs over r2 — same atoms, a different context. The
+  // context gate credits none of r1's facts and reads 0%, even though the ledger holds full
+  // coverage. Without a signpost this reads as "reviews never landed". It must point at --repo.
+  const repo = await makeTestRepo();
+  try {
+    await repo.write("src/x.ts", "export const a = 1;\nexport const b = 2;\n");
+    const base = await repo.commit("base");
+    await repo.write("src/x.ts", "export const a = 11;\nexport const b = 22;\n");
+    const head = await repo.commit("head");
+    const r1 = `${base}..${head}`;
+
+    // Review every atom under context r1 (a reviewer's own worktree range).
+    const hashes = json<AtomsView>(await runBin(["atoms", "--range", r1], repo.dir)).atoms.map((a) => a.hash);
+    const batch = JSON.stringify({ marks: hashes.map((hash) => ({ atomHash: hash, disposition: "done" })) });
+    await runBin(["submit", batch, "--range", r1], repo.dir);
+
+    // A no-op commit moves the trunk: identical atoms, a new context r2.
+    await repo.git("commit", "--allow-empty", "-q", "-m", "trunk moves");
+    const head2 = (await repo.git("rev-parse", "HEAD")).trim();
+    const r2 = `${base}..${head2}`;
+
+    const ctx = json<{ progress: { total: number; addressed: number }; next: string }>(
+      await runBin(["gate", "--range", r2], repo.dir),
+    );
+    assert.ok(ctx.progress.total > 0, "r2 has atoms to cover");
+    assert.equal(ctx.progress.addressed, 0, "the moved-trunk context credits none of r1's facts on its own");
+    assert.match(ctx.next, /--repo/, "the gate signposts --repo when the coverage lives in another context");
+
+    // And --repo actually credits them — proving the coverage was there all along.
+    const repoGate = json<{ progress: { total: number; addressed: number } }>(
+      await runBin(["gate", "--repo", "--range", r2], repo.dir),
+    );
+    assert.equal(repoGate.progress.addressed, repoGate.progress.total, "the cross-context union credits every atom");
+  } finally {
+    await repo.cleanup();
   }
 });
 

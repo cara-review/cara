@@ -86,6 +86,8 @@ export const NEXT = {
     `${missing} ${missing === 1 ? "atom" : "atoms"} unaccounted. Mark or comment each, then resubmit: cara submit '<batch-json>' ${SPEC}  ${PAYLOAD}`,
   gateReadout:
     "Coverage only (no bar set). Enforce with: cara gate --require <role>=<percent>% (e.g. security=100%,human>=50%).",
+  gateCrossContext: (n: number) =>
+    `${n} ${n === 1 ? "atom is" : "atoms are"} unaddressed in this review's context but already reviewed under other contexts in the ledger (e.g. each agent's own worktree). Count cross-context coverage with: cara gate --repo ${SPEC}  (advisory, unsigned — ADR-0014 §7).`,
   gatePass: "Review gate met — every required role cleared its bar. Safe to proceed / merge.",
   gateFail: (roles: readonly string[]) =>
     `Review gate not met: ${roles.join(", ")} below bar. Have the missing role(s) review the unaddressed atoms, then re-run: cara gate.`,
