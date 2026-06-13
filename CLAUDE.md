@@ -111,7 +111,7 @@ Read by `do-push`. Authoritative.
 
 ## Worktrees
 
-`git worktree add <path> -b <branch> main` (new branch always). Path: `../clear-diff-worktrees/<issue>-<slug>`. Never check out `main` (or any primary branch) inside a worktree — locks the primary worktree out.
+`git worktree add <path> -b <branch> main` (new branch always). Path: `../cara-worktrees/<issue>-<slug>`. Never check out `main` (or any primary branch) inside a worktree — locks the primary worktree out.
 
 ## Issue sizing
 
