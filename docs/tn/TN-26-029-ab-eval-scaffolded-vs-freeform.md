@@ -86,4 +86,8 @@ One datapoint, pointed two ways: it confirms the scaffold delivers what TN-26-02
 
 ## Artifacts
 
-Ephemeral, outside the repo (`~/dev/clear-diff-tmp/ab-test/`): `comparison.md` (judge), `arm-a-report.md` + `arm-a-dispatch.json` (10 comments, `accounted: 269`), `arm-b-report.md` (13 findings, 95% self-assessment), `master-atoms.json` (269-atom master list). Key evidence inlined above; the TN stands alone.
+Ephemeral, outside the repo (`~/dev/cara-tmp/ab-test/`): `comparison.md` (judge), `arm-a-report.md` + `arm-a-dispatch.json` (10 comments, `accounted: 269`), `arm-b-report.md` (13 findings, 95% self-assessment), `master-atoms.json` (269-atom master list). Key evidence inlined above; the TN stands alone.
+
+---
+
+*2026-06-14 — name sweep: `clear-diff` → `cara`, rewritten for consistency. The pre-rename name survives in git history.*

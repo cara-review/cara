@@ -18,7 +18,7 @@ Read the `status` field before treating any TN as authoritative: `active` → au
 | [26-010](TN-26-010-web-diff-surface.md) | Web — diff surface, marking, keyboard navigation | plan | active | #12 |
 | [26-011](TN-26-011-e2e-playwright-suite.md) | End-to-end Playwright test suite | plan | active | #22 |
 | [26-012](TN-26-012-anthropic-agent-adapter.md) | Real Claude (Sonnet) AgentPort adapter | plan | superseded (→26-026) | #18 |
-| [26-013](TN-26-013-project-guidance-clear-diff-md.md) | Project guidance — clear-diff.md → InstructionsSource → AgentPort | plan | superseded (→26-026) | #26 |
+| [26-013](TN-26-013-project-guidance-clear-diff-md.md) | Project guidance — CARA.md → InstructionsSource → AgentPort | plan | superseded (→26-026) | #26 |
 | [26-015](TN-26-015-monaco-diff-surface.md) | Monaco-based diff surface | proposal | active | #27 |
 | [26-016](TN-26-016-comments-composer-commentsink-port.md) | Comments, composer, CommentSink port, and Go dispatch | proposal | superseded (→26-026) | #14 |
 | [26-017](TN-26-017-bun-trpc-toolchain-transport.md) | Bun + tRPC toolchain and transport rework | proposal | active | #23 |
