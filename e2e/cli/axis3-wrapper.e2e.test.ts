@@ -116,7 +116,7 @@ test("git-order mode floors the grouping and needs no LLM (human answers their o
       { verb: "review", spec: parseRange(fixture.range), headless: false, reviewers: [], fake: false },
       {
         cwd: fixture.dir,
-        stateDir: join(fixture.dir, ".agent-state", "reviews"),
+        stateDir: join(fixture.dir, ".git", "cara", "reviews"),
         home,
         io: { write: (t) => out.push(t), readStdin: () => Promise.resolve("") },
         bootServer: () => Promise.resolve({ url: "http://127.0.0.1:0" }),
@@ -128,7 +128,7 @@ test("git-order mode floors the grouping and needs no LLM (human answers their o
 
     // The grouping persisted for the browser is the git-order floor: one "Other changes" chapter.
     const grouping = JSON.parse(
-      await readFile(groupingPath(join(fixture.dir, ".agent-state", "reviews"), result.context as ReviewContext), "utf8"),
+      await readFile(groupingPath(join(fixture.dir, ".git", "cara", "reviews"), result.context as ReviewContext), "utf8"),
     ) as { chapters: { title: string }[] };
     assert.equal(grouping.chapters.length, 1);
     assert.equal(grouping.chapters[0]?.title, "Other changes");

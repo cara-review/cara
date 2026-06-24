@@ -50,7 +50,7 @@ async function bootSession() {
     url: server.url,
     dir: fixture.dir,
     range: fixture.range,
-    stateDir: join(fixture.dir, ".agent-state", "reviews"),
+    stateDir: join(fixture.dir, ".git", "cara", "reviews"),
     context: snapshot.context,
     spec,
     firstHash: snapshot.review.masterList[0]!.hash,

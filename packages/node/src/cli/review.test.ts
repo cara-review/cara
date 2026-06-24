@@ -197,7 +197,7 @@ test("git-order floor threads requireSummaries:false to the boot (ADR-0012 §1 �
 test("the misses-twice floor hands off to a live server with requireSummaries:false (ADR-0012 §1)", async () => {
   const { repo, range } = await twoAtomRepo();
   const home = await makeHome(LLM_CONFIG);
-  const stateDir = join(repo.dir, ".agent-state", "reviews");
+  const stateDir = join((await repo.git("rev-parse", "--absolute-git-dir")).trim(), "cara", "reviews");
   const [b, h] = range.split("..");
   const spec = { kind: "range" as const, base: b!, head: h! };
   try {
@@ -270,7 +270,7 @@ class ReshapeRecordingLlm extends FakeLlm {
 test("a human reshape request drives a re-group and a live hand-off (not a re-boot)", async () => {
   const { repo, range } = await twoAtomRepo();
   const home = await makeHome(LLM_CONFIG);
-  const stateDir = join(repo.dir, ".agent-state", "reviews");
+  const stateDir = join((await repo.git("rev-parse", "--absolute-git-dir")).trim(), "cara", "reviews");
   // A shared advancing clock: the reshape request must land with a ts AFTER the initial
   // present, so the porcelain sees it as pending when it polls `done`.
   let tick = 1000;

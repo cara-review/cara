@@ -396,7 +396,8 @@ async function contextFor(repo: TestRepo, range: string): Promise<string> {
   return cap.json()["context"] as string;
 }
 
-const stateDirOf = (repo: TestRepo) => join(repo.dir, ".agent-state", "reviews");
+const stateDirOf = async (repo: TestRepo) =>
+  join((await repo.git("rev-parse", "--absolute-git-dir")).trim(), "cara", "reviews");
 
 // --- present: single server per context (ADR-0012 §4) ------------------------
 
@@ -406,7 +407,7 @@ test("present hands a live server the new grouping (live-refresh), never booting
     const hash = await atomHash(repo, range);
     const context = await contextFor(repo, range);
     // A live server for this context: our own pid is unmistakably alive.
-    await writeDiscovery(stateDirOf(repo), context as never, { url: "http://127.0.0.1:9123", pid: process.pid, ts: 1 });
+    await writeDiscovery(await stateDirOf(repo), context as never, { url: "http://127.0.0.1:9123", pid: process.pid, ts: 1 });
 
     let handedTo: string | null = null;
     let booted = false;
@@ -440,7 +441,7 @@ test("present cleans a stale discovery record (dead pid) and boots a fresh serve
   try {
     const hash = await atomHash(repo, range);
     const context = await contextFor(repo, range);
-    await writeDiscovery(stateDirOf(repo), context as never, { url: "http://dead", pid: await deadPid(), ts: 1 });
+    await writeDiscovery(await stateDirOf(repo), context as never, { url: "http://dead", pid: await deadPid(), ts: 1 });
 
     let handed = false;
     let booted = false;
@@ -464,7 +465,7 @@ test("present cleans a stale discovery record (dead pid) and boots a fresh serve
     assert.equal(handed, false);
     assert.equal(booted, true);
     // The stale record was removed; the fake boot writes no new one, so discovery is clean.
-    assert.equal(await readDiscovery(stateDirOf(repo), context as never), null);
+    assert.equal(await readDiscovery(await stateDirOf(repo), context as never), null);
   } finally {
     await repo.cleanup();
   }
@@ -496,7 +497,7 @@ test("two presents converge on one server: the second hands off, never booting a
   try {
     const hash = await atomHash(repo, range);
     const context = await contextFor(repo, range);
-    const stateDir = stateDirOf(repo);
+    const stateDir = await stateDirOf(repo);
 
     let boots = 0;
     let handoffs = 0;

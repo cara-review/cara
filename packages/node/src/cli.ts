@@ -12,6 +12,7 @@ import { runAtoms, runDispatch, runHelp, runInstructions, runPresent, runSubmit,
 import { runGate } from "./cli/gate.ts";
 import { runServe } from "./cli/serve.ts";
 import { composeOverrides } from "./server/compose.ts";
+import { runGit } from "./git/run.ts";
 // Type-only — erased at build, so the plumbing path never loads the LLM/porcelain modules.
 import type { PorcelainLlm } from "./cli/llm.ts";
 import type { ReviewWait } from "./cli/review.ts";
@@ -51,7 +52,7 @@ export interface CliDeps {
 export async function runCli(argv: readonly string[], deps: CliDeps = {}): Promise<void> {
   const cmd = parseCommand(argv);
   const cwd = deps.cwd ?? process.cwd();
-  const ctx: VerbContext = buildContext(cwd, deps);
+  const ctx: VerbContext = await buildContext(cwd, deps);
 
   switch (cmd.verb) {
     case "atoms":
@@ -84,10 +85,16 @@ export async function runCli(argv: readonly string[], deps: CliDeps = {}): Promi
   }
 }
 
-function buildContext(cwd: string, deps: CliDeps): VerbContext {
+async function buildContext(cwd: string, deps: CliDeps): Promise<VerbContext> {
+  // Scratch (grouping, server discovery, comment exports) lives inside git's own
+  // dir — git never shows or commits anything there, so a project needs no
+  // `.gitignore` entry. `--absolute-git-dir` resolves the per-worktree gitdir, so
+  // parallel worktree reviews never collide. Durable facts live in `refs/cara/ledger`
+  // alongside; both keep cara state inside `.git`, off the working tree.
+  const gitDir = (await runGit(["rev-parse", "--absolute-git-dir"], cwd)).trim();
   return {
     cwd,
-    stateDir: join(cwd, ".agent-state", "reviews"),
+    stateDir: join(gitDir, "cara", "reviews"),
     home: deps.home ?? homedir(),
     io: deps.io ?? systemIo,
     ...(deps.config ? { config: deps.config } : {}),
