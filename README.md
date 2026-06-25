@@ -21,13 +21,14 @@ Every other AI reviewer puts the LLM **inside** the trust boundary — it both r
 ```bash
 # Install (the package is scoped; the command is `cara`):
 npm i -g @cara-review/cara
+cara init                  # one-time: write ~/.cara/config.toml (interactive)
 cara review                # in any git repo with uncommitted changes
 
 # …or one-off without installing:
 npx @cara-review/cara review
 ```
 
-`cara review` calls an LLM to group the diff, then opens the review in a browser. It needs `~/.cara/config.toml` (below) and the configured API key in your environment.
+`cara review` calls an LLM to group the diff, then opens the review in a browser. It needs `~/.cara/config.toml` (below) and the configured API key in your environment. Run `cara init` once to create the config.
 
 ## Agent setup
 
@@ -87,6 +88,8 @@ Each headless reviewer's marks carry its `--reviewer` label, so several lenses (
 
 ## Config — `~/.cara/config.toml`
 
+`cara init` writes this interactively (grouping mode, provider/model, key env-var name, editor); re-run with `--force` to overwrite. Or hand-write it:
+
 ```toml
 [grouping]
 mode = "llm"            # "llm" (bundled wrapper) | "git-order" (floor, no LLM)
@@ -104,7 +107,7 @@ No silent fallbacks — behaviour is configured, never inferred:
 
 | State | Bare `cara review` |
 |---|---|
-| No config | Loud error with a paste-ready minimal config |
+| No config | Loud error pointing at `cara init` |
 | `llm`, key resolves | Full semantic review |
 | `llm`, key missing | Loud error at the LLM call — never auto-drops to floor |
 | `git-order` | Floor, by choice — no nag |

@@ -4,7 +4,7 @@
 // grouping mode, names the LLM provider/model and the env var that *names* the key
 // (never the key itself — keys live in the environment, resolved lazily at the LLM
 // call), and carries the editor command for the core ConfigPort. No silent fallbacks:
-// a missing file is a loud error carrying a paste-ready minimal config.
+// a missing file is a loud error pointing at `cara init`.
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -22,31 +22,35 @@ export function configPath(home: string): string {
   return join(home, ".cara", "config.toml");
 }
 
-const MINIMAL_CONFIG = `[grouping]
-mode = "llm"            # "llm" | "git-order"
+/** Render a validated config back to TOML — the inverse of `coerceConfig`, used by `cara init`. */
+export function serializeConfig(config: PorcelainConfig): string {
+  // TOML basic strings share JSON's escape rules for our inputs, so JSON.stringify
+  // yields a safe quoted value even if a field carries a quote or backslash.
+  const quote = (value: string): string => JSON.stringify(value);
+  const lines = ["[grouping]", `mode = ${quote(config.grouping.mode)}`, ""];
+  if (config.llm !== null) {
+    lines.push(
+      "[llm]",
+      `provider = ${quote(config.llm.provider)}`,
+      `model = ${quote(config.llm.model)}`,
+      `api_key_env = ${quote(config.llm.apiKeyEnv)}`,
+      "",
+    );
+  }
+  if (config.editor.command !== null) {
+    lines.push("[editor]", `command = ${quote(config.editor.command)}`, "");
+  }
+  return lines.join("\n");
+}
 
-[llm]
-provider = "anthropic"
-model = "claude-sonnet-4-6"
-api_key_env = "ANTHROPIC_API_KEY"   # env var NAME — never the key itself
-
-[editor]
-command = "code"
-`;
-
-/** Load + validate the porcelain config, or fail loudly with a paste-ready sample. */
+/** Load + validate the porcelain config, or fail loudly pointing at `cara init`. */
 export async function loadPorcelainConfig(home: string): Promise<PorcelainConfig> {
   const path = configPath(home);
   let raw: string;
   try {
     raw = await readFile(path, "utf8");
   } catch {
-    throw new CliError(
-      `No cara config at ${path}.\n` +
-        `cara review needs one. Create it:\n\n` +
-        `  mkdir -p ${join(home, ".cara")}\n` +
-        `  cat > ${path} <<'TOML'\n${MINIMAL_CONFIG}TOML\n`,
-    );
+    throw new CliError(`No cara config at ${path}. Run \`cara init\` to create one.`);
   }
   let parsed: unknown;
   try {

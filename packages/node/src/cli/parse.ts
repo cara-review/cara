@@ -46,6 +46,11 @@ export interface SubmitCommand {
 export interface InstructionsCommand {
   readonly verb: "instructions";
 }
+export interface InitCommand {
+  readonly verb: "init";
+  /** Overwrite an existing config. Default refuses, to protect a hand-tuned file. */
+  readonly force: boolean;
+}
 export interface HelpCommand {
   readonly verb: "help";
   /** A verb name for per-verb usage, or null for the root banner. */
@@ -94,15 +99,16 @@ export type Command =
   | DispatchCommand
   | SubmitCommand
   | InstructionsCommand
+  | InitCommand
   | HelpCommand
   | GateCommand
   | ReviewCommand
   | ServeCommand;
 
-const VERBS = new Set(["atoms", "present", "dispatch", "submit", "instructions", "gate", "review", "serve"]);
+const VERBS = new Set(["atoms", "present", "dispatch", "submit", "instructions", "init", "gate", "review", "serve"]);
 
 /** Verbs a `cara <verb> --help` / `cara help <verb>` topic may name (serve is internal). */
-const HELP_TOPICS = new Set(["atoms", "present", "dispatch", "submit", "instructions", "gate", "review"]);
+const HELP_TOPICS = new Set(["atoms", "present", "dispatch", "submit", "instructions", "init", "gate", "review"]);
 
 /** Split argv into options (`--flag` / `--flag value`) and positionals, per a flag spec. */
 interface Flags {
@@ -294,6 +300,12 @@ export function parseCommand(argv: readonly string[]): Command {
       rejectUnknownBool(flags.bool, new Set());
       if (flags.positional.length > 0) throw new CliError("instructions takes no arguments.");
       return { verb: "instructions" };
+    }
+    case "init": {
+      const flags = splitFlags(args, new Set());
+      rejectUnknownBool(flags.bool, new Set(["force"]));
+      if (flags.positional.length > 0) throw new CliError("init takes no positional arguments.");
+      return { verb: "init", force: flags.bool.has("force") };
     }
     case "gate": {
       const flags = splitFlags(args, new Set(["range", "require"]));

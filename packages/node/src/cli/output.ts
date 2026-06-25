@@ -5,6 +5,7 @@
 // `present` grouping schema and can never drift from the wire shapes they describe.
 
 import { readFile } from "node:fs/promises";
+import { createInterface } from "node:readline";
 import type { PayloadSource } from "./parse.ts";
 import { CliError } from "./parse.ts";
 
@@ -22,6 +23,55 @@ export const systemIo: CliIo = {
     return Buffer.concat(chunks).toString("utf8");
   },
 };
+
+/** One-question-at-a-time prompt seam for interactive setup (`cara init`); injected in tests. */
+export interface Prompter {
+  /** Ask one question; an empty answer falls back to `opts.default` when given. Returns trimmed. */
+  ask(question: string, opts?: { default?: string }): Promise<string>;
+  close(): void;
+}
+
+/**
+ * The real prompter over readline. Only constructed for `cara init`, never the agent path.
+ * Lines are queued as they arrive so burst/piped input is never dropped between questions
+ * (the classic readline read-ahead loss), and EOF resolves any pending ask to "" — so a
+ * partially-piped `cara init` simply falls back to defaults rather than hanging.
+ */
+export function makeSystemPrompter(): Prompter {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const queue: string[] = [];
+  let pending: ((line: string) => void) | null = null;
+  let closed = false;
+  // Hand a line to a waiting ask if one is parked, else buffer it for the next ask.
+  const deliver = (line: string): void => {
+    const resolve = pending;
+    pending = null;
+    if (resolve) resolve(line);
+    else queue.push(line);
+  };
+  rl.on("line", deliver);
+  rl.on("close", () => {
+    closed = true;
+    if (pending) deliver(""); // EOF wakes a parked ask with a blank → its default
+  });
+  const nextLine = (): Promise<string> => {
+    const queued = queue.shift();
+    if (queued !== undefined) return Promise.resolve(queued);
+    if (closed) return Promise.resolve("");
+    return new Promise((resolve) => {
+      pending = resolve;
+    });
+  };
+  return {
+    ask: async (question, opts) => {
+      const def = opts?.default;
+      process.stdout.write(`${question}${def !== undefined ? ` [${def}]` : ""}: `);
+      const answer = (await nextLine()).trim();
+      return answer === "" && def !== undefined ? def : answer;
+    },
+    close: () => rl.close(),
+  };
+}
 
 /** Print one JSON object (pretty, newline-terminated) to stdout. */
 export function emit(io: CliIo, value: unknown): void {
@@ -151,6 +201,7 @@ export const HELP: string = [
   "  gate [--require …]     role coverage as a CI pass/fail bar (exits non-zero when unmet)",
   "  instructions           the full agent protocol + grouping rubric — read this first",
   "  review                 porcelain: cara groups and reviews for you (the only API-key path)",
+  "  init                   interactive setup — write ~/.cara/config.toml (for the review porcelain)",
   "",
   "Run `cara instructions` for the complete protocol, or `cara <verb> --help` for one verb.",
 ].join("\n");
@@ -190,5 +241,10 @@ export const USAGE: Record<string, string> = {
     `cara review [<base>..<head>] [--headless] [--reviewer <label>]… [--fake]`,
     "Porcelain: cara groups and drives the review itself — the only path that uses an API key.",
     "--headless is autonomous (no browser); --reviewer adds a labelled lens; --fake uses the stub LLM.",
+  ].join("\n"),
+  init: [
+    "cara init [--force]",
+    "Interactive first-run setup — writes ~/.cara/config.toml (grouping mode, provider/model, key env var, editor).",
+    "Refuses to overwrite an existing config without --force.",
   ].join("\n"),
 };

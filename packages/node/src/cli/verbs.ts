@@ -185,14 +185,14 @@ export async function runSubmit(cmd: SubmitCommand, ctx: VerbContext): Promise<v
   });
 }
 
-export async function runInstructions(ctx: VerbContext): Promise<void> {
-  const instructions = await new FileInstructions(homedir(), ctx.cwd).load();
-  ctx.io.write(`${buildMethodology(instructions)}\n\n${VERB_REFERENCE}\n`);
+export async function runInstructions(cwd: string, io: CliIo): Promise<void> {
+  const instructions = await new FileInstructions(homedir(), cwd).load();
+  io.write(`${buildMethodology(instructions)}\n\n${VERB_REFERENCE}\n`);
 }
 
 /** The help banner (`topic` null) or one verb's usage. Plain text, like `instructions`. */
-export function runHelp(topic: string | null, ctx: VerbContext): void {
-  ctx.io.write(`${topic !== null ? (USAGE[topic] ?? HELP) : HELP}\n`);
+export function runHelp(topic: string | null, io: CliIo): void {
+  io.write(`${topic !== null ? (USAGE[topic] ?? HELP) : HELP}\n`);
 }
 
 /** `dispatch`'s next hint: a pending human Reshape redirects the agent to re-present. */

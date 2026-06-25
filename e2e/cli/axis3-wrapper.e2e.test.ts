@@ -74,7 +74,7 @@ test("headless multi-reviewer converges over the bin with the stub LLM (no netwo
   }
 });
 
-test("a missing config is a loud error carrying a paste-ready sample", async () => {
+test("a missing config is a loud error pointing at `cara init`", async () => {
   const fixture = await makeReviewFixture();
   const home = await makeHome(null);
   try {
@@ -83,7 +83,7 @@ test("a missing config is a loud error carrying a paste-ready sample", async () 
     });
     assert.equal(run.code, 1);
     assert.match(run.err, /No cara config/);
-    assert.match(run.err, /\[grouping\]/); // the paste-ready TOML sample
+    assert.match(run.err, /cara init/); // the loud error now points at the setup verb
   } finally {
     await fixture.cleanup();
     await rm(home, { recursive: true, force: true });

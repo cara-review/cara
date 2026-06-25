@@ -7,8 +7,9 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ClockPort, ConfigPort, ReviewContext } from "@cara/core";
 import { parseCommand, type PresentCommand } from "./cli/parse.ts";
-import { systemIo, type CliIo } from "./cli/output.ts";
+import { makeSystemPrompter, systemIo, type CliIo, type Prompter } from "./cli/output.ts";
 import { runAtoms, runDispatch, runHelp, runInstructions, runPresent, runSubmit, type VerbContext } from "./cli/verbs.ts";
+import { runInit } from "./cli/init.ts";
 import { runGate } from "./cli/gate.ts";
 import { runServe } from "./cli/serve.ts";
 import { composeOverrides } from "./server/compose.ts";
@@ -46,13 +47,30 @@ export interface CliDeps {
   readonly makeLlm?: () => PorcelainLlm;
   /** Porcelain wait override for the human-in-loop poll (injected in tests). */
   readonly waitOnce?: ReviewWait;
+  /** Interactive prompt seam for `cara init` (injected in tests; default = readline). */
+  readonly prompter?: Prompter;
 }
 
 /** Parse argv (without node/script) and run the matching verb. */
 export async function runCli(argv: readonly string[], deps: CliDeps = {}): Promise<void> {
   const cmd = parseCommand(argv);
   const cwd = deps.cwd ?? process.cwd();
-  const ctx: VerbContext = await buildContext(cwd, deps);
+  const io = deps.io ?? systemIo;
+  const home = deps.home ?? homedir();
+
+  // Repo-free verbs — usable outside a git repo (a fresh install, before `cd`): they
+  // never touch the ledger or the scratch dir, so they skip the git-dir resolution
+  // every other verb needs.
+  switch (cmd.verb) {
+    case "help":
+      return runHelp(cmd.topic, io);
+    case "instructions":
+      return runInstructions(cwd, io);
+    case "init":
+      return runInit(home, io, deps.prompter ?? makeSystemPrompter(), cmd.force);
+  }
+
+  const ctx: VerbContext = await buildContext(cwd, io, home, deps);
 
   switch (cmd.verb) {
     case "atoms":
@@ -63,10 +81,6 @@ export async function runCli(argv: readonly string[], deps: CliDeps = {}): Promi
       return runDispatch(cmd, ctx);
     case "submit":
       return runSubmit(cmd, ctx);
-    case "instructions":
-      return runInstructions(ctx);
-    case "help":
-      return runHelp(cmd.topic, ctx);
     case "gate":
       return runGate(cmd, ctx);
     case "serve":
@@ -85,7 +99,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps = {}): Promi
   }
 }
 
-async function buildContext(cwd: string, deps: CliDeps): Promise<VerbContext> {
+async function buildContext(cwd: string, io: CliIo, home: string, deps: CliDeps): Promise<VerbContext> {
   // Scratch (grouping, server discovery, comment exports) lives inside git's own
   // dir — git never shows or commits anything there, so a project needs no
   // `.gitignore` entry. `--absolute-git-dir` resolves the per-worktree gitdir, so
@@ -95,8 +109,8 @@ async function buildContext(cwd: string, deps: CliDeps): Promise<VerbContext> {
   return {
     cwd,
     stateDir: join(gitDir, "cara", "reviews"),
-    home: deps.home ?? homedir(),
-    io: deps.io ?? systemIo,
+    home,
+    io,
     ...(deps.config ? { config: deps.config } : {}),
     ...(deps.clock ? { clock: deps.clock } : {}),
     ...(deps.bootServer ? { bootServer: deps.bootServer } : {}),
